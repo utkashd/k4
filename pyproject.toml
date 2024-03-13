@@ -1,0 +1,45 @@
+[project]
+name = "fred"
+version = "0.0.1"
+readme = "README.md"
+# license = { text = "MIT License" }
+dependencies = [
+    "transformers[torch] >= 4.31",
+    "openai >= 1.11.1",
+    "pydantic >= 2.0", # def works with 2.6
+    "rich >= 13.7",
+    "langchain >= 0.1.8",
+    "langchain-openai >= 0.0.6",
+    "langchainhub >= 0.1.14",
+    "HomeAssistant-API >= 4.2.1"
+]
+requires-python = ">=3.11"
+
+[project.optional-dependencies]
+dev = [
+    "ruff >= 0.3.0",
+    "mypy >= 1.8.0",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.package-data]
+"fred" = ["py.typed"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.mypy]
+strict = true
+ignore_missing_imports = true # necessary for `transformers`. See https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-library-stubs-or-py-typed-marker
+incremental = true
+
+[build-system]
+requires = ["setuptools >= 40.6.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project.urls]
+# Homepage = "https://github.com/kddubey/pretrain-on-test"
+# Repository = "https://github.com/kddubey/pretrain-on-test.git"
+# Issues = "https://github.com/kddubey/pretrain-on-test/issues"

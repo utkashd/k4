@@ -1,0 +1,11 @@
+{
+    "editor.formatOnSave": true,
+    "editor.rulers": [88],
+    "[json]": {
+        "editor.defaultFormatter": "vscode.json-language-features"
+    },
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff"
+    },
+    "rewrap.autoWrap.enabled": true
+}

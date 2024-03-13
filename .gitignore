@@ -1,0 +1,15 @@
+.DS_Store
+*.pyc
+*.egg-info/
+__pycache__/
+
+# files for the vector store
+*_strings.json
+*_embeddings.pt
+
+tmp/*
+
+.dmypy.json
+
+build/
+dist/
