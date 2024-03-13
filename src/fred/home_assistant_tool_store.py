@@ -5,6 +5,7 @@ from urllib.parse import urljoin
 from langchain.tools import BaseTool
 from langchain.pydantic_v1 import BaseModel
 from fred.errors import FredError
+from fred.vector_store import VectorStore
 
 log = logging.getLogger("fred")
 
@@ -25,25 +26,28 @@ def create_hass_service_entity_tool(
     hass_client: Client,
     service: Service,
     entity: Entity,
-    domain_id: str,
+    domain: Domain,
     entity_friendly_name: str,
 ) -> type[BaseTool]:
     class HassServiceEntityToolArgs(BaseModel):
         pass
 
     class HassServiceEntityTool(BaseTool):
-        name: str
-        description: str
+        name: str = f"{service.service_id}_{entity.entity_id.replace('.', '_')}"  # OpenAI doesn't like periods in tool (function) names
+        description: str = f'For {entity_friendly_name}: {service.description or "[description not found]"}'
         return_direct: bool = True
         args_schema: type[BaseModel] = HassServiceEntityToolArgs
 
+        def get_description_for_vector_store(self) -> str:
+            return self.description
+
         def _run(_s) -> str:
             hass_client.trigger_service(
-                domain=domain_id,
+                domain=domain.domain_id,
                 service=service.service_id,
                 entity_id=entity.entity_id,
             )
-            return f"Successfully called {service.service_id} on {entity_friendly_name}"
+            return f"Successfully called {domain.domain_id}.{service.service_id} on {entity_friendly_name}"
 
     return HassServiceEntityTool
 
@@ -59,11 +63,16 @@ class HomeAssistantToolStore:
             token=hass_token,
         )
 
-        self.tools: list[BaseTool] = []
+        self.vector_store = VectorStore("hass_tools")
         self.domains: dict[str, Domain] = {}
         self.entities: dict[str, Group] = {}
+        self.tools: list[BaseTool] = []
 
+        self._get_domains()
+        self._get_entities()
         self._create_tools()
+
+        self.vector_store.generate_embeddings_and_save_embeddings_to_db([self.tools])
 
     def _get_hass_token(self, hass_token: str) -> str:
         if hass_token == "":
@@ -115,7 +124,7 @@ class HomeAssistantToolStore:
                                 self.hass_client,
                                 service,
                                 entity,
-                                domain_id,
+                                domain,
                                 entity_friendly_name,
                             )
                             tools.append(

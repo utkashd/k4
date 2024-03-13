@@ -4,8 +4,8 @@
 __pycache__/
 
 # files for the vector store
-*_strings.json
-*_embeddings.pt
+*_vector_store_items.json
+*_vector_store_embeddings.pt
 
 tmp/*
 

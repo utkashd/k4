@@ -1,22 +1,32 @@
 import os
+from typing import Any
 from transformers import AutoTokenizer, AutoModel, PreTrainedModel
 import torch
-from pydantic import BaseModel
+from pydantic import BaseModel, RootModel
 import json
 import logging
 
 log = logging.getLogger("fred")
 
 
+class VectorStoreItem(BaseModel):
+    item_str: str
+    metadata: Any = None
+
+
+class VectorStoreItems(RootModel):  # type: ignore[type-arg]
+    root: list[VectorStoreItem]
+
+
 class RelevanceSearchSingleResult(BaseModel):
-    string: str
+    item: VectorStoreItem
     relevance: float
     "TODO: description for relevance"
 
 
 class RelevanceSearchResult(BaseModel):
-    query_string: str
-    relevant_strings_and_scores: list[RelevanceSearchSingleResult]
+    query_item: VectorStoreItem
+    relevant_items_and_scores: list[RelevanceSearchSingleResult]
 
 
 class VectorStore:
@@ -26,7 +36,7 @@ class VectorStore:
     ):
         # TODO validate the name (ensure it can be a filename, etc)
         self.name = name
-        self._has_db_changed_since_saving_to_disk = False
+        self._has_db_changed_since_last_save = False
 
         log.info(f"Initializing {self}...")
         log.info("Loading the model from HuggingFace Hub...")
@@ -39,53 +49,60 @@ class VectorStore:
 
         self.tokenizer = AutoTokenizer.from_pretrained("BAAI/bge-small-en-v1.5")
 
-        self.strings_filename = f"{name}_strings.json"
-        log.info(f"Loading any existing strings from {self.strings_filename}...")
-        if os.path.exists(self.strings_filename):
-            with open(self.strings_filename, "r") as strings_file:
-                self.strings: list[str] = json.load(strings_file)
-        else:
-            self.strings = []
-
-        self.embeddings_filename = f"{name}_embeddings.pt"
-        log.info(
-            f"Loading any existing embedding data from {self.embeddings_filename}..."
+        self.items_filename = f"{name}_vector_store_items.json"
+        self.items: list[VectorStoreItem] = self._get_vector_store_items_from_file(
+            self.items_filename
         )
-        if os.path.exists(self.embeddings_filename):
-            self.embeddings: torch.Tensor = torch.load(self.embeddings_filename)
-            if len(self.strings) != len(self.embeddings):
-                # if I manually changed the strings for testing purposes, regenerate the
-                # embeddings from scratch
-                log.info(
-                    f"Detected a difference in length between {self.strings_filename} "
-                    f"and {self.embeddings_filename}. Recomputing the embeddings."
-                )
-                self.embeddings = self.generate_embeddings(self.strings)
-                self.save_db_to_disk()
-        else:
-            self.embeddings = torch.Tensor()
+
+        self.embeddings_filename = f"{name}_vector_store_embeddings.pt"
+        self.embeddings = self._get_vector_store_embeddings_from_file(
+            self.embeddings_filename
+        )
 
         log.info("Vector store initialized.")
+
+    def _get_vector_store_items_from_file(
+        self, items_filename: str
+    ) -> list[VectorStoreItem]:
+        log.info(f"Loading any existing items from {items_filename}...")
+        if os.path.exists(items_filename):
+            with open(items_filename, "r") as items_file:
+                return VectorStoreItems(json.load(items_file)).root
+        else:
+            return []
+
+    def _get_vector_store_embeddings_from_file(
+        self, embeddings_filename: str
+    ) -> torch.Tensor:
+        log.info(f"Loading any existing embedding data from {embeddings_filename}...")
+        if os.path.exists(embeddings_filename):
+            log.info("Existing embedding data found.")
+            embeddings: torch.Tensor = torch.load(embeddings_filename)
+            return embeddings
+        else:
+            log.info("No existing embedding data found; the file doesn't exist.")
+            return torch.Tensor()
 
     def __str__(self) -> str:
         return f"VectorStore(name={self.name},id={id(self)})"
 
     def save_db_to_disk(self) -> None:
-        if self._has_db_changed_since_saving_to_disk:
+        if self._has_db_changed_since_last_save:
             log.info(f"Saving {self} to disk...")
-            with open(self.strings_filename, "w") as strings_file:
-                json.dump(self.strings, strings_file, indent=4)
+            with open(self.items_filename, "w") as items_file:
+                json_serializable_items = [item.model_dump() for item in self.items]
+                json.dump(json_serializable_items, items_file, indent=4)
             torch.save(self.embeddings, self.embeddings_filename)
-            self._has_db_changed_since_saving_to_disk = False
+            self._has_db_changed_since_last_save = False
         else:
             log.info(
                 f"Skipping saving {self} to disk, because there are no changes to save."
             )
 
-    def generate_embeddings(self, strings: list[str]) -> torch.Tensor:
-        # Tokenize strings
+    def _generate_embeddings(self, items: list[VectorStoreItem]) -> torch.Tensor:
+        # Tokenize items
         encoded_input = self.tokenizer(
-            strings,
+            [item.item_str for item in items],
             padding=True,
             truncation=True,
             return_tensors="pt",
@@ -100,60 +117,45 @@ class VectorStore:
         with torch.no_grad():
             model_output = self.model(**encoded_input)
             # Perform pooling. In this case, cls pooling.
-            string_embeddings: torch.Tensor = model_output[0][:, 0]
+            item_embeddings: torch.Tensor = model_output[0][:, 0]
         # normalize embeddings
         normalized_embeddings = torch.nn.functional.normalize(
-            string_embeddings, p=2, dim=1
+            item_embeddings, p=2, dim=1
         )
         return normalized_embeddings
 
     def generate_embeddings_and_save_embeddings_to_db(
-        self, strings: list[str]
+        self, items: list[VectorStoreItem]
     ) -> torch.Tensor:
-        embeddings = self.generate_embeddings(strings)
+        embeddings = self._generate_embeddings(items)
+        self.items.extend(items)
         self.embeddings = torch.concatenate((self.embeddings, embeddings))
-        self._has_db_changed_since_saving_to_disk = True
+        self._has_db_changed_since_last_save = True
         return embeddings
 
     def _compute_relevance_scores_against_db(
         self,
-        string: str,
+        item: VectorStoreItem,
     ) -> torch.Tensor:
-        embedding = self.generate_embeddings([string])
+        embedding = self._generate_embeddings([item])
         relevance_scores = (embedding @ self.embeddings.T)[0]
         return relevance_scores
 
-    def get_top_k_relevant_strings_in_db(
-        self, string: str, k: int
+    def get_top_k_relevant_items_in_db(
+        self, item: VectorStoreItem, k: int
     ) -> RelevanceSearchResult:
-        assert k < len(self.strings)  # TODO better handling of this
-        relevance_scores = self._compute_relevance_scores_against_db(string)
+        assert k < len(self.items)  # TODO better handling of this
+        relevance_scores = self._compute_relevance_scores_against_db(item)
         most_relevant_strings = torch.topk(
-            relevance_scores, k=min(k, len(self.strings)), sorted=True, largest=True
+            relevance_scores, k=min(k, len(self.items)), sorted=True, largest=True
         )
         return RelevanceSearchResult(
-            query_string=string,
-            relevant_strings_and_scores=[
+            query_item=item,
+            relevant_items_and_scores=[
                 RelevanceSearchSingleResult(
-                    string=self.strings[most_relevant_strings.indices[idx]],
+                    item=self.items[most_relevant_strings.indices[idx]],
                     relevance=float(most_relevant_strings.values[idx].item()),
                 )
                 for idx in range(k)
             ],
         )
-
-
-def test() -> None:
-    vector_store = VectorStore("factoids")
-
-    query_string = "utkash needs to workout. what could he do?"
-
-    most_relevant_strings = vector_store.get_top_k_relevant_strings_in_db(
-        query_string, 5
-    )
-
-    log.info(most_relevant_strings)
-
-
-if __name__ == "__main__":
-    test()
