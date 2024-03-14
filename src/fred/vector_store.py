@@ -127,8 +127,8 @@ class VectorStore:
     def generate_embeddings_and_save_embeddings_to_db(
         self, items: list[VectorStoreItem]
     ) -> torch.Tensor:
-        embeddings = self._generate_embeddings(items)
         self.items.extend(items)
+        embeddings = self._generate_embeddings(items)
         self.embeddings = torch.concatenate((self.embeddings, embeddings))
         self._has_db_changed_since_last_save = True
         return embeddings
@@ -142,9 +142,18 @@ class VectorStore:
         return relevance_scores
 
     def get_top_k_relevant_items_in_db(
-        self, item: VectorStoreItem, k: int
+        self, item_or_query: VectorStoreItem | str, k: int
     ) -> RelevanceSearchResult:
-        assert k < len(self.items)  # TODO better handling of this
+        item: VectorStoreItem = (
+            item_or_query
+            if isinstance(item_or_query, VectorStoreItem)
+            else VectorStoreItem(item_str=item_or_query)
+        )
+        if k > len(self.items):
+            log.info(
+                f"Too few items in {self} to perform a meaningful relevance search."
+            )
+            k = len(self.items)
         relevance_scores = self._compute_relevance_scores_against_db(item)
         most_relevant_strings = torch.topk(
             relevance_scores, k=min(k, len(self.items)), sorted=True, largest=True

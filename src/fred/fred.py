@@ -4,7 +4,7 @@ import logging
 from typing import Never, Sequence
 from pydantic import BaseModel
 from fred.home_assistant_tool_store import HomeAssistantToolStore
-from fred.vector_store import VectorStore, VectorStoreItem
+from fred.vector_store import VectorStore
 from langchain_core.pydantic_v1 import SecretStr
 from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage, AIMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -94,7 +94,7 @@ class Fred:
 
     def _get_k_relevant_factoids(self, human_input: str, k: int = 5) -> SystemMessage:
         factoids = self.factoids_vector_store.get_top_k_relevant_items_in_db(
-            VectorStoreItem(item_str=human_input), k
+            human_input, k
         )
         temp = ""
         for factoid in factoids.relevant_items_and_scores:

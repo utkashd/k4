@@ -7,6 +7,9 @@ __pycache__/
 *_vector_store_items.json
 *_vector_store_embeddings.pt
 
+# files for the home assistant tool store
+hass_*.json
+
 tmp/*
 
 .dmypy.json
