@@ -21,6 +21,13 @@ from rich import print as rich_print
 # langchain.debug = True
 
 
+"""
+1. give it a tool to search for tools. it only needs to provide a query string and k
+   (and recommend k=5 or something)
+2. include the actual tool in the vector store metadata so I don't have to do a
+   linear-time search needlessly
+"""
+
 FORMAT = "%(message)s"
 logging.basicConfig(
     level="WARN", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
@@ -38,24 +45,15 @@ class PromptTemplateArgs(BaseModel):
 class Fred:
     def __init__(
         self,
-        log_level: str = "warn",
         ai_name: str = "Fred",
         human_name: str = "Human",
+        log_level: str = "warn",
+        dry_run: bool = False,
     ):
-        if os.environ.get("TOKENIZERS_PARALLELISM") != "true":
-            # if the user hasn't set this environment variable, don't overwrite it.
-            # otherwise (in here), set it to false to avoid a warning from huggingface
-            # https://stackoverflow.com/questions/62691279/how-to-disable-tokenizers-parallelism-true-false-warning
-            os.environ["TOKENIZERS_PARALLELISM"] = "false"
-        self.verbose = log_level.lower() in ["debug", "info"]
-        # we have to do this now to avoid some unwanted logging
-        logging.basicConfig(
-            level=log_level.upper(),
-            format=FORMAT,
-            datefmt="[%X]",
-            handlers=[RichHandler()],
-            force=True,
-        )
+        self.verbose: bool
+        self.dry_run: bool
+        self._setup_development_tools(log_level, dry_run)
+
         self.ai_name = ai_name
         self.human_name = human_name
         self.factoids_vector_store = VectorStore("factoids")
@@ -63,7 +61,7 @@ class Fred:
         # one vector store for factoids/conclusions about the master
         # one vector store for tools (APIs)
         self.home_assistant_tool_store = HomeAssistantToolStore(
-            base_url=os.environ["FRED_HA_BASE_URL"]
+            base_url=os.environ["FRED_HA_BASE_URL"], dry_run=self.dry_run
         )
 
         self.llm = ChatOpenAI(
@@ -92,6 +90,28 @@ class Fred:
             ]
         )
 
+    def _setup_development_tools(self, log_level: str, dry_run: bool) -> None:
+        if os.environ.get("TOKENIZERS_PARALLELISM") != "true":
+            # if the user hasn't set this environment variable, don't overwrite it.
+            # otherwise (in here), set it to false to avoid a warning from huggingface
+            # https://stackoverflow.com/questions/62691279/how-to-disable-tokenizers-parallelism-true-false-warning
+            os.environ["TOKENIZERS_PARALLELISM"] = "false"
+        self.verbose = log_level.lower() in ["debug", "info"]
+        # we have to do this now to avoid some unwanted logging
+        logging.basicConfig(
+            level=log_level.upper(),
+            format=FORMAT,
+            datefmt="[%X]",
+            handlers=[RichHandler()],
+            force=True,
+        )
+        self.dry_run = dry_run
+
+        if self.dry_run and not self.verbose:
+            print(
+                f"Bypassing logger to tell you that you probably want dry_run=True and log_level='info'. You have {dry_run=} and {log_level=}"
+            )
+
     def _get_k_relevant_factoids(self, human_input: str, k: int = 5) -> SystemMessage:
         factoids = self.factoids_vector_store.get_top_k_relevant_items_in_db(
             human_input, k
@@ -105,7 +125,7 @@ class Fred:
 
     def _ask_fred(self, human_input: str) -> str:  # TODO type this better
         tools = self.home_assistant_tool_store.get_k_relevant_home_assistant_tools(
-            human_input, k=5
+            f"{self.human_name} {human_input}", k=5
         )
         agent = RunnableAgent(
             runnable=create_openai_tools_agent(

@@ -5,25 +5,16 @@ from homeassistant_api import Client, Domain, Group, Service, Entity
 from urllib.parse import urljoin
 from langchain.tools import BaseTool
 from langchain.pydantic_v1 import BaseModel as BaseModelV1
+from pydantic import RootModel
 from fred.errors import FredError
 from fred.vector_store import VectorStore, VectorStoreItem
 
 log = logging.getLogger("fred")
 
-SUPPORTED_DOMAINS = set(["switch"])
+SUPPORTED_DOMAINS = set(["switch", "media_player"])
 
 
-def get_hass_tool_name(service_id: str, entity_id: str) -> str:
-    return f"{service_id}_{entity_id.replace('.', '_')}"
-
-
-def get_hass_tool_description(
-    entity_friendly_name: str, service_description: str
-) -> str:
-    return f"For {entity_friendly_name}: {service_description}"
-
-
-class SerializableHomeAssistantToolWrapper(BaseModelV1):  # type: ignore[type-arg]
+class SerializableHomeAssistantToolWrapper(BaseModelV1):
     domain_id: str
     service_id: str
     entity_id: str
@@ -32,10 +23,15 @@ class SerializableHomeAssistantToolWrapper(BaseModelV1):  # type: ignore[type-ar
     hass_service_entity_tool: BaseTool
 
 
+class Domains(RootModel):  # type: ignore[type-arg]
+    root: dict[str, Domain]
+
+
 class HomeAssistantToolStore:
-    def __init__(self, base_url: str, hass_token: str = ""):
+    def __init__(self, base_url: str, hass_token: str = "", dry_run: bool = False):
         api_url = urljoin(base_url, "/api")
         hass_token = self._get_hass_token(hass_token)
+        self.dry_run = dry_run
 
         # TODO pick one of "home_assistant", "hass", "ha". I keep switching
         self.hass_client = Client(
@@ -80,10 +76,7 @@ class HomeAssistantToolStore:
         )
 
     def _get_hass_service_entity_tool_instantiator_func(
-        self,
-        domain: Domain,
-        service: Service,
-        entity: Entity,
+        self, domain: Domain, service: Service, entity: Entity, dry_run: bool = False
     ) -> type[BaseTool]:
         entity_friendly_name = entity_friendly_name = (
             entity.state.attributes.get("friendly_name") or entity.slug
@@ -102,11 +95,16 @@ class HomeAssistantToolStore:
                 return self.description
 
             def _run(_s) -> str:
-                self.hass_client.trigger_service(
-                    domain=domain.domain_id,
-                    service=service.service_id,
-                    entity_id=entity.entity_id,
-                )
+                if not dry_run:
+                    self.hass_client.trigger_service(
+                        domain=domain.domain_id,
+                        service=service.service_id,
+                        entity_id=entity.entity_id,
+                    )
+                else:
+                    log.info(
+                        f"Dry run: would have called {domain.domain_id}.{service.service_id} on {entity.entity_id}"
+                    )
                 return f"Successfully called {domain.domain_id}.{service.service_id} on {entity_friendly_name}"
 
         return HassServiceEntityTool
@@ -149,14 +147,19 @@ class HomeAssistantToolStore:
         domains_filename = "hass_domains.json"
         if os.path.exists(domains_filename):
             log.info(f"Loading the existing hass domains from {domains_filename}.")
-            with open(domains_filename, "r") as domains_file:
-                self.domains = json.load(domains_file)  # This needs fixing
+            # with open(domains_filename, "r") as domains_file:
+            #     self.domains = Domains.model_validate(
+            #         json.load(domains_file),
+            #         strict=False,
+            #         # strict is necessary because a domain has a service which has a
+            #         # domain (cycle)
+            #     ).root
         else:
             log.info(
                 f"No existing {domains_filename} found. Hitting the Home Assistant API for domains."
             )
             self.domains = self.hass_client.get_domains()
-            # log.info(f"Saving domains to {domains_filename}.")
+            log.info(f"Saving domains to {domains_filename}.")
             # with open(domains_filename, "w") as domains_file:
             #     json_serializable_domains = {
             #         domain_key: domain.model_dump()
@@ -207,29 +210,31 @@ class HomeAssistantToolStore:
                 for entity_slug, entity in entities[domain_id].entities.items():
                     # if "utkashs_bedroom_ceiling" in entity_slug:
                     for _, service in domain.services.items():
-                        get_hass_service_entity_tool = (
-                            self._get_hass_service_entity_tool_instantiator_func(
-                                domain,
-                                service,
-                                entity,
+                        if service.fields:
+                            log.info(
+                                f"Skipping creating tool for {service.service_id}_{entity.entity_id.replace('.', '_')}."
                             )
-                        )
-                        tool: BaseTool = get_hass_service_entity_tool(
-                            name=get_hass_tool_name(
-                                service.service_id, entity.entity_id
-                            ),
-                            description=get_hass_tool_description(
-                                entity.slug,
-                                service.description or "[description not found]",
-                            ),
-                        )
-                        wrapped_tools[tool.name] = SerializableHomeAssistantToolWrapper(
-                            domain_id=domain.domain_id,
-                            service_id=service.service_id,
-                            entity_id=entity.entity_id,
-                            name=tool.name,
-                            description=tool.description,
-                            hass_service_entity_tool=tool,
-                        )
+                        else:
+                            get_hass_service_entity_tool = (
+                                self._get_hass_service_entity_tool_instantiator_func(
+                                    domain, service, entity, dry_run=self.dry_run
+                                )
+                            )
+                            tool: BaseTool = get_hass_service_entity_tool(
+                                name=f"{service.service_id}_{entity.entity_id.replace('.', '_')}",
+                                description=f'For {entity.state.attributes.get("friendly_name") or entity_slug}: {service.description or "[description not found]"}',
+                            )
+                            log.info(f"{tool.description=}")
+                            wrapped_tools[tool.name] = (
+                                SerializableHomeAssistantToolWrapper(
+                                    domain_id=domain.domain_id,
+                                    service_id=service.service_id,
+                                    entity_id=entity.entity_id,
+                                    name=tool.name,
+                                    description=tool.description,
+                                    hass_service_entity_tool=tool,
+                                )
+                            )
+                            log.info(f"Created tool {tool.name}.")
 
         return wrapped_tools
