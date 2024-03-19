@@ -11,7 +11,7 @@ class MultiplyToolArgs(BaseModel):
 class MultiplyTool(BaseTool):
     name: str = "multiply_tool"
     description: str = "Useful for when you need to multiply two numbers."
-    return_direct: bool = True
+    return_direct: bool = False
     args_schema: type[BaseModel] = MultiplyToolArgs
 
     def _run(

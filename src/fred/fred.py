@@ -4,14 +4,16 @@ import logging
 from typing import Never, Sequence
 from pydantic import BaseModel
 from fred.home_assistant_tool_store import HomeAssistantToolStore
+from fred.mutable_tools_agent_executor import MutableToolsAgentExecutor
+from fred.mutable_tools_openai_tools_agent import MutableToolsOpenAiToolsAgent
 from fred.vector_store import VectorStore
 from langchain_core.pydantic_v1 import SecretStr
+from langchain.tools import BaseTool
 from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage, AIMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.memory import ChatMessageHistory
 from langchain_openai import ChatOpenAI
-from langchain.agents import AgentExecutor, create_openai_tools_agent
-from langchain.agents.agent import RunnableAgent
+from langchain.agents import create_openai_tools_agent
 from fred.openai_model import OpenAIModel
 from rich.logging import RichHandler
 from rich import print as rich_print
@@ -20,13 +22,6 @@ from rich import print as rich_print
 
 # langchain.debug = True
 
-
-"""
-1. give it a tool to search for tools. it only needs to provide a query string and k
-   (and recommend k=5 or something)
-2. include the actual tool in the vector store metadata so I don't have to do a
-   linear-time search needlessly
-"""
 
 FORMAT = "%(message)s"
 logging.basicConfig(
@@ -49,6 +44,7 @@ class Fred:
         human_name: str = "Human",
         log_level: str = "warn",
         dry_run: bool = False,
+        verify_home_assistant_ssl: bool = True,
     ):
         self.verbose: bool
         self.dry_run: bool
@@ -61,13 +57,9 @@ class Fred:
         # one vector store for factoids/conclusions about the master
         # one vector store for tools (APIs)
         self.home_assistant_tool_store = HomeAssistantToolStore(
-            base_url=os.environ["FRED_HA_BASE_URL"], dry_run=self.dry_run
-        )
-
-        self.llm = ChatOpenAI(
-            model=OpenAIModel.GPT_4_0613,
-            api_key=SecretStr(os.environ["FRED_OPENAI_API_KEY"]),
-            temperature=0,
+            base_url=os.environ["FRED_HA_BASE_URL"],
+            dry_run=self.dry_run,
+            verify_home_assistant_ssl=verify_home_assistant_ssl,
         )
 
         self.chat_history = ChatMessageHistory()
@@ -89,6 +81,36 @@ class Fred:
                 # langchain is so shit at writing statically-checkable code
             ]
         )
+
+        llm = ChatOpenAI(
+            # model=OpenAIModel.GPT_4_0613,
+            model=OpenAIModel.GPT_3_5_TURBO_0613,
+            api_key=SecretStr(os.environ["FRED_OPENAI_API_KEY"]),
+            temperature=0,
+        )
+
+        # this order is important; the agent and agent executor will need to be able to
+        # get tools added to them during an `invoke`, and to do that I need references
+        # to the agent and agent executor. so I create a placeholder for tools, create
+        # the agent and the executor, and then add at least one tool to them before
+        # invoking anything.
+        self.tools: list[BaseTool] = []
+        agent = MutableToolsOpenAiToolsAgent(
+            runnable=create_openai_tools_agent(
+                llm=llm,
+                tools=self.tools,
+                prompt=self.prompt_template,
+            )
+        )
+        self.agent_executor = MutableToolsAgentExecutor(
+            agent=agent,
+            tools=self.tools,
+            verbose=self.verbose,
+        )
+        self.tools.append(
+            self.home_assistant_tool_store.get_tool_searcher_tool(self.agent_executor)
+        )
+        self.agent_executor.add_tools(self.tools)
 
     def _setup_development_tools(self, log_level: str, dry_run: bool) -> None:
         if os.environ.get("TOKENIZERS_PARALLELISM") != "true":
@@ -124,20 +146,13 @@ class Fred:
         )
 
     def _ask_fred(self, human_input: str) -> str:  # TODO type this better
-        tools = self.home_assistant_tool_store.get_k_relevant_home_assistant_tools(
-            f"{self.human_name} {human_input}", k=5
-        )
-        agent = RunnableAgent(
-            runnable=create_openai_tools_agent(
-                llm=self.llm,
-                tools=tools,
-                prompt=self.prompt_template,
+        # I could add tools to the agent and executor here I guess
+        potentially_relevant_tools = (
+            self.home_assistant_tool_store.get_k_relevant_home_assistant_tools(
+                f"{self.human_name} {human_input}", k=3
             )
         )
-        self.agent_executor = AgentExecutor(
-            agent=agent, tools=tools, verbose=self.verbose
-        )
-
+        self.agent_executor.add_tools(potentially_relevant_tools)
         response = self.agent_executor.invoke(
             {
                 "human_input": human_input,
@@ -152,6 +167,9 @@ class Fred:
         self.chat_history.add_ai_message(
             AIMessage(name=self.ai_name, content=response["output"])
         )
+
+        # I should probably move this to inside invoke, but for now it'll be like this
+        self.agent_executor.reset_tools(self.tools)
 
         return str(response["output"])
 
