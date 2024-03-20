@@ -2,7 +2,7 @@ import json
 import logging
 import os
 from typing import Optional
-from homeassistant_api import Client, Domain, Group, Service, Entity
+from homeassistant_api import Client, Domain, Group, Service, Entity, State
 from urllib.parse import urljoin
 from langchain.tools import BaseTool
 from langchain.pydantic_v1 import BaseModel, Field
@@ -23,12 +23,18 @@ SUPPORTED_DOMAINS = set(
 
 
 class SerializableHomeAssistantToolWrapper(BaseModel):
+    """
+    This is useful because a BaseTool can't be put into our vector store, but if it's
+    wrapped in this, the relevant metadata can be put into the vector store and we can
+    search for the tool quickly.
+    """
+
     domain_id: str
-    service_id: str
+    service_id: str | None = None
     entity_id: str
     name: str
     description: str
-    hass_service_entity_tool: BaseTool
+    hass_tool: BaseTool
 
 
 class Domains(RootModel):  # type: ignore[type-arg]
@@ -176,10 +182,67 @@ class HomeAssistantToolStore:
                 hass_token = hass_environment_variable_value
         return hass_token
 
+    def _get_hass_entity_state_tool_instantiator_func(
+        self, entity: Entity, dry_run: bool = False
+    ) -> type[BaseTool]:
+        entity_friendly_name = (
+            entity.state.attributes.get("friendly_name") or entity.slug
+        )
+
+        class HassEntityStateToolArgs(BaseModel):
+            pass
+
+        class HassEntityStateTool(BaseTool):
+            name: str = f"get_state_{entity.entity_id.replace('.', '_')}"
+            description: str = f"Get state/attributes of {entity_friendly_name}"
+            return_direct: bool = False
+            args_schema: type[BaseModel] = HassEntityStateToolArgs
+
+            def __str__(self) -> str:
+                return f"{self.name=}: {self.description=}"
+
+            def _run(_s) -> str:
+                # Since we're only reading an entity's state, we'll always get the
+                # entity state and ignore whether this is a dry-run.
+                rich_print(
+                    f"\n[italic blue]Getting the state of {entity.entity_id}.[/italic blue]"
+                )
+                latest_entity_info = self.hass_client.get_entity(
+                    entity_id=entity.entity_id
+                )
+                if latest_entity_info is None:
+                    raise FredError(f"Failed to get the state of {entity=}")
+
+                formatted_entity_state = self._format_entity_state(
+                    latest_entity_info.state
+                )
+                rich_print(f"\n[italic blue]{formatted_entity_state}[/italic blue]")
+                return formatted_entity_state
+
+        return HassEntityStateTool
+
+    def _format_entity_state(self, entity_state: State) -> str:
+        readable_entity_state_obj = {
+            "entity_id": entity_state.entity_id,
+            "state": entity_state.state,
+            "attributes": entity_state.attributes,  # assumed to be readable already
+        }
+        if entity_state.last_updated:
+            readable_entity_state_obj["last_updated"] = (
+                entity_state.last_updated.strftime("%d/%m %H:%M %Z"),
+            )  # TODO format this better. assuming americans rn
+
+        if entity_state.last_changed:
+            readable_entity_state_obj["last_changed"] = (
+                entity_state.last_changed.strftime("%d/%m %H:%M %Z"),
+            )  # TODO format this better. assuming americans rn
+
+        return json.dumps(readable_entity_state_obj, indent=4)
+
     def _get_hass_service_entity_tool_instantiator_func(
         self, domain: Domain, service: Service, entity: Entity, dry_run: bool = False
     ) -> type[BaseTool]:
-        entity_friendly_name = entity_friendly_name = (
+        entity_friendly_name = (
             entity.state.attributes.get("friendly_name") or entity.slug
         )
 
@@ -198,7 +261,7 @@ class HomeAssistantToolStore:
             def _run(_s) -> str:
                 if not dry_run:
                     rich_print(
-                        f"\n[italic blue]Calling '{domain.domain_id}.{service.service_id}' on '{entity.entity_id}'.[/italic blue]",
+                        f"\n[italic blue]Calling {domain.domain_id}.{service.service_id} on {entity.entity_id}.[/italic blue]",
                     )
                     self.hass_client.trigger_service(
                         domain=domain.domain_id,
@@ -216,9 +279,7 @@ class HomeAssistantToolStore:
     def _tool_search_result_to_unwrapped_tool(
         self, tool_search_result: VectorStoreItem
     ) -> BaseTool:
-        return self.wrapped_tools[
-            tool_search_result.metadata["name"]
-        ].hass_service_entity_tool
+        return self.wrapped_tools[tool_search_result.metadata["name"]].hass_tool
 
     def _get_domains(self) -> dict[str, Domain]:
         if self.domains:
@@ -259,7 +320,7 @@ class HomeAssistantToolStore:
                 self.entities = json.load(entities_file)  # this needs fixing
         else:
             log.info(
-                f"No existing {entities_filename} found. Hitting the Home Assistant API for entities."
+                f"No existing {entities_filename} found (because that isn't implemented yet—this is normal). Hitting the Home Assistant API for entities."
             )
             self.entities = self.hass_client.get_entities()
             log.info(f"Saving entities to {entities_filename}.")
@@ -285,10 +346,38 @@ class HomeAssistantToolStore:
         domains = self._get_domains()
         entities = self._get_entities()
 
+        # create tools for getting entity states
+        for group_id, entity_group in entities.items():
+            if group_id in SUPPORTED_DOMAINS:
+                for entity_slug, entity in entity_group.entities.items():
+                    get_hass_entity_state_tool = (
+                        self._get_hass_entity_state_tool_instantiator_func(
+                            entity, dry_run=self.dry_run
+                        )
+                    )
+
+                    get_entity_state_tool: BaseTool = get_hass_entity_state_tool(
+                        name=f"get_state_{entity.entity_id.replace('.', '_')}",
+                        description=f'Get state/attributes of {entity.state.attributes.get("friendly_name") or entity_slug}',
+                    )
+                    wrapped_tools[get_entity_state_tool.name] = (
+                        SerializableHomeAssistantToolWrapper(
+                            domain_id=group_id,
+                            service_id=None,
+                            entity_id=entity.entity_id,
+                            name=get_entity_state_tool.name,
+                            description=get_entity_state_tool.description,
+                            hass_tool=get_entity_state_tool,
+                        )
+                    )
+                    log.info(
+                        f"Created tool {get_entity_state_tool.name}: {get_entity_state_tool.description}."
+                    )
+
+        # create tools for calling services on entities
         for domain_id, domain in domains.items():
             if domain_id in SUPPORTED_DOMAINS:
                 for entity_slug, entity in entities[domain_id].entities.items():
-                    # if "utkashs_bedroom_ceiling" in entity_slug:
                     for _, service in domain.services.items():
                         if service.fields:
                             log.info(
@@ -300,20 +389,22 @@ class HomeAssistantToolStore:
                                     domain, service, entity, dry_run=self.dry_run
                                 )
                             )
-                            tool: BaseTool = get_hass_service_entity_tool(
+                            call_service_on_entity_tool: BaseTool = get_hass_service_entity_tool(
                                 name=f"{service.service_id}_{entity.entity_id.replace('.', '_')}",
                                 description=f'For {entity.state.attributes.get("friendly_name") or entity_slug}: {service.description or "[description not found]"}',
                             )
-                            wrapped_tools[tool.name] = (
+                            wrapped_tools[call_service_on_entity_tool.name] = (
                                 SerializableHomeAssistantToolWrapper(
                                     domain_id=domain.domain_id,
                                     service_id=service.service_id,
                                     entity_id=entity.entity_id,
-                                    name=tool.name,
-                                    description=tool.description,
-                                    hass_service_entity_tool=tool,
+                                    name=call_service_on_entity_tool.name,
+                                    description=call_service_on_entity_tool.description,
+                                    hass_tool=call_service_on_entity_tool,
                                 )
                             )
-                            log.info(f"Created tool {tool.name}: {tool.description}.")
+                            log.info(
+                                f"Created tool {call_service_on_entity_tool.name}: {call_service_on_entity_tool.description}."
+                            )
 
         return wrapped_tools

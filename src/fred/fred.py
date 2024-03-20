@@ -83,8 +83,8 @@ class Fred:
         )
 
         llm = ChatOpenAI(
-            # model=OpenAIModel.GPT_4_0613,
-            model=OpenAIModel.GPT_3_5_TURBO_0613,
+            model=OpenAIModel.GPT_4_0613,
+            # model=OpenAIModel.GPT_3_5_TURBO_0613, # this mostly works, but sometimes is a little stupid
             api_key=SecretStr(os.environ["FRED_OPENAI_API_KEY"]),
             temperature=0,
         )
