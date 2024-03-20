@@ -44,8 +44,28 @@ class Fred:
         human_name: str = "Human",
         log_level: str = "warn",
         dry_run: bool = False,
-        verify_home_assistant_ssl: bool = True,
+        ignore_home_assistant_ssl: str | bool | None = False,
     ):
+        """
+        _summary_
+
+        Parameters
+        ----------
+        ai_name : str, optional
+            Set your assistant's name, by default "Fred"
+        human_name : str, optional
+            Your name, or how you'd like to be addressed by the assistant. The assistant
+            might search for Home Assistant entities using your name. e.g., if you ask
+            "turn my lights off," it may decide to search for "turn off <your name>
+            light," so you may get better results if your devices contain your name.
+            'Human' by default.
+        log_level : str, optional
+            _description_, by default "warn"
+        dry_run : bool, optional
+            _description_, by default False
+        ignore_home_assistant_ssl : str | bool | None, optional
+            If falsy, will not verify Home Assistant's SSL certificate. By default False
+        """
         self.verbose: bool
         self.dry_run: bool
         self._setup_development_tools(log_level, dry_run)
@@ -59,7 +79,7 @@ class Fred:
         self.home_assistant_tool_store = HomeAssistantToolStore(
             base_url=os.environ["FRED_HA_BASE_URL"],
             dry_run=self.dry_run,
-            verify_home_assistant_ssl=verify_home_assistant_ssl,
+            verify_home_assistant_ssl=not ignore_home_assistant_ssl,
         )
 
         self.chat_history = ChatMessageHistory()
@@ -147,11 +167,15 @@ class Fred:
 
     def _ask_fred(self, human_input: str) -> str:  # TODO type this better
         # I could add tools to the agent and executor here I guess
-        potentially_relevant_tools = (
+        relevant_wrapped_tools = (
             self.home_assistant_tool_store.get_k_relevant_home_assistant_tools(
                 f"{self.human_name} {human_input}", k=3
             )
         )
+        potentially_relevant_tools = [
+            relevant_wrapped_tool.hass_tool
+            for relevant_wrapped_tool in relevant_wrapped_tools
+        ]
         self.agent_executor.add_tools(potentially_relevant_tools)
         response = self.agent_executor.invoke(
             {

@@ -1,6 +1,8 @@
 import json
 import logging
 import os
+import requests
+import urllib3
 from typing import Optional
 from homeassistant_api import Client, Domain, Group, Service, Entity, State
 from urllib.parse import urljoin
@@ -14,12 +16,8 @@ from rich import print as rich_print
 
 log = logging.getLogger("fred")
 
-SUPPORTED_DOMAINS = set(
-    [
-        "switch",
-        # "media_player",
-    ]
-)
+# SUPPORTED_DOMAINS = {"switch"}
+SUPPORTED_DOMAINS = {"*"}  # useful for testing
 
 
 class SerializableHomeAssistantToolWrapper(BaseModel):
@@ -32,7 +30,7 @@ class SerializableHomeAssistantToolWrapper(BaseModel):
     domain_id: str
     service_id: str | None = None
     entity_id: str
-    name: str
+    name: str  # TODO ensure the name is limited to 64 chars somehow?
     description: str
     hass_tool: BaseTool
 
@@ -104,14 +102,14 @@ class HomeAssistantToolStore:
 
     def get_k_relevant_home_assistant_tools(
         self, human_input: str, k: int = 5
-    ) -> list[BaseTool]:
+    ) -> list[SerializableHomeAssistantToolWrapper]:
         relevant_tools_search_results = (
             self.vector_store.get_top_k_relevant_items_in_db(
                 human_input, k
             ).relevant_items_and_scores
         )
         return [
-            self._tool_search_result_to_unwrapped_tool(tool_search_result.item)
+            self._tool_search_result_to_wrapped_tool(tool_search_result.item)
             for tool_search_result in relevant_tools_search_results
         ]
 
@@ -136,7 +134,7 @@ class HomeAssistantToolStore:
 
         class SearchHassToolsTool(BaseTool):
             name: str = "search_device_tools"
-            description: str = "Use this to search for more tools if you're not provided an appropriate tool. If you don't get a good fit the first time, retry with a larger `k` or with a better query, such as by including more context."
+            description: str = "Use this to search for more tools if you're not provided an appropriate tool. If you don't get a good result the first time, retry with a larger `k` or with a better query, such as by including more context. You might not get the tool you need, in which case you should inform the human that you could not find the right tool."
             return_direct: bool = False
             args_schema: type[BaseModel] = SearchHassToolsToolArgs
 
@@ -144,9 +142,15 @@ class HomeAssistantToolStore:
                 rich_print(
                     f"\n[italic blue]Searching for {k=} Home Assistant tools with {query=}.[/italic blue]"
                 )
-                tools = self.get_k_relevant_home_assistant_tools(query, k)
-                agent_executor.add_tools(tools)
-                return f"Retrieved {len(tools)} tools: {tools=}"
+                wrapped_tools = self.get_k_relevant_home_assistant_tools(query, k)
+                unwrapped_tools: list[BaseTool] = [
+                    wrapped_tool.hass_tool for wrapped_tool in wrapped_tools
+                ]
+                agent_executor.add_tools(unwrapped_tools)
+                rich_print(
+                    f"\n[italic blue]Found these tools: {[(wrapped_tool.service_id or 'get state', wrapped_tool.entity_id) for wrapped_tool in wrapped_tools]}[/italic blue]"
+                )
+                return f"Retrieved {len(unwrapped_tools)} tools: {unwrapped_tools=}"
 
         self.tool_searcher_tool = SearchHassToolsTool()
         return self.tool_searcher_tool
@@ -156,20 +160,36 @@ class HomeAssistantToolStore:
     ) -> Client:
         api_url = urljoin(base_url, "/api")
         hass_token = self._get_hass_token(hass_token)
+
         if not verify_home_assistant_ssl:
             log.warn(
-                f"Intentially ignoring Home Assistant's (potentially invalid) SSL certificate. This may leave you vulnerable to a cybersecurity attack. If {base_url} is not a local server, I strongly suggest you 'quit' Fred, enable SSL verification, and try again. Proceed at your own risk."
+                "Intentially ignoring Home Assistant's (potentially invalid) SSL "
+                "certificate. This may leave you vulnerable to a cyberattack. If "
+                f"{base_url} is not a local server, I strongly suggest you 'quit' Fred,"
+                " enable SSL verification, and try again. Proceed at your own risk."
             )
-            import urllib3
-
             urllib3.disable_warnings(
                 category=urllib3.connectionpool.InsecureRequestWarning  # type: ignore[attr-defined]
             )
-        return Client(
+
+        client = Client(
             api_url=api_url,
             token=hass_token,
             verify_ssl=verify_home_assistant_ssl,
         )
+        try:
+            client.get_config()  # if the client
+        except requests.exceptions.SSLError as ssl_error:
+            error = FredError(
+                "Failed to create a Home Assistant API client due to SSL certificate "
+                "issues. If you don't have a valid SSL certificate for your Home "
+                "Assistant instance, you can skip verifying the SSL certificate by "
+                'setting the environment variable `FRED_HA_IGNORE_SSL="true"`'
+            )
+            log.error(error)
+            log.debug(f"{base_url=}, {api_url=}, {verify_home_assistant_ssl=}")
+            raise error from ssl_error
+        return client
 
     def _get_hass_token(self, hass_token: str) -> str:
         if hass_token == "":
@@ -276,10 +296,10 @@ class HomeAssistantToolStore:
 
         return HassServiceEntityTool
 
-    def _tool_search_result_to_unwrapped_tool(
+    def _tool_search_result_to_wrapped_tool(
         self, tool_search_result: VectorStoreItem
-    ) -> BaseTool:
-        return self.wrapped_tools[tool_search_result.metadata["name"]].hass_tool
+    ) -> SerializableHomeAssistantToolWrapper:
+        return self.wrapped_tools[tool_search_result.metadata["name"]]
 
     def _get_domains(self) -> dict[str, Domain]:
         if self.domains:
@@ -348,7 +368,7 @@ class HomeAssistantToolStore:
 
         # create tools for getting entity states
         for group_id, entity_group in entities.items():
-            if group_id in SUPPORTED_DOMAINS:
+            if group_id in SUPPORTED_DOMAINS or "*" in SUPPORTED_DOMAINS:
                 for entity_slug, entity in entity_group.entities.items():
                     get_hass_entity_state_tool = (
                         self._get_hass_entity_state_tool_instantiator_func(
@@ -376,7 +396,9 @@ class HomeAssistantToolStore:
 
         # create tools for calling services on entities
         for domain_id, domain in domains.items():
-            if domain_id in SUPPORTED_DOMAINS:
+            if (
+                domain_id in SUPPORTED_DOMAINS or "*" in SUPPORTED_DOMAINS
+            ) and domain_id in entities.keys():
                 for entity_slug, entity in entities[domain_id].entities.items():
                     for _, service in domain.services.items():
                         if service.fields:
