@@ -176,7 +176,6 @@ class Fred:
             relevant_wrapped_tool.hass_tool
             for relevant_wrapped_tool in relevant_wrapped_tools
         ]
-        breakpoint()
         self.agent_executor.add_tools(potentially_relevant_tools)
         response = self.agent_executor.invoke(
             {

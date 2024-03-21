@@ -5,10 +5,9 @@ import requests
 import urllib3
 from typing import Any, Optional
 from homeassistant_api import Client, Domain, Group, Service, Entity, State
-from homeassistant_api.models.domains import ServiceField
 from urllib.parse import urljoin
 from langchain.tools import BaseTool
-from langchain.pydantic_v1 import BaseModel, Field, create_model
+from langchain.pydantic_v1 import BaseModel, Field
 from pydantic import RootModel
 from fred.errors import FredError
 from fred.mutable_tools_agent_executor import MutableToolsAgentExecutor
@@ -17,9 +16,10 @@ from rich import print as rich_print
 
 log = logging.getLogger("fred")
 
-# SUPPORTED_DOMAINS = {"switch", "media_player"}
+SUPPORTED_DOMAINS = {"switch"}
 # SUPPORTED_DOMAINS = {"*"}  # useful for testing
-SUPPORTED_DOMAINS = {"media_player"}
+# SUPPORTED_DOMAINS = {"media_player"}
+# SUPPORTED_SERVICE_FIELDS = {"number", "text", "boolean", "select"}
 
 
 class SerializableHomeAssistantToolWrapper(BaseModel):
@@ -152,7 +152,7 @@ class HomeAssistantToolStore:
                 rich_print(
                     f"\n[italic blue]Found these tools: {[(wrapped_tool.service_id or 'get state', wrapped_tool.entity_id) for wrapped_tool in wrapped_tools]}[/italic blue]"
                 )
-                return f"Retrieved {len(unwrapped_tools)} tools: {unwrapped_tools=}"
+                return f"Retrieved {len(unwrapped_tools)} tools: {str(unwrapped_tools)}"
 
         self.tool_searcher_tool = SearchHassToolsTool()
         return self.tool_searcher_tool
@@ -221,7 +221,7 @@ class HomeAssistantToolStore:
             args_schema: type[BaseModel] = HassEntityStateToolArgs
 
             def __str__(self) -> str:
-                return f"{self.name=}: {self.description=}"
+                return f"{self.name}: {self.description}"
 
             def _run(_s) -> str:
                 # Since we're only reading an entity's state, we'll always get the
@@ -261,109 +261,122 @@ class HomeAssistantToolStore:
 
         return json.dumps(readable_entity_state_obj, indent=4)
 
-    def _get_field_type(self, service_field: ServiceField) -> type:
-        """
-        See https://www.home-assistant.io/docs/blueprint/selectors/
+    # def _get_field_type(self, service_field: ServiceField) -> type | UnionType:
+    #     """
+    #     See https://www.home-assistant.io/docs/blueprint/selectors/
 
-        Parameters
-        ----------
-        service_field : ServiceField
+    #     Parameters
+    #     ----------
+    #     service_field : ServiceField
 
-        Returns
-        -------
-        type
-            A Python type roughly equivalent to the selector of the provided ServiceField
-        """
-        if service_field.selector:
-            selector_type: str = next(iter(service_field.selector.keys()))
-            selector_details: dict[str, Any] | None = next(
-                iter(service_field.selector.values())
-            )
-            match selector_type:
-                case "number":
-                    # TODO: use the selector data to determine int vs float
-                    return float
-                case "text":
-                    return str
-                case "select":
-                    if not selector_details or "options" not in selector_details.keys():
-                        log.warning(
-                            f"Unexpectedly didn't find `options` in the selector details. {service_field=}"
-                        )
-                        return str
-                    else:
-                        options = selector_details["options"]
+    #     Returns
+    #     -------
+    #     type
+    #         A Python type roughly equivalent to the selector of the provided ServiceField
+    #     """
+    #     original_type: type = str  # assume string by default?
+    #     if service_field.selector:
+    #         selector_type: str = next(iter(service_field.selector.keys()))
+    #         selector_details: dict[str, Any] | None = next(
+    #             iter(service_field.selector.values())
+    #         )
+    #         match selector_type:
+    #             case "number":
+    #                 # TODO: use the selector data to determine int vs float
+    #                 original_type = float
+    #             case "text":
+    #                 original_type = str
+    #             case "select":
+    #                 if not selector_details or "options" not in selector_details.keys():
+    #                     log.warning(
+    #                         f"Unexpectedly didn't find `options` in the selector details. {service_field=}"
+    #                     )
+    #                     original_type = str
+    #                 else:
+    #                     options = selector_details["options"]
 
-                        class Selector_Options:
-                            def __init__(options_self, value: str) -> None:
-                                if value not in options:
-                                    raise ValueError(
-                                        f"Invalid literal: {value}. Must be one of {options=}"
-                                    )
-                                self.value = value
+    #                     class Selector_Options:
+    #                         def __init__(options_self, value: str) -> None:
+    #                             if value not in options:
+    #                                 raise ValueError(
+    #                                     f"Invalid literal: {value}. Must be one of {options=}"
+    #                                 )
+    #                             self.value = value
 
-                        return Selector_Options
-                case "theme":
-                    log.warning(
-                        f"Untested selector type {selector_type=}, {service_field=}\nThis hasn't been implemented yet."
-                    )
-                    return str
-                case "boolean":
-                    return bool
-                case "object":
-                    return object
-                case "addon":
-                    log.warning(
-                        f"Untested selector type {selector_type=}, {service_field=}\nThis hasn't been implemented yet."
-                    )
-                    return str
-                case "backup_location":
-                    log.warning(
-                        f"Untested selector type {selector_type=}, {service_field=}\nThis hasn't been implemented yet."
-                    )
-                    return str
-                case "entity":
-                    log.warning(
-                        f"Untested selector type {selector_type=}, {service_field=}\nThis hasn't been implemented yet."
-                    )
-                    return Entity
-                case "conversation_agent":
-                    log.warning(
-                        f"Untested selector type {selector_type=}, {service_field=}\nThis hasn't been implemented yet."
-                    )
-                    return str
-                case "icon":
-                    log.warning(
-                        f"Untested selector type {selector_type=}, {service_field=}\nThis hasn't been implemented yet."
-                    )
-                    return str
-                case "time":
-                    log.warning(
-                        f"Untested selector type {selector_type=}, {service_field=}\nThis hasn't been implemented yet."
-                    )
-                    return str
-                case "color_rgb":
-                    log.warning(
-                        f"Untested selector type {selector_type=}, {service_field=}\nThis hasn't been implemented yet."
-                    )
-                    return str
-                case "color_temp":
-                    log.warning(
-                        f"Untested selector type {selector_type=}, {service_field=}\nThis hasn't been implemented yet."
-                    )
-                    return int
-                case "constant":
-                    pass
-                case "template":
-                    log.warning(
-                        f"Untested selector type {selector_type=}, {service_field=}\nThis hasn't been implemented yet."
-                    )
-                    return str
+    #                     original_type = Selector_Options
+    #             case "theme":
+    #                 log.warning(
+    #                     f"Untested selector type {selector_type=}, {service_field=}\nThis hasn't been implemented yet."
+    #                 )
+    #                 original_type = str
+    #             case "boolean":
+    #                 original_type = bool
+    #             case "object":
+    #                 original_type = object
+    #             case "addon":
+    #                 log.warning(
+    #                     f"Untested selector type {selector_type=}, {service_field=}\nThis hasn't been implemented yet."
+    #                 )
+    #                 original_type = str
+    #             case "backup_location":
+    #                 log.warning(
+    #                     f"Untested selector type {selector_type=}, {service_field=}\nThis hasn't been implemented yet."
+    #                 )
+    #                 original_type = str
+    #             case "entity":
+    #                 log.warning(
+    #                     f"Untested selector type {selector_type=}, {service_field=}\nThis hasn't been implemented yet."
+    #                 )
+    #                 original_type = Entity
+    #             case "conversation_agent":
+    #                 log.warning(
+    #                     f"Untested selector type {selector_type=}, {service_field=}\nThis hasn't been implemented yet."
+    #                 )
+    #                 original_type = str
+    #             case "icon":
+    #                 log.warning(
+    #                     f"Untested selector type {selector_type=}, {service_field=}\nThis hasn't been implemented yet."
+    #                 )
+    #                 original_type = str
+    #             case "time":
+    #                 log.warning(
+    #                     f"Untested selector type {selector_type=}, {service_field=}\nThis hasn't been implemented yet."
+    #                 )
+    #                 original_type = str
+    #             case "color_rgb":
+    #                 log.warning(
+    #                     f"Untested selector type {selector_type=}, {service_field=}\nThis hasn't been implemented yet."
+    #                 )
+    #                 original_type = str
+    #             case "color_temp":
+    #                 log.warning(
+    #                     f"Untested selector type {selector_type=}, {service_field=}\nThis hasn't been implemented yet."
+    #                 )
+    #                 original_type = int
+    #             case "constant":
+    #                 pass
+    #             case "template":
+    #                 log.warning(
+    #                     f"Untested selector type {selector_type=}, {service_field=}\nThis hasn't been implemented yet."
+    #                 )
+    #                 original_type = str
+    #             case _:
+    #                 log.warning(
+    #                     f"Unexpectedly did not match a selector. {selector_type=}, {service_field=}"
+    #                 )
 
-        log.warning(
-            f"Unexpectedly did not match a selector. {selector_type=}, {service_field=}"
-        )
-        return str
+    #     if service_field.required:
+    #         return original_type
+
+    #     return original_type | None
+
+    # def _is_field_supported(self, service_field: ServiceField) -> bool:
+    #     if (
+    #         service_field.selector
+    #         and next(iter(service_field.selector.keys())) in SUPPORTED_SERVICE_FIELDS
+    #     ):
+    #         return True
+    #     return False
 
     def _get_hass_service_entity_tool_instantiator_func(
         self, domain: Domain, service: Service, entity: Entity, dry_run: bool = False
@@ -372,37 +385,32 @@ class HomeAssistantToolStore:
             entity.state.attributes.get("friendly_name") or entity.slug
         )
 
-        HassServiceEntityToolArgs: type[BaseModel] = BaseModel
+        # HassServiceEntityToolArgs: type[BaseModel] = BaseModel
 
         class HassServiceEntityToolArgs(BaseModel):  # type: ignore[no-redef]
             pass
 
-        if service.fields:
-            # currently broken
-            # Here I'd like to put a Pydantic v1 `Field` instead of Any but can't get that
-            # to work
-            field_definitions_with_types_and_descriptions: dict[
-                str, tuple[type, Any]
-            ] = {}
-            for field_name, service_field in service.fields.items():
-                field_type = self._get_field_type(service_field)
-                field_description = f"{service_field.description}"
-                if service_field.example:
-                    field_description += f" Example: {service_field.example}"
-                # TODO better default?
-                field = Field(description=field_description, default=None)
-                if service_field.required:
-                    field
+        # if service.fields:
+        #     # Here I'd like to put a Pydantic v1 `Field` instead of Any but can't get that
+        #     # to work
+        #     field_definitions: dict[str, tuple[type | UnionType, Any]] = {}
+        #     for field_name, service_field in service.fields.items():
+        #         field_type = self._get_field_type(service_field)
+        #         field_description = f"{service_field.description}"
+        #         if service_field.example:
+        #             field_description += f" Example: {service_field.example}"
+        #         # TODO better default?
+        #         field = Field(description=field_description, default=None)
 
-                field_definitions_with_types_and_descriptions[field_name] = (
-                    field_type,
-                    field,
-                )
+        #         field_definitions[field_name] = (
+        #             field_type,
+        #             field,
+        #         )
 
-            HassServiceEntityToolArgs = create_model(
-                "HassServiceEntityToolArgs",
-                field_definitions=field_definitions_with_types_and_descriptions,
-            )
+        #     HassServiceEntityToolArgs = create_model(
+        #         "HassServiceEntityToolArgs",
+        #         field_definitions=field_definitions,
+        #     )  # this is causing the problem that MutableToolsOpenAiToolsAgent.convert_to_open_ai_tool tries to solve
 
         class HassServiceEntityTool(BaseTool):
             name: str = f"{service.service_id}_{entity.entity_id.replace('.', '_')}"  # OpenAI doesn't like periods in tool (function) names
@@ -413,7 +421,7 @@ class HomeAssistantToolStore:
             def __str__(self) -> str:
                 return f"{self.name=}: {self.description=}"
 
-            def _run(_s) -> str:
+            def _run(_s, **service_data: dict[str, Any]) -> str:
                 if not dry_run:
                     rich_print(
                         f"\n[italic blue]Calling {domain.domain_id}.{service.service_id} on {entity.entity_id}.[/italic blue]",
@@ -422,6 +430,7 @@ class HomeAssistantToolStore:
                         domain=domain.domain_id,
                         service=service.service_id,
                         entity_id=entity.entity_id,
+                        **service_data,
                     )
                 else:
                     log.info(
@@ -546,27 +555,32 @@ class HomeAssistantToolStore:
             ) and domain_id in entities.keys():
                 for entity_slug, entity in entities[domain_id].entities.items():
                     for _, service in domain.services.items():
-                        get_hass_service_entity_tool = (
-                            self._get_hass_service_entity_tool_instantiator_func(
-                                domain, service, entity, dry_run=self.dry_run
+                        if service.fields:
+                            log.info(
+                                f"Skipped creating tool {service.service_id}_{entity.entity_id.replace('.', '_')} because we don't support fields yet."
                             )
-                        )
-                        call_service_on_entity_tool: BaseTool = get_hass_service_entity_tool(
-                            name=f"{service.service_id}_{entity.entity_id.replace('.', '_')}",
-                            description=f'For {entity.state.attributes.get("friendly_name") or entity_slug}: {service.description or "[description not found]"}',
-                        )
-                        wrapped_tools[call_service_on_entity_tool.name] = (
-                            SerializableHomeAssistantToolWrapper(
-                                domain_id=domain.domain_id,
-                                service_id=service.service_id,
-                                entity_id=entity.entity_id,
-                                name=call_service_on_entity_tool.name,
-                                description=call_service_on_entity_tool.description,
-                                hass_tool=call_service_on_entity_tool,
+                        else:
+                            get_hass_service_entity_tool = (
+                                self._get_hass_service_entity_tool_instantiator_func(
+                                    domain, service, entity, dry_run=self.dry_run
+                                )
                             )
-                        )
-                        log.info(
-                            f"Created tool {call_service_on_entity_tool.name}: {call_service_on_entity_tool.description}."
-                        )
+                            call_service_on_entity_tool: BaseTool = get_hass_service_entity_tool(
+                                name=f"{service.service_id}_{entity.entity_id.replace('.', '_')}",
+                                description=f'For {entity.state.attributes.get("friendly_name") or entity_slug}: {service.description or "[description not found]"}',
+                            )
+                            wrapped_tools[call_service_on_entity_tool.name] = (
+                                SerializableHomeAssistantToolWrapper(
+                                    domain_id=domain.domain_id,
+                                    service_id=service.service_id,
+                                    entity_id=entity.entity_id,
+                                    name=call_service_on_entity_tool.name,
+                                    description=call_service_on_entity_tool.description,
+                                    hass_tool=call_service_on_entity_tool,
+                                )
+                            )
+                            log.info(
+                                f"Created tool {call_service_on_entity_tool.name}: {call_service_on_entity_tool.description}."
+                            )
 
         return wrapped_tools
