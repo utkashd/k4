@@ -367,7 +367,7 @@ class HomeAssistantToolStore:
 
     def _get_hass_service_entity_tool_instantiator_func(
         self, domain: Domain, service: Service, entity: Entity, dry_run: bool = False
-    ) -> type[BaseTool] | dict[str, Any]:
+    ) -> type[BaseTool]:
         entity_friendly_name = (
             entity.state.attributes.get("friendly_name") or entity.slug
         )
@@ -378,6 +378,7 @@ class HomeAssistantToolStore:
             pass
 
         if service.fields:
+            # currently broken
             # Here I'd like to put a Pydantic v1 `Field` instead of Any but can't get that
             # to work
             field_definitions_with_types_and_descriptions: dict[
