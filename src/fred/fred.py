@@ -6,7 +6,8 @@ from pydantic import BaseModel
 from fred.home_assistant_tool_store import HomeAssistantToolStore
 from fred.mutable_tools_agent_executor import MutableToolsAgentExecutor
 from fred.mutable_tools_openai_tools_agent import MutableToolsOpenAiToolsAgent
-from fred.vector_store import VectorStore
+
+# from fred.vector_store import VectorStore
 from langchain_core.pydantic_v1 import SecretStr
 from langchain.tools import BaseTool
 from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage, AIMessage
@@ -33,7 +34,7 @@ log = logging.getLogger("fred")
 # TODO use this
 class PromptTemplateArgs(BaseModel):
     human_input: str
-    factoids: str
+    # factoids: str
     chat_history: Sequence[BaseMessage]
 
 
@@ -72,7 +73,7 @@ class Fred:
 
         self.ai_name = ai_name
         self.human_name = human_name
-        self.factoids_vector_store = VectorStore("factoids")
+        # self.factoids_vector_store = VectorStore("factoids")
         # one vector store for past conversations
         # one vector store for factoids/conclusions about the master
         # one vector store for tools (APIs)
@@ -92,7 +93,7 @@ class Fred:
                 MessagesPlaceholder(variable_name="chat_history"),
                 # HumanMessage(content="{human_input}"), # TODO understand why I can't
                 # do this, which seems much safer than the actual solution (below)
-                ("human", "{factoids}"),
+                # ("human", "{factoids}"),
                 # message types: Use one of 'human', 'user', 'ai', 'assistant', or 'system'
                 ("human", "{human_input}"),
                 MessagesPlaceholder(variable_name="agent_scratchpad"),
@@ -103,8 +104,8 @@ class Fred:
         )
 
         llm = ChatOpenAI(
-            model=OpenAIModel.GPT_4_0613,
-            # model=OpenAIModel.GPT_3_5_TURBO_0613, # this mostly works, but sometimes is a little stupid
+            # model=OpenAIModel.GPT_4_0613,
+            model=OpenAIModel.GPT_3_5_TURBO_0613,  # this mostly works, but sometimes is a little stupid
             api_key=SecretStr(os.environ["FRED_OPENAI_API_KEY"]),
             temperature=0,
         )
@@ -154,16 +155,16 @@ class Fred:
                 f"Bypassing logger to tell you that you probably want dry_run=True and log_level='info'. You have {dry_run=} and {log_level=}"
             )
 
-    def _get_k_relevant_factoids(self, human_input: str, k: int = 5) -> SystemMessage:
-        factoids = self.factoids_vector_store.get_top_k_relevant_items_in_db(
-            human_input, k
-        )
-        temp = ""
-        for factoid in factoids.relevant_items_and_scores:
-            temp += f" - {factoid.item.item_str}\n"
-        return SystemMessage(
-            content=f"Here are some facts that may or may not be relevant to the query:\n{temp}"
-        )
+    # def _get_k_relevant_factoids(self, human_input: str, k: int = 5) -> SystemMessage:
+    #     factoids = self.factoids_vector_store.get_top_k_relevant_items_in_db(
+    #         human_input, k
+    #     )
+    #     temp = ""
+    #     for factoid in factoids.relevant_items_and_scores:
+    #         temp += f" - {factoid.item.item_str}\n"
+    #     return SystemMessage(
+    #         content=f"Here are some facts that may or may not be relevant to the query:\n{temp}"
+    #     )
 
     def _ask_fred(self, human_input: str) -> str:  # TODO type this better
         # I could add tools to the agent and executor here I guess
@@ -181,7 +182,7 @@ class Fred:
             {
                 "human_input": human_input,
                 "chat_history": self.chat_history.messages,
-                "factoids": self._get_k_relevant_factoids(human_input, k=5),
+                # "factoids": self._get_k_relevant_factoids(human_input, k=5),
             }
         )
 
@@ -199,7 +200,7 @@ class Fred:
 
     def _shutdown(self) -> Never:
         log.info("Shutting down gracefully.")
-        self.factoids_vector_store.save_db_to_disk()
+        # self.factoids_vector_store.save_db_to_disk()
         rich_print(f"\n'{self.ai_name}': Goodbye.")
         sys.exit(0)
 

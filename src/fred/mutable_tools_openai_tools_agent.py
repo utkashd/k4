@@ -3,48 +3,36 @@ from langchain.agents.agent import RunnableMultiActionAgent
 from typing import Any, Sequence
 from langchain_core.runnables import RunnableSequence, RunnableBinding
 from langchain_core.utils.function_calling import convert_to_openai_tool
+# from pydantic.fields import FieldInfo
 
 
 class MutableToolsOpenAiToolsAgent(RunnableMultiActionAgent):
     def convert_to_openai_tool(self, tool: BaseTool) -> dict[str, Any]:
-        # if (
-        #     tool.args_schema
-        #     and tool.args_schema.__fields__
-        #     and tool.args_schema.__fields__.get("field_definitions")
-        # ):
-        #     # the langchain version of this function fails if the tool has parameters.
-        #     # I'm probably doing something wrong to cause it (maybe?), but this is a
-        #     # workaround I'm willing to live with for now
-        #     # ok now that I'm coding this, I'm not sure it's worth it anymore. but I
-        #     # don't want to think of the right solution rn
-        #     tool_parameters_json_serializable: dict[str, dict[str, str]] = {}
-        #     assert isinstance(
-        #         tool.args_schema.__fields__["field_definitions"].default,
-        #         dict,
-        #     )
-        #     for (
-        #         parameter_name,
-        #         type_and_field_info_tuple,
-        #     ) in tool.args_schema.__fields__["field_definitions"].default.items():
-        #         assert isinstance(type_and_field_info_tuple, tuple)
-        #         assert isinstance(type_and_field_info_tuple[0], type)
-        #         tool_parameters_json_serializable[parameter_name] = {
-        #             "type": type(type_and_field_info_tuple[0]).__name__,
-        #             "description": type_and_field_info_tuple[1].description,
-        #         }
-        #     return {
-        #         "type": "function",
-        #         "function": {
-        #             "name": tool.name,
-        #             "description": tool.description,
-        #             "parameters": {
-        #                 "type": "object",
-        #                 "properties": tool_parameters_json_serializable,
-        #             },
-        #         },
-        #     }
-        # return {}
-        return convert_to_openai_tool(tool)
+        converted_tool = convert_to_openai_tool(tool)
+        # we have to do special stuff if the tool has parameters because I'm using
+        # Pydantic v2 for the args schema for those tools. so there's janky stuff like
+        # "trust me it's a FieldInfo and not a ModelField"
+        if (
+            tool.args_schema
+            and tool.args_schema.__fields__
+            and tool.args_schema.__name__ == "HassServiceEntityToolWithParamsArgs"
+        ):
+            properties: dict[str, Any] = {}
+            required_properties: list[str] = []
+            for field_name, field_info in tool.args_schema.__fields__.items():
+                assert hasattr(
+                    field_info, "is_required"
+                )  # it's a FieldInfo, not a ModelField
+                if field_info.is_required():
+                    required_properties.append(field_name)
+                properties[field_name] = {
+                    "description": field_info.default.description,
+                    # "default":
+                    "type": field_info.annotation.__name__,
+                }
+            converted_tool["function"]["parameters"]["properties"] = properties
+            converted_tool["function"]["parameters"]["required"] = required_properties
+        return converted_tool
 
     def reset_tools(self, tools: list[BaseTool]) -> None:
         self.clear_tools()
