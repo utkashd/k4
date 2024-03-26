@@ -6,9 +6,9 @@ readme = "README.md"
 dependencies = [
     "transformers[torch] >= 4.31",
     "openai >= 1.11.1",
-    "pydantic >= 2.0", # def works with 2.6
-    "rich >= 13.7",
-    "langchain >= 0.1.8",
+    "pydantic >= 2.0", # for sure works with 2.6
+    "rich >= 13.7", # super awesome
+    "langchain >= 0.1.8", # i hate this
     "langchain-openai >= 0.0.6",
     "langchainhub >= 0.1.14",
     "HomeAssistant-API >= 4.2.2"
@@ -17,9 +17,9 @@ requires-python = ">=3.11"
 
 [project.optional-dependencies]
 dev = [
-    "ruff >= 0.3.0",
-    "mypy >= 1.8.0",
-    "ipdb >= 0.13.13",
+    "ruff >= 0.3.0", # eh
+    "mypy >= 1.8.0", # this is horribly mid
+    "ipdb >= 0.13.13", # this thing is great!
 ]
 
 [tool.setuptools]

@@ -3,11 +3,24 @@ from langchain.agents.agent import RunnableMultiActionAgent
 from typing import Any, Sequence
 from langchain_core.runnables import RunnableSequence, RunnableBinding
 from langchain_core.utils.function_calling import convert_to_openai_tool
+from pydantic.json_schema import GenerateJsonSchema
 # from pydantic.fields import FieldInfo
 
 
 class MutableToolsOpenAiToolsAgent(RunnableMultiActionAgent):
+    def _convert_python_type_to_openai_string(self, python_type: type) -> str:
+        name = python_type.__name__
+        if name == "float":
+            return "number"
+        elif name == "str":
+            return "string"
+        elif name == "bool":
+            return "boolean"
+        return name
+
     def convert_to_openai_tool(self, tool: BaseTool) -> dict[str, Any]:
+        # ignore warnings stemming from how I create tools with parameters
+        GenerateJsonSchema.ignored_warning_kinds = {"non-serializable-default"}
         converted_tool = convert_to_openai_tool(tool)
         # we have to do special stuff if the tool has parameters because I'm using
         # Pydantic v2 for the args schema for those tools. so there's janky stuff like
@@ -28,7 +41,9 @@ class MutableToolsOpenAiToolsAgent(RunnableMultiActionAgent):
                 properties[field_name] = {
                     "description": field_info.default.description,
                     # "default":
-                    "type": field_info.annotation.__name__,
+                    "type": self._convert_python_type_to_openai_string(
+                        field_info.annotation
+                    ),
                 }
             converted_tool["function"]["parameters"]["properties"] = properties
             converted_tool["function"]["parameters"]["required"] = required_properties

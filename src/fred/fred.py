@@ -2,7 +2,9 @@ import sys
 import os
 import logging
 from typing import Never, Sequence
+import openai
 from pydantic import BaseModel
+from fred.errors import FredError
 from fred.home_assistant_tool_store import HomeAssistantToolStore
 from fred.mutable_tools_agent_executor import MutableToolsAgentExecutor
 from fred.mutable_tools_openai_tools_agent import MutableToolsOpenAiToolsAgent
@@ -83,7 +85,9 @@ class Fred:
             verify_home_assistant_ssl=not ignore_home_assistant_ssl,
         )
 
+        log.info("Creating chat_history...")
         self.chat_history = ChatMessageHistory()
+        log.info("Creating prompt_template...")
         self.prompt_template = ChatPromptTemplate.from_messages(
             [
                 SystemMessage(
@@ -103,9 +107,10 @@ class Fred:
             ]
         )
 
+        log.info("Creating llm...")
         llm = ChatOpenAI(
-            # model=OpenAIModel.GPT_4_0613,
-            model=OpenAIModel.GPT_3_5_TURBO_0613,  # this mostly works, but sometimes is a little stupid
+            model=OpenAIModel.GPT_4_0613,
+            # model=OpenAIModel.GPT_3_5_TURBO_0613,  # this mostly works, but sometimes is a little stupid
             api_key=SecretStr(os.environ["FRED_OPENAI_API_KEY"]),
             temperature=0,
         )
@@ -116,6 +121,7 @@ class Fred:
         # the agent and the executor, and then add at least one tool to them before
         # invoking anything.
         self.tools: list[BaseTool] = []
+        log.info("Creating agent...")
         agent = MutableToolsOpenAiToolsAgent(
             runnable=create_openai_tools_agent(
                 llm=llm,
@@ -123,6 +129,7 @@ class Fred:
                 prompt=self.prompt_template,
             )
         )
+        log.info("Creating agent_executor...")
         self.agent_executor = MutableToolsAgentExecutor(
             agent=agent,
             tools=self.tools,
@@ -131,7 +138,10 @@ class Fred:
         self.tools.append(
             self.home_assistant_tool_store.get_tool_searcher_tool(self.agent_executor)
         )
+        log.info("Adding tools to the agent executor...")
         self.agent_executor.add_tools(self.tools)
+
+        log.info("Fred is initialized.")
 
     def _setup_development_tools(self, log_level: str, dry_run: bool) -> None:
         if os.environ.get("TOKENIZERS_PARALLELISM") != "true":
@@ -178,13 +188,22 @@ class Fred:
             for relevant_wrapped_tool in relevant_wrapped_tools
         ]
         self.agent_executor.add_tools(potentially_relevant_tools)
-        response = self.agent_executor.invoke(
-            {
-                "human_input": human_input,
-                "chat_history": self.chat_history.messages,
-                # "factoids": self._get_k_relevant_factoids(human_input, k=5),
-            }
-        )
+        try:
+            response = self.agent_executor.invoke(
+                {
+                    "human_input": human_input,
+                    "chat_history": self.chat_history.messages,
+                    # "factoids": self._get_k_relevant_factoids(human_input, k=5),
+                }
+            )
+        except openai.RateLimitError:
+            log.exception(
+                "OpenAI rate-limited you or you have an OpenAI quota problem. Check your token's usage at https://platform.openai.com/usage."
+            )
+            response = {"output": "Failed due to an API error. Should I retry?"}
+        except Exception as e:
+            response = {"output": "Failed due to an unforeseen issue."}
+            raise e
 
         self.chat_history.add_user_message(
             HumanMessage(name=self.human_name, content=human_input)

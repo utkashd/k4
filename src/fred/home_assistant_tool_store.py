@@ -2,6 +2,7 @@ import json
 import logging
 import os
 from types import UnionType
+import homeassistant_api
 import requests
 import urllib3
 from typing import Any, Optional
@@ -20,8 +21,8 @@ from rich import print as rich_print
 log = logging.getLogger("fred")
 
 # SUPPORTED_DOMAINS = {"switch"}
-# SUPPORTED_DOMAINS = {"*"}  # useful for testing
-SUPPORTED_DOMAINS = {"media_player"}
+SUPPORTED_DOMAINS = {"*"}  # useful for testing
+# SUPPORTED_DOMAINS = {"media_player"}
 # SUPPORTED_SERVICE_FIELDS = {"number", "text", "boolean", "select"}
 
 
@@ -101,9 +102,13 @@ class HomeAssistantToolStore:
             for tool in self.wrapped_tools.values()
         ]
         self.vector_store = VectorStore("hass_tools")
+        log.info(
+            f"Generating {len(vector_store_tools)} tool embeddings and saving them to the store..."
+        )
         self.vector_store.generate_embeddings_and_save_embeddings_to_db(
             vector_store_tools
         )
+        log.info(f"Done adding {len(vector_store_tools)} tools to the store.")
 
     def get_k_relevant_home_assistant_tools(
         self, human_input: str, k: int = 5
@@ -191,7 +196,7 @@ class HomeAssistantToolStore:
                 "Assistant instance, you can skip verifying the SSL certificate by "
                 'setting the environment variable `FRED_HA_IGNORE_SSL="true"`'
             )
-            log.error(error)
+            log.exception(error)
             log.debug(f"{base_url=}, {api_url=}, {verify_home_assistant_ssl=}")
             raise error from ssl_error
         return client
@@ -327,6 +332,7 @@ class HomeAssistantToolStore:
                     )
                     original_type = str
                 case "entity":
+                    # this and time seem to be the majority of untested types?
                     log.warning(
                         f"Untested selector type {selector_type=}, {service_field=}\nThis hasn't been implemented yet."
                     )
@@ -368,18 +374,7 @@ class HomeAssistantToolStore:
                         f"Unexpectedly did not match a selector. {selector_type=}, {service_field=}"
                     )
 
-        if service_field.required:
-            return original_type
-
-        return original_type | None
-
-    # def _is_field_supported(self, service_field: ServiceField) -> bool:
-    #     if (
-    #         service_field.selector
-    #         and next(iter(service_field.selector.keys())) in SUPPORTED_SERVICE_FIELDS
-    #     ):
-    #         return True
-    #     return False
+        return original_type
 
     def _get_hass_service_entity_tool_instantiator_func_with_params(
         self, domain: Domain, service: Service, entity: Entity, dry_run: bool = False
@@ -399,7 +394,9 @@ class HomeAssistantToolStore:
             if service_field.example:
                 field_description += f" Example: {service_field.example}"
             # TODO better default? it's currently None
-            field = Field(None, description=field_description)
+            field = Field(
+                None, description=field_description, required=service_field.required
+            )
 
             field_definitions[field_name] = (
                 field_type,
@@ -426,19 +423,27 @@ class HomeAssistantToolStore:
             def _run(_s, **service_data: dict[str, Any]) -> str:
                 if not dry_run:
                     rich_print(
-                        f"\n[italic blue]Calling {domain.domain_id}.{service.service_id} on {entity.entity_id}.[/italic blue]",
+                        f"\n[italic blue]Calling {domain.domain_id}.{service.service_id} on {entity.entity_id} with {service_data}.[/italic blue]",
                     )
-                    self.hass_client.trigger_service(
-                        domain=domain.domain_id,
-                        service=service.service_id,
-                        entity_id=entity.entity_id,
-                        **service_data,
-                    )
+                    try:
+                        self.hass_client.trigger_service(
+                            domain=domain.domain_id,
+                            service=service.service_id,
+                            entity_id=entity.entity_id,
+                            **service_data,
+                        )
+                    except homeassistant_api.errors.InternalServerError:
+                        failure_message = f"Failed to call {domain.domain_id}.{service.service_id} on {entity_friendly_name} with {service_data}"
+                        log.exception(
+                            failure_message,
+                            exc_info=True,
+                        )
+                        return failure_message
                 else:
                     log.info(
                         f"Dry run: would have called {domain.domain_id}.{service.service_id} on {entity.entity_id} with {service_data}."
                     )
-                return f"Successfully called service {domain.domain_id}.{service.service_id} on {entity_friendly_name}."
+                return f"Successfully called service {domain.domain_id}.{service.service_id} on {entity_friendly_name} with {service_data}."
 
         #  **service_data: dict[str, Any]
 
@@ -468,11 +473,19 @@ class HomeAssistantToolStore:
                     rich_print(
                         f"\n[italic blue]Calling {domain.domain_id}.{service.service_id} on {entity.entity_id}.[/italic blue]",
                     )
-                    self.hass_client.trigger_service(
-                        domain=domain.domain_id,
-                        service=service.service_id,
-                        entity_id=entity.entity_id,
-                    )
+                    try:
+                        self.hass_client.trigger_service(
+                            domain=domain.domain_id,
+                            service=service.service_id,
+                            entity_id=entity.entity_id,
+                        )
+                    except homeassistant_api.errors.InternalServerError:
+                        failure_message = f"Failed to call {domain.domain_id}.{service.service_id} on {entity_friendly_name}"
+                        log.exception(
+                            failure_message,
+                            exc_info=True,
+                        )
+                        return failure_message
                 else:
                     log.info(
                         f"Dry run: would have called {domain.domain_id}.{service.service_id} on {entity.entity_id}."
@@ -491,8 +504,8 @@ class HomeAssistantToolStore:
             return self.domains
 
         domains_filename = "hass_domains.json"
-        if (
-            os.path.exists(domains_filename) and False
+        if False and os.path.exists(
+            domains_filename
         ):  # this isn't implemented yet, sorry
             log.info(f"Loading the existing hass domains from {domains_filename}.")
             # with open(domains_filename, "r") as domains_file:
@@ -521,8 +534,8 @@ class HomeAssistantToolStore:
             return self.entities
 
         entities_filename = "hass_entities.json"
-        if (
-            os.path.exists(entities_filename) and False
+        if False and os.path.exists(
+            entities_filename
         ):  # this isn't implemented yet, sorry
             log.info(f"Loading the existing hass entities from {entities_filename}.")
             with open(entities_filename, "r") as entities_file:
@@ -559,29 +572,39 @@ class HomeAssistantToolStore:
         for group_id, entity_group in entities.items():
             if group_id in SUPPORTED_DOMAINS or "*" in SUPPORTED_DOMAINS:
                 for entity_slug, entity in entity_group.entities.items():
-                    get_hass_entity_state_tool = (
-                        self._get_hass_entity_state_tool_instantiator_func(
-                            entity, dry_run=self.dry_run
+                    tool_name = f"get_state_{entity.entity_id.replace('.', '_')}"
+                    tool_description = f'Get state/attributes of {entity.state.attributes.get("friendly_name") or entity_slug}'
+                    if len(tool_name) > 64:
+                        log.info(
+                            f"Skipping creating a tool for getting the state of {entity.entity_id} because the tool's name would be too long and I haven't fixed that bug yet."
                         )
-                    )
+                    else:
+                        log.info(
+                            f"Creating a tool to get the state of {entity.entity_id}..."
+                        )
+                        get_hass_entity_state_tool = (
+                            self._get_hass_entity_state_tool_instantiator_func(
+                                entity, dry_run=self.dry_run
+                            )
+                        )
 
-                    get_entity_state_tool: BaseTool = get_hass_entity_state_tool(
-                        name=f"get_state_{entity.entity_id.replace('.', '_')}",
-                        description=f'Get state/attributes of {entity.state.attributes.get("friendly_name") or entity_slug}',
-                    )
-                    wrapped_tools[get_entity_state_tool.name] = (
-                        SerializableHomeAssistantToolWrapper(
-                            domain_id=group_id,
-                            service_id=None,
-                            entity_id=entity.entity_id,
-                            name=get_entity_state_tool.name,
-                            description=get_entity_state_tool.description,
-                            hass_tool=get_entity_state_tool,
+                        get_entity_state_tool: BaseTool = get_hass_entity_state_tool(
+                            name=tool_name,
+                            description=tool_description,
                         )
-                    )
-                    log.info(
-                        f"Created tool {get_entity_state_tool.name}: {get_entity_state_tool.description}."
-                    )
+                        wrapped_tools[get_entity_state_tool.name] = (
+                            SerializableHomeAssistantToolWrapper(
+                                domain_id=group_id,
+                                service_id=None,
+                                entity_id=entity.entity_id,
+                                name=get_entity_state_tool.name,
+                                description=get_entity_state_tool.description,
+                                hass_tool=get_entity_state_tool,
+                            )
+                        )
+                        log.info(
+                            f"Created tool {get_entity_state_tool.name}: {get_entity_state_tool.description}."
+                        )
 
         # create tools for calling services on entities
         for domain_id, domain in domains.items():
@@ -590,38 +613,55 @@ class HomeAssistantToolStore:
             ) and domain_id in entities.keys():
                 for entity_slug, entity in entities[domain_id].entities.items():
                     for _, service in domain.services.items():
-                        log.info(
-                            f"Creating a tool for calling {domain.domain_id}.{service.service_id} on {entity.entity_id}..."
+                        tool_name = (
+                            f"{service.service_id}_{entity.entity_id.replace('.', '_')}"
                         )
-                        if service.fields:
-                            # log.info(
-                            #     f"Skipped creating tool {service.service_id}_{entity.entity_id.replace('.', '_')} because we don't support fields yet."
-                            # )
-                            get_hass_service_entity_tool = self._get_hass_service_entity_tool_instantiator_func_with_params(
-                                domain, service, entity, dry_run=self.dry_run
+                        tool_description = f'For {entity.state.attributes.get("friendly_name") or entity_slug}: {service.description or "[description not found]"}'
+                        if len(tool_name) > 64:
+                            log.info(
+                                f"Skipping creating a tool for calling {domain.domain_id}.{service.service_id} on {entity.entity_id} because the tool's name would be too long and I haven't fixed that bug yet."
+                            )
+                        elif service.service_id == "toggle":
+                            log.info(
+                                f"Skipping creating a tool for calling {domain.domain_id}.toggle on {entity.entity_id} because the LLM likes to use the toggle tools too much and I want to get it to do explicit `turn on` or `turn off` first."
+                            )
+                        elif domain.domain_id == "remote":
+                            log.info(
+                                "Skipping creating a tool for anything `remote`-related because it's not useful (yet?)."
                             )
                         else:
-                            get_hass_service_entity_tool = (
-                                self._get_hass_service_entity_tool_instantiator_func(
+                            log.info(
+                                f"Creating a tool for calling {domain.domain_id}.{service.service_id} on {entity.entity_id}..."
+                            )
+                            if service.fields:
+                                # log.info(
+                                #     f"Skipped creating tool {service.service_id}_{entity.entity_id.replace('.', '_')} because we don't support fields yet."
+                                # )
+                                get_hass_service_entity_tool = self._get_hass_service_entity_tool_instantiator_func_with_params(
                                     domain, service, entity, dry_run=self.dry_run
                                 )
+                            else:
+                                get_hass_service_entity_tool = self._get_hass_service_entity_tool_instantiator_func(
+                                    domain, service, entity, dry_run=self.dry_run
+                                )
+                            call_service_on_entity_tool: BaseTool = (
+                                get_hass_service_entity_tool(
+                                    name=tool_name,
+                                    description=tool_description,
+                                )
                             )
-                        call_service_on_entity_tool: BaseTool = get_hass_service_entity_tool(
-                            name=f"{service.service_id}_{entity.entity_id.replace('.', '_')}",
-                            description=f'For {entity.state.attributes.get("friendly_name") or entity_slug}: {service.description or "[description not found]"}',
-                        )
-                        wrapped_tools[call_service_on_entity_tool.name] = (
-                            SerializableHomeAssistantToolWrapper(
-                                domain_id=domain.domain_id,
-                                service_id=service.service_id,
-                                entity_id=entity.entity_id,
-                                name=call_service_on_entity_tool.name,
-                                description=call_service_on_entity_tool.description,
-                                hass_tool=call_service_on_entity_tool,
+                            wrapped_tools[call_service_on_entity_tool.name] = (
+                                SerializableHomeAssistantToolWrapper(
+                                    domain_id=domain.domain_id,
+                                    service_id=service.service_id,
+                                    entity_id=entity.entity_id,
+                                    name=call_service_on_entity_tool.name,
+                                    description=call_service_on_entity_tool.description,
+                                    hass_tool=call_service_on_entity_tool,
+                                )
                             )
-                        )
-                        log.info(
-                            f"Created tool {call_service_on_entity_tool.name}: {call_service_on_entity_tool.description}."
-                        )
+                            log.info(
+                                f"Created tool {call_service_on_entity_tool.name}: {call_service_on_entity_tool.description}."
+                            )
 
         return wrapped_tools
