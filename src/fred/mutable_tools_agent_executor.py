@@ -14,6 +14,11 @@ log = logging.getLogger("fred")
 
 class MutableToolsAgentExecutor(AgentExecutor):
     def reset_tools(self, tools: list[BaseTool]) -> None:
+        """
+        Clears all tools from the agent executor and the agent, and then adds the
+        provided list of tools to both. Pass an empty list if you just want to remove
+        all the tools.
+        """
         assert isinstance(self.agent, MutableToolsOpenAiToolsAgent)
         self.tools = tools
         self.agent.reset_tools(tools)

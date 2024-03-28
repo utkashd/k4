@@ -1,15 +1,18 @@
+import json
 import sys
 import os
 import logging
-from typing import Any, Never, Sequence
+from typing import Any, Literal, Never, Sequence
 import openai
 from pydantic import BaseModel
+
+# from fred.vector_store import VectorStore
 from fred.home_assistant_tool_store import HomeAssistantToolStore
 from fred.mutable_tools_agent_executor import MutableToolsAgentExecutor
 from fred.mutable_tools_openai_tools_agent import MutableToolsOpenAiToolsAgent
+from fred.openai_model import OpenAIModel
+from fred.utils.save_llm_prompt import save_chat_create_inputs_as_dict
 import readline  # this improves the terminal UI--input() now ignores arrow keys  # noqa: F401
-
-# from fred.vector_store import VectorStore
 from langchain_core.pydantic_v1 import SecretStr
 from langchain.tools import BaseTool
 from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage, AIMessage
@@ -17,15 +20,8 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.memory import ChatMessageHistory
 from langchain_openai import ChatOpenAI
 from langchain.agents import create_openai_tools_agent
-from fred.openai_model import OpenAIModel
 from rich.logging import RichHandler
 from rich import print as rich_print
-
-from fred.utils.save_llm_prompt import save_chat_create_inputs_as_dict
-
-# import langchain
-
-# langchain.debug = True
 
 
 FORMAT = "%(message)s"
@@ -42,14 +38,29 @@ class PromptTemplateArgs(BaseModel):
     chat_history: Sequence[BaseMessage]
 
 
+class DebugOptions(BaseModel):
+    log_level: Literal["debug", "info", "warn", "error"] = "info"
+    is_dry_run: bool = False
+    """
+    If True, will not actually call Home Assistant services (but will tell you what we 
+    would have called). By default, False
+    """
+    should_save_requests: bool = False
+    """
+    Whether to save the contents of the OpenAI API requests to a local file, which is
+    useful for debugging. Should only be marked `True` when you're developing.
+    Overwrites the existing file, if any.
+    """
+    requests_filename: str = "tmp/llm_requests.json"
+
+
 class Fred:
     def __init__(
         self,
         ai_name: str = "Fred",
         human_name: str = "Human",
-        log_level: str = "warn",
-        dry_run: bool = False,
         ignore_home_assistant_ssl: str | bool | None = False,
+        debug_options: DebugOptions = DebugOptions(),
     ):
         """
         _summary_
@@ -62,18 +73,17 @@ class Fred:
             Your name, or how you'd like to be addressed by the assistant. The assistant
             might search for Home Assistant entities using your name. e.g., if you ask
             "turn my lights off," it may decide to search for "turn off <your name>
-            light," so you may get better results if your devices contain your name.
-            'Human' by default.
-        log_level : str, optional
-            _description_, by default "warn"
+            light," so you may get better results by using your name if your devices
+            include your name. 'Human' by default.
+        debug_options : DebugOptions, optional
+            Configure `log_level`, `is_dry_run`, and `should_save_requests`.
         dry_run : bool, optional
-            _description_, by default False
+
         ignore_home_assistant_ssl : str | bool | None, optional
-            If falsy, will not verify Home Assistant's SSL certificate. By default False
+            If falsy, will not verify Home Assistant's SSL certificate. By default, False
         """
-        self.verbose: bool
-        self.dry_run: bool
-        self._setup_development_tools(log_level, dry_run)
+        self.debug_options = debug_options
+        self._setup_development_tools()
 
         self.ai_name = ai_name
         self.human_name = human_name
@@ -83,7 +93,7 @@ class Fred:
         # one vector store for tools (APIs)
         self.home_assistant_tool_store = HomeAssistantToolStore(
             base_url=os.environ["FRED_HA_BASE_URL"],
-            dry_run=self.dry_run,
+            dry_run=self.debug_options.is_dry_run,
             verify_home_assistant_ssl=not ignore_home_assistant_ssl,
         )
 
@@ -135,7 +145,7 @@ class Fred:
         self.agent_executor = MutableToolsAgentExecutor(
             agent=agent,
             tools=self.tools,
-            verbose=self.verbose,
+            verbose=self._is_verbose(),
         )
         self.tools.append(
             self.home_assistant_tool_store.get_tool_searcher_tool(self.agent_executor)
@@ -147,26 +157,26 @@ class Fred:
 
         log.info("Fred is initialized.")
 
-    def _setup_development_tools(self, log_level: str, dry_run: bool) -> None:
+    def _is_verbose(self) -> bool:
+        return self.debug_options.log_level in ["debug", "info"]
+
+    def _setup_development_tools(self) -> None:
         if os.environ.get("TOKENIZERS_PARALLELISM") != "true":
             # if the user hasn't set this environment variable, don't overwrite it.
             # otherwise (in here), set it to false to avoid a warning from huggingface
             # https://stackoverflow.com/questions/62691279/how-to-disable-tokenizers-parallelism-true-false-warning
             os.environ["TOKENIZERS_PARALLELISM"] = "false"
-        self.verbose = log_level.lower() in ["debug", "info"]
         # we have to do this now to avoid some unwanted logging
         logging.basicConfig(
-            level=log_level.upper(),
+            level=self.debug_options.log_level.upper(),
             format=FORMAT,
             datefmt="[%X]",
             handlers=[RichHandler()],
             force=True,
         )
-        self.dry_run = dry_run
-
-        if self.dry_run and not self.verbose:
+        if self.debug_options.is_dry_run and not self._is_verbose():
             print(
-                f"Bypassing logger to tell you that you probably want dry_run=True and log_level='info'. You have {dry_run=} and {log_level=}"
+                f"Bypassing logger to warn you that you probably want dry_run=True and log_level='info'. You have {self.debug_options.is_dry_run=} and {self.debug_options.log_level=}"
             )
 
     # def _get_k_relevant_factoids(self, human_input: str, k: int = 5) -> SystemMessage:
@@ -222,21 +232,28 @@ class Fred:
             AIMessage(name=self.ai_name, content=response["output"])
         )
 
-        # I should probably move this to inside invoke, but for now it'll be like this
+        # TODO be smarter about resetting tools
         self.agent_executor.reset_tools(self.tools)
 
-        rich_print(self.timestamp_to_prompts_sent)
-
         return str(response["output"])
+
+    def _write_requests_to_disk(self) -> None:
+        with open(self.debug_options.requests_filename, "w") as requests_file:
+            json.dump(self.timestamp_to_prompts_sent, requests_file, indent=4)
 
     def _shutdown(self) -> Never:
         log.info("Shutting down gracefully.")
         # self.factoids_vector_store.save_db_to_disk()
+        if self.debug_options.should_save_requests:
+            self._write_requests_to_disk()
         rich_print(f"\n'{self.ai_name}': Goodbye.")
         sys.exit(0)
 
     def start(self) -> Never:
-        rich_print("Type 'quit' to quit.")
+        """
+        Starts a chat interface in your terminal. Consumes the terminal.
+        """
+        rich_print("Type '/quit' to quit and '/help' for all options.")
 
         ai_intro_message = f"'{self.ai_name}': What can I do for you?"
         rich_print(f"\n{ai_intro_message}")
@@ -247,7 +264,9 @@ class Fred:
         while True:
             human_input = input(f"\n{self.human_name}: ")
 
-            if human_input.lower() in ["quit", "shutdown", "exit"]:
+            if human_input.lower() in ["/quit", "/exit"]:
                 self._shutdown()
-
-            rich_print(f"\n'{self.ai_name}': {self.ask_fred(human_input)}")
+            elif human_input.lower() in ["/help"]:
+                rich_print("'/quit' to quit")
+            else:
+                rich_print(f"\n'{self.ai_name}': {self.ask_fred(human_input)}")

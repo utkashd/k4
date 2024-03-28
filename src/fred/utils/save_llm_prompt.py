@@ -1,3 +1,7 @@
+"""
+Courtesy of https://github.com/kddubey
+"""
+
 from contextlib import contextmanager
 from datetime import datetime
 from functools import wraps
@@ -37,8 +41,13 @@ def _save_method_inputs_as_dict(
         self: Any, **kwargs: dict[str, Any]
     ) -> Any:  # create takes only named args
         current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
-        timestamp_to_kwargs[current_time] = kwargs
-        return original_method(**kwargs)
+        timestamp_to_kwargs[current_time] = {
+            "request": {"body": kwargs},
+            # "response": {},
+        }
+        response = original_method(**kwargs)
+        # timestamp_to_kwargs[current_time]["response"] =
+        return response
 
     with _monkeypatch_instance_method(obj, method_name, new_method):
         yield timestamp_to_kwargs
