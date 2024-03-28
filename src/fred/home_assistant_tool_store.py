@@ -17,11 +17,12 @@ from fred.errors import FredError
 from fred.mutable_tools_agent_executor import MutableToolsAgentExecutor
 from fred.vector_store import VectorStore, VectorStoreItem
 from rich import print as rich_print
+from homeassistant.components.media_player import MediaPlayerEntityFeature
 
 log = logging.getLogger("fred")
 
-# SUPPORTED_DOMAINS = {"switch"}
-SUPPORTED_DOMAINS = {"*"}  # useful for testing
+SUPPORTED_DOMAINS = {"switch"}
+# SUPPORTED_DOMAINS = {"*"}
 # SUPPORTED_DOMAINS = {"media_player"}
 # SUPPORTED_SERVICE_FIELDS = {"number", "text", "boolean", "select"}
 
@@ -160,7 +161,7 @@ class HomeAssistantToolStore:
                 rich_print(
                     f"\n[italic blue]Found these tools: {[(wrapped_tool.service_id or 'get state', wrapped_tool.entity_id) for wrapped_tool in wrapped_tools]}[/italic blue]"
                 )
-                return f"Retrieved {len(unwrapped_tools)} tools: {str(unwrapped_tools)}"
+                return f"Retrieved {len(unwrapped_tools)} tools: {[unwrapped_tool.name for unwrapped_tool in unwrapped_tools]}"
 
         self.tool_searcher_tool = SearchHassToolsTool()
         return self.tool_searcher_tool
@@ -564,6 +565,148 @@ class HomeAssistantToolStore:
         return self.wrapped_tools
 
     def _create_wrapped_tools(self) -> dict[str, SerializableHomeAssistantToolWrapper]:
+        entity_to_supported_services: dict[str, list[str]] = {}
+
+        def _does_entity_support_service(
+            domain: Domain, service: Service, entity: Entity
+        ) -> bool:
+            """
+            Helper function that determines whether an entity supports a particular
+            service.
+
+            This is necessary because Home Assistant implements "which services does X
+            entity support?" very strangely. `supported_features` is an integer which
+            represents the sum of a bunch of powers of 2. Each power of 2 in there maps
+            to a service. See
+            https://github.com/home-assistant/core/blob/cabc4f797ae4f3b839e60248cb6da216acfe22b6/homeassistant/components/media_player/const.py#L178
+
+            So `supported_features=5` means the entity supports services 1 and 4,
+            `supported_features=26` means the entity supports services 2, 8 and 16, etc.
+            """
+            if entity_to_supported_services.get(entity.entity_id):
+                return (
+                    service.service_id in entity_to_supported_services[entity.entity_id]
+                )
+            entity_to_supported_services[entity.entity_id] = []
+            match domain.domain_id:
+                case "media_player":
+                    if entity.state.attributes.get("supported_features"):
+                        supported_features_int = entity.state.attributes[
+                            "supported_features"
+                        ]
+                        binary_string_supported_features = bin(supported_features_int)
+
+                        for index, char in enumerate(
+                            binary_string_supported_features[:1:-1]
+                        ):  # iterate backwards, ignore the "this is a binary number" prefix "0b"
+                            if char == "1":
+                                media_player_service = MediaPlayerEntityFeature(
+                                    2**index
+                                )
+                                match media_player_service:
+                                    case MediaPlayerEntityFeature.PAUSE:
+                                        entity_to_supported_services[
+                                            entity.entity_id
+                                        ].append("media_pause")
+                                    case MediaPlayerEntityFeature.SEEK:
+                                        entity_to_supported_services[
+                                            entity.entity_id
+                                        ].append("media_seek")
+                                    case MediaPlayerEntityFeature.VOLUME_SET:
+                                        entity_to_supported_services[
+                                            entity.entity_id
+                                        ].append("volume_set")
+                                    case MediaPlayerEntityFeature.VOLUME_MUTE:
+                                        entity_to_supported_services[
+                                            entity.entity_id
+                                        ].append("volume_mute")
+                                    case MediaPlayerEntityFeature.VOLUME_MUTE:
+                                        entity_to_supported_services[
+                                            entity.entity_id
+                                        ].append("volume_mute")
+                                    case MediaPlayerEntityFeature.PREVIOUS_TRACK:
+                                        entity_to_supported_services[
+                                            entity.entity_id
+                                        ].append("media_previous_track")
+                                    case MediaPlayerEntityFeature.NEXT_TRACK:
+                                        entity_to_supported_services[
+                                            entity.entity_id
+                                        ].append("media_next_track")
+                                    case MediaPlayerEntityFeature.TURN_ON:
+                                        entity_to_supported_services[
+                                            entity.entity_id
+                                        ].append("turn_on")
+                                    case MediaPlayerEntityFeature.TURN_OFF:
+                                        entity_to_supported_services[
+                                            entity.entity_id
+                                        ].append("turn_off")
+                                    case MediaPlayerEntityFeature.PLAY_MEDIA:
+                                        entity_to_supported_services[
+                                            entity.entity_id
+                                        ].append("play_media")
+                                    case MediaPlayerEntityFeature.VOLUME_STEP:
+                                        entity_to_supported_services[
+                                            entity.entity_id
+                                        ].extend(["volume_up", "volume_down"])
+                                    case MediaPlayerEntityFeature.SELECT_SOURCE:
+                                        entity_to_supported_services[
+                                            entity.entity_id
+                                        ].append("select_source")
+                                    case MediaPlayerEntityFeature.STOP:
+                                        entity_to_supported_services[
+                                            entity.entity_id
+                                        ].append("media_stop")
+                                    case MediaPlayerEntityFeature.CLEAR_PLAYLIST:
+                                        entity_to_supported_services[
+                                            entity.entity_id
+                                        ].append("clear_playlist")
+                                    case MediaPlayerEntityFeature.PLAY:
+                                        entity_to_supported_services[
+                                            entity.entity_id
+                                        ].append("media_play")
+                                    case MediaPlayerEntityFeature.SHUFFLE_SET:
+                                        entity_to_supported_services[
+                                            entity.entity_id
+                                        ].append("shuffle_set")
+                                    case MediaPlayerEntityFeature.SELECT_SOUND_MODE:
+                                        entity_to_supported_services[
+                                            entity.entity_id
+                                        ].append("select_sound_mode")
+                                    case MediaPlayerEntityFeature.BROWSE_MEDIA:
+                                        log.warn(
+                                            f"Unimplemented service {media_player_service=}"
+                                        )  # TODO implement
+                                    case MediaPlayerEntityFeature.REPEAT_SET:
+                                        entity_to_supported_services[
+                                            entity.entity_id
+                                        ].append("repeat_set")
+                                    case MediaPlayerEntityFeature.GROUPING:
+                                        entity_to_supported_services[
+                                            entity.entity_id
+                                        ].append("join")
+                                    case MediaPlayerEntityFeature.MEDIA_ANNOUNCE:
+                                        log.warn(
+                                            f"Unimplemented service {media_player_service=}"
+                                        )  # TODO implement
+                                    case MediaPlayerEntityFeature.MEDIA_ENQUEUE:
+                                        log.warn(
+                                            f"Unimplemented service {media_player_service=}"
+                                        )  # TODO implement
+                        return (
+                            service.service_id
+                            in entity_to_supported_services[entity.entity_id]
+                        )
+                    else:
+                        log.warn(
+                            f'Entity {entity.entity_id} does not have a "supported_features" attribute. Assuming all services are supported.'
+                        )
+                        return True
+                case _:
+                    log.warn(
+                        f"Unimplemented domain {domain.domain_id}. Going to (unsafely) assume that all services are supported for {entity.entity_id}"
+                    )
+                    return True
+
         wrapped_tools: dict[str, SerializableHomeAssistantToolWrapper] = {}
         domains = self._get_domains()
         entities = self._get_entities()
@@ -628,6 +771,10 @@ class HomeAssistantToolStore:
                         elif domain.domain_id == "remote":
                             log.info(
                                 "Skipping creating a tool for anything `remote`-related because it's not useful (yet?)."
+                            )
+                        elif not _does_entity_support_service(domain, service, entity):
+                            log.info(
+                                f"Skipping creating a tool for {domain.domain_id}.{service.service_id} on {entity.entity_id} because that entity does not support that service."
                             )
                         else:
                             log.info(

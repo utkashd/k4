@@ -1,13 +1,13 @@
 import sys
 import os
 import logging
-from typing import Never, Sequence
+from typing import Any, Never, Sequence
 import openai
 from pydantic import BaseModel
-from fred.errors import FredError
 from fred.home_assistant_tool_store import HomeAssistantToolStore
 from fred.mutable_tools_agent_executor import MutableToolsAgentExecutor
 from fred.mutable_tools_openai_tools_agent import MutableToolsOpenAiToolsAgent
+import readline  # this improves the terminal UI--input() now ignores arrow keys  # noqa: F401
 
 # from fred.vector_store import VectorStore
 from langchain_core.pydantic_v1 import SecretStr
@@ -20,6 +20,8 @@ from langchain.agents import create_openai_tools_agent
 from fred.openai_model import OpenAIModel
 from rich.logging import RichHandler
 from rich import print as rich_print
+
+from fred.utils.save_llm_prompt import save_chat_create_inputs_as_dict
 
 # import langchain
 
@@ -108,9 +110,9 @@ class Fred:
         )
 
         log.info("Creating llm...")
-        llm = ChatOpenAI(
-            model=OpenAIModel.GPT_4_0613,
-            # model=OpenAIModel.GPT_3_5_TURBO_0613,  # this mostly works, but sometimes is a little stupid
+        self.llm = ChatOpenAI(
+            # model=OpenAIModel.GPT_4_0613,
+            model=OpenAIModel.GPT_3_5_TURBO_0613,  # this mostly works, but sometimes is a little stupid
             api_key=SecretStr(os.environ["FRED_OPENAI_API_KEY"]),
             temperature=0,
         )
@@ -124,7 +126,7 @@ class Fred:
         log.info("Creating agent...")
         agent = MutableToolsOpenAiToolsAgent(
             runnable=create_openai_tools_agent(
-                llm=llm,
+                llm=self.llm,
                 tools=self.tools,
                 prompt=self.prompt_template,
             )
@@ -140,6 +142,8 @@ class Fred:
         )
         log.info("Adding tools to the agent executor...")
         self.agent_executor.add_tools(self.tools)
+
+        self.timestamp_to_prompts_sent: dict[str, dict[str, Any]] = {}
 
         log.info("Fred is initialized.")
 
@@ -176,26 +180,32 @@ class Fred:
     #         content=f"Here are some facts that may or may not be relevant to the query:\n{temp}"
     #     )
 
-    def _ask_fred(self, human_input: str) -> str:  # TODO type this better
-        # I could add tools to the agent and executor here I guess
+    def ask_fred(self, human_input: str) -> str:  # TODO type this better
+        k = 6
         relevant_wrapped_tools = (
             self.home_assistant_tool_store.get_k_relevant_home_assistant_tools(
-                f"{self.human_name} {human_input}", k=3
+                f"{self.human_name} {human_input}", k=k
             )
         )
         potentially_relevant_tools = [
             relevant_wrapped_tool.hass_tool
             for relevant_wrapped_tool in relevant_wrapped_tools
         ]
+        log.info(
+            f"Retrieved {len(potentially_relevant_tools)} tools: {[potentially_relevant_tool.name for potentially_relevant_tool in potentially_relevant_tools]}"
+        )
         self.agent_executor.add_tools(potentially_relevant_tools)
         try:
-            response = self.agent_executor.invoke(
-                {
-                    "human_input": human_input,
-                    "chat_history": self.chat_history.messages,
-                    # "factoids": self._get_k_relevant_factoids(human_input, k=5),
-                }
-            )
+            with save_chat_create_inputs_as_dict(
+                self.llm.client, self.timestamp_to_prompts_sent
+            ):
+                response = self.agent_executor.invoke(
+                    {
+                        "human_input": human_input,
+                        "chat_history": self.chat_history.messages,
+                        # "factoids": self._get_k_relevant_factoids(human_input, k=5),
+                    }
+                )
         except openai.RateLimitError:
             log.exception(
                 "OpenAI rate-limited you or you have an OpenAI quota problem. Check your token's usage at https://platform.openai.com/usage."
@@ -214,6 +224,8 @@ class Fred:
 
         # I should probably move this to inside invoke, but for now it'll be like this
         self.agent_executor.reset_tools(self.tools)
+
+        rich_print(self.timestamp_to_prompts_sent)
 
         return str(response["output"])
 
@@ -238,4 +250,4 @@ class Fred:
             if human_input.lower() in ["quit", "shutdown", "exit"]:
                 self._shutdown()
 
-            rich_print(f"\n'{self.ai_name}': {self._ask_fred(human_input)}")
+            rich_print(f"\n'{self.ai_name}': {self.ask_fred(human_input)}")
