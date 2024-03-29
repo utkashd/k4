@@ -17,7 +17,7 @@ current_working_directory = Path(os.getcwd())
 fred_working_directory = os.path.expanduser("~/src/fred")
 
 if current_working_directory.samefile(fred_working_directory):
-    from fred.utils import hass  # noqa: F401
+    from fred.utils.ipython_utils import hass  # noqa: F401
 ```
 """
 

@@ -21,7 +21,7 @@ from homeassistant.components.media_player import MediaPlayerEntityFeature
 
 log = logging.getLogger("fred")
 
-SUPPORTED_DOMAINS = {"switch"}
+SUPPORTED_DOMAINS = {"switch", "media_player"}
 # SUPPORTED_DOMAINS = {"*"}
 # SUPPORTED_DOMAINS = {"media_player"}
 # SUPPORTED_SERVICE_FIELDS = {"number", "text", "boolean", "select"}
@@ -149,6 +149,9 @@ class HomeAssistantToolStore:
             return_direct: bool = False
             args_schema: type[BaseModel] = SearchHassToolsToolArgs
 
+            def __str__(self) -> str:
+                return self.name
+
             def _run(_s, query: str, k: int = 5) -> str:
                 rich_print(
                     f"\n[italic blue]Searching for {k=} Home Assistant tools with {query=}.[/italic blue]"
@@ -230,7 +233,7 @@ class HomeAssistantToolStore:
             args_schema: type[BaseModel] = HassEntityStateToolArgs
 
             def __str__(self) -> str:
-                return f"{self.name}: {self.description}"
+                return self.name
 
             def _run(_s) -> str:
                 # Since we're only reading an entity's state, we'll always get the
@@ -419,7 +422,7 @@ class HomeAssistantToolStore:
             args_schema: type[BaseModel] = HassServiceEntityToolWithParamsArgs
 
             def __str__(self) -> str:
-                return f"{self.name=}: {self.description=}"
+                return self.name
 
             def _run(_s, **service_data: dict[str, Any]) -> str:
                 if not dry_run:
@@ -467,7 +470,7 @@ class HomeAssistantToolStore:
             args_schema: type[BaseModel] = HassServiceEntityToolArgs
 
             def __str__(self) -> str:
-                return f"{self.name=}: {self.description=}"
+                return self.name
 
             def _run(_s) -> str:
                 if not dry_run:
@@ -589,6 +592,9 @@ class HomeAssistantToolStore:
                 )
             entity_to_supported_services[entity.entity_id] = []
             match domain.domain_id:
+                case "switch":
+                    # switches don't have "supported features," i.e., all are always supported
+                    return True
                 case "media_player":
                     if entity.state.attributes.get("supported_features"):
                         supported_features_int = entity.state.attributes[

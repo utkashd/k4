@@ -81,7 +81,7 @@ class MutableToolsAgentExecutor(AgentExecutor):
         new_toolset = [tool for tool in self.tools] + [tool for tool in new_tools]
         if len(new_toolset) > 10:
             log.warn(
-                f"Passing more than 10 tools; reliability might not be great with {len(new_toolset)} tools."
-                f"{new_toolset=}"
+                f"Passing more than 10 tools; reliability might not be great with {len(new_toolset)} tools: "
+                f"{str(new_toolset)}"
             )
         self.tools = new_toolset

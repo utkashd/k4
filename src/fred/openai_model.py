@@ -2,6 +2,7 @@ from enum import StrEnum
 
 
 # TODO: see if openai's library has this already; use that instead
+# TODO improve descriptions of all models
 class OpenAIModel(StrEnum):
     GPT_4 = "gpt-4"
     GPT_4_0613 = "gpt-4-0613"

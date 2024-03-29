@@ -1,3 +1,4 @@
+from functools import cached_property
 import json
 import sys
 import os
@@ -6,7 +7,7 @@ from typing import Any, Literal, Never, Sequence
 import openai
 from pydantic import BaseModel
 
-# from fred.vector_store import VectorStore
+from fred.vector_store import VectorStore, VectorStoreItem
 from fred.home_assistant_tool_store import HomeAssistantToolStore
 from fred.mutable_tools_agent_executor import MutableToolsAgentExecutor
 from fred.mutable_tools_openai_tools_agent import MutableToolsOpenAiToolsAgent
@@ -14,12 +15,17 @@ from fred.openai_model import OpenAIModel
 from fred.utils.save_llm_prompt import save_chat_create_inputs_as_dict
 import readline  # this improves the terminal UI--input() now ignores arrow keys  # noqa: F401
 from langchain_core.pydantic_v1 import SecretStr
-from langchain.tools import BaseTool
 from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage, AIMessage
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.prompts import (
+    PromptTemplate,
+    ChatPromptTemplate,
+    MessagesPlaceholder,
+)
+from langchain_core.runnables import RunnableSerializable
 from langchain.memory import ChatMessageHistory
 from langchain_openai import ChatOpenAI
 from langchain.agents import create_openai_tools_agent
+from langchain.tools import BaseTool
 from rich.logging import RichHandler
 from rich import print as rich_print
 
@@ -59,11 +65,11 @@ class Fred:
         self,
         ai_name: str = "Fred",
         human_name: str = "Human",
-        ignore_home_assistant_ssl: str | bool | None = False,
+        ignore_home_assistant_ssl: str | bool = False,
         debug_options: DebugOptions = DebugOptions(),
     ):
         """
-        _summary_
+        TODO write summary here
 
         Parameters
         ----------
@@ -75,36 +81,30 @@ class Fred:
             "turn my lights off," it may decide to search for "turn off <your name>
             light," so you may get better results by using your name if your devices
             include your name. 'Human' by default.
+        ignore_home_assistant_ssl : str | bool | None, optional
+            If falsy, will not verify Home Assistant's SSL certificate. By default,
+            False
         debug_options : DebugOptions, optional
             Configure `log_level`, `is_dry_run`, and `should_save_requests`.
-        dry_run : bool, optional
-
-        ignore_home_assistant_ssl : str | bool | None, optional
-            If falsy, will not verify Home Assistant's SSL certificate. By default, False
         """
         self.debug_options = debug_options
         self._setup_development_tools()
-
         self.ai_name = ai_name
         self.human_name = human_name
-        # self.factoids_vector_store = VectorStore("factoids")
-        # one vector store for past conversations
-        # one vector store for factoids/conclusions about the master
-        # one vector store for tools (APIs)
         self.home_assistant_tool_store = HomeAssistantToolStore(
             base_url=os.environ["FRED_HA_BASE_URL"],
             dry_run=self.debug_options.is_dry_run,
             verify_home_assistant_ssl=not ignore_home_assistant_ssl,
         )
-
         log.info("Creating chat_history...")
         self.chat_history = ChatMessageHistory()
         log.info("Creating prompt_template...")
-        self.prompt_template = ChatPromptTemplate.from_messages(
+        self.tool_calling_prompt_template = ChatPromptTemplate.from_messages(
             [
                 SystemMessage(
-                    content=f"You are a personal assistant for {self.human_name}. "
-                    f"Your name is {self.ai_name}."
+                    content=f"You are a personal AI assistant for {self.human_name}. "
+                    f"Your name is {self.ai_name}. When opportune, ask simple questions "
+                    f"to learn more about {self.human_name}'s preferences."
                 ),
                 MessagesPlaceholder(variable_name="chat_history"),
                 # HumanMessage(content="{human_input}"), # TODO understand why I can't
@@ -118,46 +118,50 @@ class Fred:
                 # langchain is so shit at writing statically-checkable code
             ]
         )
-
         log.info("Creating llm...")
-        self.llm = ChatOpenAI(
+        self.tool_calling_llm = ChatOpenAI(
             # model=OpenAIModel.GPT_4_0613,
             model=OpenAIModel.GPT_3_5_TURBO_0613,  # this mostly works, but sometimes is a little stupid
             api_key=SecretStr(os.environ["FRED_OPENAI_API_KEY"]),
-            temperature=0,
+            temperature=0,  # sean paul disapproves
         )
-
         # this order is important; the agent and agent executor will need to be able to
         # get tools added to them during an `invoke`, and to do that I need references
         # to the agent and agent executor. so I create a placeholder for tools, create
         # the agent and the executor, and then add at least one tool to them before
         # invoking anything.
         self.tools: list[BaseTool] = []
-        log.info("Creating agent...")
-        agent = MutableToolsOpenAiToolsAgent(
-            runnable=create_openai_tools_agent(
-                llm=self.llm,
-                tools=self.tools,
-                prompt=self.prompt_template,
-            )
-        )
-        log.info("Creating agent_executor...")
+        log.info("Creating agent and agent_executor...")
         self.agent_executor = MutableToolsAgentExecutor(
-            agent=agent,
+            agent=MutableToolsOpenAiToolsAgent(
+                runnable=create_openai_tools_agent(
+                    llm=self.tool_calling_llm,
+                    tools=self.tools,
+                    prompt=self.tool_calling_prompt_template,
+                ),
+            ),
             tools=self.tools,
-            verbose=self._is_verbose(),
+            verbose=self.is_verbose,
         )
         self.tools.append(
             self.home_assistant_tool_store.get_tool_searcher_tool(self.agent_executor)
         )
-        log.info("Adding tools to the agent executor...")
+        log.info("Adding tools to the agent executor (this may take a few minutes)...")
         self.agent_executor.add_tools(self.tools)
 
-        self.timestamp_to_prompts_sent: dict[str, dict[str, Any]] = {}
+        self.timestamp_to_prompts_sent: dict[str, Any] = {}
+        "Request bodies of OpenAI API calls are stored in this dict"
+
+        # Set up instance variables for managing and using factoids.
+        self.factoids_vector_store = VectorStore("factoids")
+        # one vector store for past conversations
+        # one vector store for factoids/conclusions about the master
+        # one vector store for tools (APIs)
 
         log.info("Fred is initialized.")
 
-    def _is_verbose(self) -> bool:
+    @cached_property
+    def is_verbose(self) -> bool:
         return self.debug_options.log_level in ["debug", "info"]
 
     def _setup_development_tools(self) -> None:
@@ -174,21 +178,88 @@ class Fred:
             handlers=[RichHandler()],
             force=True,
         )
-        if self.debug_options.is_dry_run and not self._is_verbose():
+        if self.debug_options.is_dry_run and not self.is_verbose:
             print(
                 f"Bypassing logger to warn you that you probably want dry_run=True and log_level='info'. You have {self.debug_options.is_dry_run=} and {self.debug_options.log_level=}"
             )
 
-    # def _get_k_relevant_factoids(self, human_input: str, k: int = 5) -> SystemMessage:
-    #     factoids = self.factoids_vector_store.get_top_k_relevant_items_in_db(
-    #         human_input, k
-    #     )
-    #     temp = ""
-    #     for factoid in factoids.relevant_items_and_scores:
-    #         temp += f" - {factoid.item.item_str}\n"
-    #     return SystemMessage(
-    #         content=f"Here are some facts that may or may not be relevant to the query:\n{temp}"
-    #     )
+    def _get_k_relevant_factoids(self, human_input: str, k: int = 5) -> SystemMessage:
+        factoids = self.factoids_vector_store.get_top_k_relevant_items_in_db(
+            human_input, k
+        )
+        temp = ""
+        for factoid in factoids.relevant_items_and_scores:
+            temp += f" - {factoid.item.item_str}\n"
+        return SystemMessage(
+            content=f"Here are some facts that may or may not be relevant to the query:\n{temp}"
+        )
+
+    @cached_property
+    def factoids_chain(self) -> RunnableSerializable[dict[Any, Any], Any]:
+        factoids_llm = ChatOpenAI(
+            model=OpenAIModel.GPT_3_5_TURBO,
+            api_key=SecretStr(os.environ["FRED_OPENAI_API_KEY"]),
+            temperature=0,
+        )
+        factoids_prompt_template = PromptTemplate.from_template(
+            template_format="f-string",
+            template=f"Review the following chat history between a human ({self.human_name}) "
+            f"and an AI assistant ({self.ai_name}). Your task is to draw succinct conclusions "
+            "about the human that may be relevant to future conversations between the human and "
+            "the AI assistant, e.g., personal preferences, facts relevant to controlling devices. "
+            'If nothing useful can be concluded, respond "<no conclusions>". Have a bias for not '
+            "drawing any conclusions."
+            "\n"
+            "\nExample:"
+            f"\n{self.ai_name}: What can I do for you?"
+            f"\n{self.human_name}: turn on tv and turn lights off"
+            f"\n{self.ai_name}: I have turned on your television and I have turned your "
+            "bedroom light off. Is there anything else I can help you with?"
+            f"\n{self.human_name}: set thermostat to heat 66 degrees\n"
+            f"\n{self.ai_name}: Ok, I have turned on the Bedroom's thermostat and set it "
+            "to heat at 66 degrees Fahrenheit. Do you usually want this when you watch TV?"
+            f"\n{self.human_name}: no\n"
+            "\n\nConclusions:"
+            f"\n{self.human_name} may prefer the lights to be off when they watch TV."
+            f"\n{self.human_name}'s preferred thermostat heating temperature may be 66 degrees F."
+            "\n"
+            "\nExample:"
+            f"\n{self.ai_name}: What can I do for you?"
+            f"\n{self.human_name}: turn my light on pls"
+            f"\n{self.ai_name}: I have turned on your light. Is there anything else I can help you with?"
+            "\n\nConclusions:"
+            f"\n<no conclusions>"
+            "\n"
+            "\nChat History:"
+            "\n{chat_history}"
+            "\n\nConclusions:"
+            "\n",
+        )
+
+        return factoids_prompt_template | factoids_llm
+
+    def _glean(self) -> None:
+        """
+        Feeds the chat history plus a "what conclusions can you draw from this chat"
+        prompt to an LLM to get
+        """
+
+        # TODO somehow ensure I don't add something that is already in the db
+        formatted_chat_history = "\n".join(
+            [f"{msg.name}: {msg.content}" for msg in self.chat_history.messages]
+        )
+        response = self.factoids_chain.invoke({"chat_history": formatted_chat_history})
+        assert isinstance(response, AIMessage)
+        assert isinstance(response.content, str)
+        if "<no conclusion>" in response.content:
+            rich_print(f"no conclusions: {response=}")
+        else:
+            factoid_items: list[VectorStoreItem] = []
+            for factoid in response.content.split("\n"):
+                factoid_items.append(VectorStoreItem(item_str=factoid))
+            self.factoids_vector_store.generate_embeddings_and_save_embeddings_to_db(
+                factoid_items
+            )
 
     def ask_fred(self, human_input: str) -> str:  # TODO type this better
         k = 6
@@ -201,19 +272,19 @@ class Fred:
             relevant_wrapped_tool.hass_tool
             for relevant_wrapped_tool in relevant_wrapped_tools
         ]
-        log.info(
-            f"Retrieved {len(potentially_relevant_tools)} tools: {[potentially_relevant_tool.name for potentially_relevant_tool in potentially_relevant_tools]}"
+        rich_print(
+            f"[italic blue]Preemptively retrieved {len(potentially_relevant_tools)} tools: {[potentially_relevant_tool.name for potentially_relevant_tool in potentially_relevant_tools]}[/italic blue]"
         )
         self.agent_executor.add_tools(potentially_relevant_tools)
         try:
             with save_chat_create_inputs_as_dict(
-                self.llm.client, self.timestamp_to_prompts_sent
+                self.tool_calling_llm.client, self.timestamp_to_prompts_sent
             ):
                 response = self.agent_executor.invoke(
                     {
                         "human_input": human_input,
                         "chat_history": self.chat_history.messages,
-                        # "factoids": self._get_k_relevant_factoids(human_input, k=5),
+                        "factoids": self._get_k_relevant_factoids(human_input, k=5),
                     }
                 )
         except openai.RateLimitError:
@@ -243,7 +314,7 @@ class Fred:
 
     def _shutdown(self) -> Never:
         log.info("Shutting down gracefully.")
-        # self.factoids_vector_store.save_db_to_disk()
+        self.factoids_vector_store.save_db_to_disk()
         if self.debug_options.should_save_requests:
             self._write_requests_to_disk()
         rich_print(f"\n'{self.ai_name}': Goodbye.")
@@ -255,8 +326,8 @@ class Fred:
         """
         rich_print("Type '/quit' to quit and '/help' for all options.")
 
-        ai_intro_message = f"'{self.ai_name}': What can I do for you?"
-        rich_print(f"\n{ai_intro_message}")
+        ai_intro_message = "What can I do for you?"
+        rich_print(f"\n'{self.ai_name}': {ai_intro_message}")
         self.chat_history.add_ai_message(
             AIMessage(name=self.ai_name, content=ai_intro_message)
         )
@@ -264,9 +335,14 @@ class Fred:
         while True:
             human_input = input(f"\n{self.human_name}: ")
 
-            if human_input.lower() in ["/quit", "/exit"]:
+            if human_input.lower() in ["/quit", "/exit", "quit"]:
                 self._shutdown()
             elif human_input.lower() in ["/help"]:
-                rich_print("'/quit' to quit")
+                rich_print("'/quit' to quit")  # the rest is just for developing
+            elif human_input.lower() in ["/clear"]:
+                self.chat_history.clear()
+                rich_print("Chat history cleared.")
+            elif human_input.lower() in ["/glean"]:
+                self._glean()
             else:
                 rich_print(f"\n'{self.ai_name}': {self.ask_fred(human_input)}")
