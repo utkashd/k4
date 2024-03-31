@@ -1,3 +1,4 @@
+from functools import cached_property
 import json
 import logging
 import os
@@ -15,15 +16,15 @@ from pydantic import RootModel, constr
 from pydantic import create_model as create_v2_model
 from fred.errors import FredError
 from fred.mutable_tools_agent_executor import MutableToolsAgentExecutor
-from fred.vector_store import VectorStore, VectorStoreItem
+from fred.vector_store import VectorStore, VectorStoreItem, VectorStoreItemNotInDb
 from rich import print as rich_print
 from homeassistant.components.media_player import MediaPlayerEntityFeature
 
 log = logging.getLogger("fred")
 
-SUPPORTED_DOMAINS = {"switch", "media_player"}
+# SUPPORTED_DOMAINS = {"switch", "media_player"}
 # SUPPORTED_DOMAINS = {"*"}
-# SUPPORTED_DOMAINS = {"media_player"}
+SUPPORTED_DOMAINS = {"switch"}
 # SUPPORTED_SERVICE_FIELDS = {"number", "text", "boolean", "select"}
 
 
@@ -79,8 +80,8 @@ class HomeAssistantToolStore:
         self.entities = self._get_entities()
         self.wrapped_tools = self._get_wrapped_tools()
 
-        vector_store_tools: list[VectorStoreItem] = [
-            VectorStoreItem(
+        vector_store_tools: list[VectorStoreItemNotInDb] = [
+            VectorStoreItemNotInDb(
                 item_str=tool.description,
                 # this bullshit below is necessary because langchain only supports
                 # pydantic v1, and pydantic does not support a v2 BaseModel
@@ -102,11 +103,11 @@ class HomeAssistantToolStore:
             )
             for tool in self.wrapped_tools.values()
         ]
-        self.vector_store = VectorStore("hass_tools")
+        self.tools_vector_store = VectorStore("hass_tools")
         log.info(
             f"Generating {len(vector_store_tools)} tool embeddings and saving them to the store..."
         )
-        self.vector_store.generate_embeddings_and_save_embeddings_to_db(
+        self.tools_vector_store.generate_embeddings_and_save_embeddings_to_db(
             vector_store_tools
         )
         log.info(f"Done adding {len(vector_store_tools)} tools to the store.")
@@ -115,7 +116,7 @@ class HomeAssistantToolStore:
         self, human_input: str, k: int = 5
     ) -> list[SerializableHomeAssistantToolWrapper]:
         relevant_tools_search_results = (
-            self.vector_store.get_top_k_relevant_items_in_db(
+            self.tools_vector_store.get_top_k_relevant_items_in_db(
                 human_input, k
             ).relevant_items_and_scores
         )
@@ -132,6 +133,21 @@ class HomeAssistantToolStore:
             self.tool_searcher_tool = self._create_tool_searcher_tool(agent_executor)
         return self.tool_searcher_tool
 
+    @cached_property
+    def summary_of_tools(self) -> str:
+        # num_entities = 0
+        # num_domains = 0
+        # num_tools = 0
+
+        # s = ""
+        # last_tool_index = len(self.tools_vector_store.items) - 1
+        # for index, tool in enumerate(self.tools_vector_store.items):
+        #     pass
+        #     if index == last_tool_index:
+
+        # return f"Of the {num_tools}, "
+        return ""
+
     def _create_tool_searcher_tool(
         self,
         agent_executor: MutableToolsAgentExecutor,
@@ -145,7 +161,14 @@ class HomeAssistantToolStore:
 
         class SearchHassToolsTool(BaseTool):
             name: str = "search_device_tools"
-            description: str = "Use this to search for more tools if you're not provided an appropriate tool. If you don't get a good result the first time, retry with a larger `k` or with a better query, such as by including more context. You might not get the tool you need, in which case you should inform the human that you could not find the right tool."
+            description: str = (
+                "Use this to search for more tools if you're not provided an appropriate "
+                "tool. If you don't get a good result the first time, retry with a larger "
+                "`k` or with a better query, such as by including more context. "
+                "You might not get the tool you need, in which case you should inform the "
+                "human that you could not find the right tool. "
+                f"{self.summary_of_tools}"
+            )
             return_direct: bool = False
             args_schema: type[BaseModel] = SearchHassToolsToolArgs
 

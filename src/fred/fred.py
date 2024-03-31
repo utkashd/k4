@@ -7,7 +7,7 @@ from typing import Any, Literal, Never, Sequence
 import openai
 from pydantic import BaseModel
 
-from fred.vector_store import VectorStore, VectorStoreItem
+from fred.vector_store import VectorStore, VectorStoreItem, VectorStoreItemNotInDb
 from fred.home_assistant_tool_store import HomeAssistantToolStore
 from fred.mutable_tools_agent_executor import MutableToolsAgentExecutor
 from fred.mutable_tools_openai_tools_agent import MutableToolsOpenAiToolsAgent
@@ -187,6 +187,8 @@ class Fred:
         factoids = self.factoids_vector_store.get_top_k_relevant_items_in_db(
             human_input, k
         )
+        if len(factoids.relevant_items_and_scores) == 0:
+            return SystemMessage(content="")
         temp = ""
         for factoid in factoids.relevant_items_and_scores:
             temp += f" - {factoid.item.item_str}\n"
@@ -238,11 +240,130 @@ class Fred:
 
         return factoids_prompt_template | factoids_llm
 
-    def _glean(self) -> None:
+    @cached_property
+    def factoids_check_duplicates_chain(
+        self,
+    ) -> RunnableSerializable[dict[Any, Any], Any]:
+        factoids_check_duplicates_llm = ChatOpenAI(
+            model=OpenAIModel.GPT_4,
+            api_key=SecretStr(os.environ["FRED_OPENAI_API_KEY"]),
+            temperature=0,
+        )
+        factoids_check_duplicates_prompt_template = PromptTemplate.from_template(
+            template_format="f-string",
+            template="The following 4 statements reflect what we currently know:"
+            "\n{four_existing_factoids_numbered}"
+            "\n\nWe've received 1 new statement: {new_factoid}"
+            "\n\nWe need to store as few statements as possible while keeping all information. "
+            "Which of the following actions should we perform? Indicate all that apply. "
+            "Only include the letter(s). Do not provide an explanation or any other information."
+            "\nA. Keep all 5 statements."
+            "\nB. Overwrite the 1st statement with the new statement"
+            "\nC. Overwrite the 2nd statement with the new statement"
+            "\nD. Overwrite the 3rd statement with the new statement"
+            "\nE. Overwrite the 4th statement with the new statement"
+            "\nF. Discard the new statement, because it doesn't contain new information."
+            "\n\nAnswer: ",
+        )
+
+        return factoids_check_duplicates_prompt_template | factoids_check_duplicates_llm
+
+    def _learn_about_human(self) -> None:
         """
         Feeds the chat history plus a "what conclusions can you draw from this chat"
-        prompt to an LLM to get
+        prompt to an LLM to get a list of factoids. Then, adds the factoids to the
+        factoids db
         """
+
+        if len(self.chat_history.messages) == 0:
+            # we have no chat history to use, don't try to "learn" anything
+            return
+
+        def get_factoids_to_overwrite(
+            factoid: str,
+        ) -> set[VectorStoreItem] | Literal["discard"]:
+            """
+            Returns 'discard' to indicate that the factoid should just be discarded.
+            Otherwise, returns a set for which factoids should be removed in favor of
+            this new factoid.
+            """
+            if self.factoids_vector_store.is_empty():
+                return set()
+
+            similar_factoids = (
+                self.factoids_vector_store.get_top_k_relevant_items_in_db(factoid, k=4)
+            )
+            existing_factoids_numbered = ""
+            for index, similar_factoid in enumerate(
+                similar_factoids.relevant_items_and_scores
+            ):
+                existing_factoids_numbered += (
+                    f"{index + 1}. {similar_factoid.item.item_str}"
+                )
+                if index < 3:
+                    existing_factoids_numbered += "\n"
+            if len(similar_factoids.relevant_items_and_scores) < 4:
+                # this means that the factoids db had fewer than 4 factoids
+                # we're just gonna add bogus factoids for filler. yikes!
+                # should probably fix this...but for now...this will work
+                factoids_to_add = 4 - len(similar_factoids.relevant_items_and_scores)
+                match factoids_to_add:
+                    case 3:
+                        extra_factoids = (
+                            "2. Mowgli is a character in The Jungle Book.\n"
+                            "3. Bagheera is a character in The Jungle Book.\n"
+                            "4. Baloo is a character in The Jungle Book."
+                        )
+                    case 2:
+                        extra_factoids = (
+                            "3. Bagheera is a character in The Jungle Book.\n"
+                            "4. Baloo is a character in The Jungle Book."
+                        )
+                    case 1:
+                        extra_factoids = "4. Baloo is a character in The Jungle Book."
+                    case _:
+                        extra_factoids = ""
+
+                existing_factoids_numbered += extra_factoids
+
+            response = self.factoids_check_duplicates_chain.invoke(
+                {
+                    "four_existing_factoids_numbered": existing_factoids_numbered,
+                    "new_factoid": factoid,
+                }
+            )
+            # rich_print(f"{factoid=}")
+            # rich_print(f"{existing_factoids_numbered=}")
+            # rich_print(f"{response=}")
+            # breakpoint()
+            assert isinstance(response, AIMessage)
+            assert isinstance(response.content, str)
+            factoids_to_overwrite: set[VectorStoreItem] = set()
+            if "A" in response.content:
+                return set()
+            if "F" in response.content:
+                return "discard"
+            if "B" in response.content:
+                factoids_to_overwrite.add(
+                    similar_factoids.relevant_items_and_scores[0].item
+                )
+            if "C" in response.content:
+                if len(similar_factoids) >= 2:
+                    factoids_to_overwrite.add(
+                        similar_factoids.relevant_items_and_scores[1].item
+                    )
+            if "D" in response.content:
+                if len(similar_factoids) >= 3:
+                    factoids_to_overwrite.add(
+                        similar_factoids.relevant_items_and_scores[2].item
+                    )
+            if "E" in response.content:
+                if len(similar_factoids) >= 4:
+                    factoids_to_overwrite.add(
+                        similar_factoids.relevant_items_and_scores[3].item
+                    )
+
+            return factoids_to_overwrite
 
         # TODO somehow ensure I don't add something that is already in the db
         formatted_chat_history = "\n".join(
@@ -254,12 +375,30 @@ class Fred:
         if "<no conclusion>" in response.content:
             rich_print(f"no conclusions: {response=}")
         else:
-            factoid_items: list[VectorStoreItem] = []
-            for factoid in response.content.split("\n"):
-                factoid_items.append(VectorStoreItem(item_str=factoid))
+            factoid_items: list[VectorStoreItemNotInDb] = []
+            factoids_to_remove: list[VectorStoreItem] = []
+            for new_factoid_str in response.content.split("\n"):
+                # we're assuming that the factoids don't have any duplicates among them
+                factoids_to_overwrite = get_factoids_to_overwrite(new_factoid_str)
+                if factoids_to_overwrite == "discard":
+                    # this means that our "new factoid" isn't actually new information.
+                    # so we're are not adding this to our factoids db
+                    pass
+                else:
+                    for factoid_to_overwrite in factoids_to_overwrite:
+                        factoids_to_remove.append(factoid_to_overwrite)
+                    factoid_items.append(
+                        VectorStoreItemNotInDb(item_str=new_factoid_str)
+                    )
+            self.factoids_vector_store.remove_items(factoids_to_remove)
             self.factoids_vector_store.generate_embeddings_and_save_embeddings_to_db(
                 factoid_items
             )
+
+    def _intro(self) -> None: ...
+
+    def _clear_factoids(self) -> None:
+        self.factoids_vector_store.clear_db()
 
     def ask_fred(self, human_input: str) -> str:  # TODO type this better
         k = 6
@@ -275,7 +414,9 @@ class Fred:
         rich_print(
             f"[italic blue]Preemptively retrieved {len(potentially_relevant_tools)} tools: {[potentially_relevant_tool.name for potentially_relevant_tool in potentially_relevant_tools]}[/italic blue]"
         )
-        self.agent_executor.add_tools(potentially_relevant_tools)
+        self.agent_executor.add_tools(
+            potentially_relevant_tools
+        )  # TODO avoid duplicates with existing stuff in there
         try:
             with save_chat_create_inputs_as_dict(
                 self.tool_calling_llm.client, self.timestamp_to_prompts_sent
@@ -312,11 +453,14 @@ class Fred:
         with open(self.debug_options.requests_filename, "w") as requests_file:
             json.dump(self.timestamp_to_prompts_sent, requests_file, indent=4)
 
-    def _shutdown(self) -> Never:
-        log.info("Shutting down gracefully.")
+    def _save_self_to_disk(self) -> None:
         self.factoids_vector_store.save_db_to_disk()
         if self.debug_options.should_save_requests:
             self._write_requests_to_disk()
+
+    def _shutdown(self) -> Never:
+        log.info("Shutting down gracefully.")
+        self._save_self_to_disk()
         rich_print(f"\n'{self.ai_name}': Goodbye.")
         sys.exit(0)
 
@@ -339,10 +483,19 @@ class Fred:
                 self._shutdown()
             elif human_input.lower() in ["/help"]:
                 rich_print("'/quit' to quit")  # the rest is just for developing
+            elif human_input.lower() in ["/clear_chat"]:
+                self.chat_history.clear()
+                rich_print("Chat history cleared.")
+            elif human_input.lower() in ["/clear_factoids"]:
+                self._clear_factoids()
+                rich_print("All factoids deleted.")
             elif human_input.lower() in ["/clear"]:
                 self.chat_history.clear()
                 rich_print("Chat history cleared.")
+                self._clear_factoids()
+                rich_print("All factoids deleted.")
             elif human_input.lower() in ["/glean"]:
-                self._glean()
+                self._learn_about_human()
+                self._save_self_to_disk()
             else:
                 rich_print(f"\n'{self.ai_name}': {self.ask_fred(human_input)}")
