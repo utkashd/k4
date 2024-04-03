@@ -1,4 +1,4 @@
-# generated with python -m pipreqs.pipreqs src/fred
+# generated with python -m pipreqs.pipreqs src/gpt_home
 fastapi==0.110.1
 homeassistant==2024.3.3
 homeassistant_api==4.2.2

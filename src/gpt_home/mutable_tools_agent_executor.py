@@ -7,9 +7,9 @@ from langchain_core.utils.input import get_color_mapping
 from langchain.agents import AgentExecutor
 from langchain.tools import BaseTool
 
-from fred.mutable_tools_openai_tools_agent import MutableToolsOpenAiToolsAgent
+from gpt_home.mutable_tools_openai_tools_agent import MutableToolsOpenAiToolsAgent
 
-log = logging.getLogger("fred")
+log = logging.getLogger("gpt_home")
 
 
 class MutableToolsAgentExecutor(AgentExecutor):

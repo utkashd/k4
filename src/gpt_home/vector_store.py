@@ -6,7 +6,7 @@ from pydantic import BaseModel, RootModel
 import json
 import logging
 
-log = logging.getLogger("fred")
+log = logging.getLogger("gpt_home")
 
 
 class VectorStoreItemNotInDb(BaseModel):

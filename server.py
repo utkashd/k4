@@ -7,9 +7,9 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 import uuid
 import json
 from rich import print as rich_print
-from fred.errors import FredError
+from gpt_home.errors import GptHomeError
 
-log = logging.getLogger("fred")
+log = logging.getLogger("gpt_home")
 
 
 class ConnectionManager:
@@ -31,7 +31,7 @@ class ConnectionManager:
         else:
             try:
                 disconnected_client_id = self.get_client_id_by_websocket(client)
-            except FredError:
+            except GptHomeError:
                 log.exception(f"Unexpectedly failed to find client id: {client=}")
                 rich_print("exception uh oh")
                 return ""
@@ -53,7 +53,9 @@ class ConnectionManager:
         for id, websocket in self.active_connections.items():
             if websocket == client_websocket:
                 return id
-        raise FredError(f"Unexpectedly failed to find client id: {client_websocket=}")
+        raise GptHomeError(
+            f"Unexpectedly failed to find client id: {client_websocket=}"
+        )
 
     async def send_message_to(self, client: WebSocket | str, message: str) -> None:
         """
@@ -100,7 +102,7 @@ async def websocket_endpoint(client_websocket: WebSocket) -> None:
                 json.dumps(
                     {
                         "text": "nm, u?",
-                        "senderId": "fred",
+                        "senderId": "gpt_home",
                     }
                 ),
             )

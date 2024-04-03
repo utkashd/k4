@@ -7,12 +7,12 @@ from typing import Any, Literal, Never, Sequence
 import openai
 from pydantic import BaseModel
 
-from fred.vector_store import VectorStore, VectorStoreItem, VectorStoreItemNotInDb
-from fred.home_assistant_tool_store import HomeAssistantToolStore
-from fred.mutable_tools_agent_executor import MutableToolsAgentExecutor
-from fred.mutable_tools_openai_tools_agent import MutableToolsOpenAiToolsAgent
-from fred.openai_model import OpenAIModel
-from fred.utils.save_llm_prompt import save_chat_create_inputs_as_dict
+from gpt_home.vector_store import VectorStore, VectorStoreItem, VectorStoreItemNotInDb
+from gpt_home.home_assistant_tool_store import HomeAssistantToolStore
+from gpt_home.mutable_tools_agent_executor import MutableToolsAgentExecutor
+from gpt_home.mutable_tools_openai_tools_agent import MutableToolsOpenAiToolsAgent
+from gpt_home.openai_model import OpenAIModel
+from gpt_home.utils.save_llm_prompt import save_chat_create_inputs_as_dict
 import readline  # this improves the terminal UI--input() now ignores arrow keys  # noqa: F401
 from langchain_core.pydantic_v1 import SecretStr
 from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage, AIMessage
@@ -34,7 +34,7 @@ FORMAT = "%(message)s"
 logging.basicConfig(
     level="WARN", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
 )
-log = logging.getLogger("fred")
+log = logging.getLogger("gpt_home")
 
 
 # TODO use this
@@ -44,7 +44,7 @@ class PromptTemplateArgs(BaseModel):
     chat_history: Sequence[BaseMessage]
 
 
-class FredDebugOptions(BaseModel):
+class GptHomeDebugOptions(BaseModel):
     log_level: Literal["debug", "info", "warn", "error"] = "info"
     is_dry_run: bool = False
     """
@@ -60,13 +60,13 @@ class FredDebugOptions(BaseModel):
     requests_filename: str = "tmp/llm_requests.json"
 
 
-class Fred:
+class GptHome:
     def __init__(
         self,
-        ai_name: str = "Fred",
+        ai_name: str = "GptHome",
         human_name: str = "Human",
         ignore_home_assistant_ssl: str | bool = False,
-        debug_options: FredDebugOptions = FredDebugOptions(),
+        debug_options: GptHomeDebugOptions = GptHomeDebugOptions(),
     ):
         """
         TODO write summary here
@@ -74,7 +74,7 @@ class Fred:
         Parameters
         ----------
         ai_name : str, optional
-            Set your assistant's name, by default "Fred"
+            Set your assistant's name, by default "GptHome"
         human_name : str, optional
             Your name, or how you'd like to be addressed by the assistant. The assistant
             might search for Home Assistant entities using your name. e.g., if you ask
@@ -92,7 +92,7 @@ class Fred:
         self.ai_name = ai_name
         self.human_name = human_name
         self.home_assistant_tool_store = HomeAssistantToolStore(
-            base_url=os.environ["FRED_HA_BASE_URL"],
+            base_url=os.environ["GPT_HOME_HA_BASE_URL"],
             dry_run=self.debug_options.is_dry_run,
             verify_home_assistant_ssl=not ignore_home_assistant_ssl,
         )
@@ -122,7 +122,7 @@ class Fred:
         self.tool_calling_llm = ChatOpenAI(
             model=OpenAIModel.GPT_4_1106_PREVIEW,
             # model=OpenAIModel.GPT_3_5_TURBO_0613,  # this mostly works, but sometimes is a little stupid
-            api_key=SecretStr(os.environ["FRED_OPENAI_API_KEY"]),
+            api_key=SecretStr(os.environ["GPT_HOME_OPENAI_API_KEY"]),
             temperature=0,  # sean paul disapproves
         )
         # this order is important; the agent and agent executor will need to be able to
@@ -158,7 +158,7 @@ class Fred:
         # one vector store for factoids/conclusions about the master
         # one vector store for tools (APIs)
 
-        log.info("Fred is initialized.")
+        log.info("GptHome is initialized.")
 
     @cached_property
     def is_verbose(self) -> bool:
@@ -200,7 +200,7 @@ class Fred:
     def factoids_chain(self) -> RunnableSerializable[dict[Any, Any], Any]:
         factoids_llm = ChatOpenAI(
             model=OpenAIModel.GPT_4_TURBO_PREVIEW,
-            api_key=SecretStr(os.environ["FRED_OPENAI_API_KEY"]),
+            api_key=SecretStr(os.environ["GPT_HOME_OPENAI_API_KEY"]),
             temperature=0,
         )
         factoids_prompt_template = PromptTemplate.from_template(
@@ -246,7 +246,7 @@ class Fred:
     ) -> RunnableSerializable[dict[Any, Any], Any]:
         factoids_check_duplicates_llm = ChatOpenAI(
             model=OpenAIModel.GPT_4_TURBO_PREVIEW,
-            api_key=SecretStr(os.environ["FRED_OPENAI_API_KEY"]),
+            api_key=SecretStr(os.environ["GPT_HOME_OPENAI_API_KEY"]),
             temperature=0,
         )
         factoids_check_duplicates_prompt_template = PromptTemplate.from_template(
@@ -397,7 +397,7 @@ class Fred:
     def _clear_factoids(self) -> None:
         self.factoids_vector_store.clear_db()
 
-    def ask_fred(self, human_input: str) -> str:  # TODO type this better
+    def ask_gpt_home(self, human_input: str) -> str:  # TODO type this better
         k = 6
         relevant_wrapped_tools = (
             self.home_assistant_tool_store.get_k_relevant_home_assistant_tools(
@@ -496,4 +496,4 @@ class Fred:
                 self._learn_about_human()
                 self._save_self_to_disk()
             else:
-                rich_print(f"\n'{self.ai_name}': {self.ask_fred(human_input)}")
+                rich_print(f"\n'{self.ai_name}': {self.ask_gpt_home(human_input)}")

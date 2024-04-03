@@ -1,5 +1,5 @@
 [project]
-name = "fred"
+name = "gpt_home"
 version = "0.0.1"
 readme = "README.md"
 # license = { text = "MIT License" }
@@ -30,7 +30,7 @@ dev = [
 package-dir = {"" = "src"}
 
 [tool.setuptools.package-data]
-"fred" = ["py.typed"]
+"gpt_home" = ["py.typed"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

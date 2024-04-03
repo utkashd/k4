@@ -14,13 +14,13 @@ from langchain.tools import BaseTool
 from langchain.pydantic_v1 import BaseModel, Field
 from pydantic import RootModel, constr
 from pydantic import create_model as create_v2_model
-from fred.errors import FredError
-from fred.mutable_tools_agent_executor import MutableToolsAgentExecutor
-from fred.vector_store import VectorStore, VectorStoreItem, VectorStoreItemNotInDb
+from gpt_home.errors import GptHomeError
+from gpt_home.mutable_tools_agent_executor import MutableToolsAgentExecutor
+from gpt_home.vector_store import VectorStore, VectorStoreItem, VectorStoreItemNotInDb
 from rich import print as rich_print
 from homeassistant.components.media_player import MediaPlayerEntityFeature
 
-log = logging.getLogger("fred")
+log = logging.getLogger("gpt_home")
 
 # SUPPORTED_DOMAINS = {"switch", "media_player"}
 # SUPPORTED_DOMAINS = {"*"}
@@ -202,7 +202,7 @@ class HomeAssistantToolStore:
             log.warn(
                 "Intentially ignoring Home Assistant's (potentially invalid) SSL "
                 "certificate. This may leave you vulnerable to a cyberattack. If "
-                f"{base_url} is not a local server, I strongly suggest you 'quit' Fred,"
+                f"{base_url} is not a local server, I strongly suggest you 'quit' GptHome,"
                 " enable SSL verification, and try again. Proceed at your own risk."
             )
             urllib3.disable_warnings(
@@ -217,11 +217,11 @@ class HomeAssistantToolStore:
         try:
             client.get_config()  # if the client
         except requests.exceptions.SSLError as ssl_error:
-            error = FredError(
+            error = GptHomeError(
                 "Failed to create a Home Assistant API client due to SSL certificate "
                 "issues. If you don't have a valid SSL certificate for your Home "
                 "Assistant instance, you can skip verifying the SSL certificate by "
-                'setting the environment variable `FRED_HA_IGNORE_SSL="true"`'
+                'setting the environment variable `GPT_HOME_HA_IGNORE_SSL="true"`'
             )
             log.exception(error)
             log.debug(f"{base_url=}, {api_url=}, {verify_home_assistant_ssl=}")
@@ -230,10 +230,10 @@ class HomeAssistantToolStore:
 
     def _get_hass_token(self, hass_token: str) -> str:
         if hass_token == "":
-            hass_environment_variable_value = os.environ.get("FRED_HA_TOKEN")
+            hass_environment_variable_value = os.environ.get("GPT_HOME_HA_TOKEN")
             if not hass_environment_variable_value:
-                raise FredError(
-                    "No Home Assistant API token was provided and there is no environment variable. Please provide one or set the environment variable `FRED_HA_TOKEN`."
+                raise GptHomeError(
+                    "No Home Assistant API token was provided and there is no environment variable. Please provide one or set the environment variable `GPT_HOME_HA_TOKEN`."
                 )
             else:
                 hass_token = hass_environment_variable_value
@@ -268,7 +268,7 @@ class HomeAssistantToolStore:
                     entity_id=entity.entity_id
                 )
                 if latest_entity_info is None:
-                    raise FredError(f"Failed to get the state of {entity=}")
+                    raise GptHomeError(f"Failed to get the state of {entity=}")
 
                 formatted_entity_state = self._format_entity_state(
                     latest_entity_info.state
