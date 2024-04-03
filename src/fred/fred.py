@@ -44,7 +44,7 @@ class PromptTemplateArgs(BaseModel):
     chat_history: Sequence[BaseMessage]
 
 
-class DebugOptions(BaseModel):
+class FredDebugOptions(BaseModel):
     log_level: Literal["debug", "info", "warn", "error"] = "info"
     is_dry_run: bool = False
     """
@@ -66,7 +66,7 @@ class Fred:
         ai_name: str = "Fred",
         human_name: str = "Human",
         ignore_home_assistant_ssl: str | bool = False,
-        debug_options: DebugOptions = DebugOptions(),
+        debug_options: FredDebugOptions = FredDebugOptions(),
     ):
         """
         TODO write summary here
@@ -120,8 +120,8 @@ class Fred:
         )
         log.info("Creating llm...")
         self.tool_calling_llm = ChatOpenAI(
-            # model=OpenAIModel.GPT_4_0613,
-            model=OpenAIModel.GPT_3_5_TURBO_0613,  # this mostly works, but sometimes is a little stupid
+            model=OpenAIModel.GPT_4_1106_PREVIEW,
+            # model=OpenAIModel.GPT_3_5_TURBO_0613,  # this mostly works, but sometimes is a little stupid
             api_key=SecretStr(os.environ["FRED_OPENAI_API_KEY"]),
             temperature=0,  # sean paul disapproves
         )
@@ -199,7 +199,7 @@ class Fred:
     @cached_property
     def factoids_chain(self) -> RunnableSerializable[dict[Any, Any], Any]:
         factoids_llm = ChatOpenAI(
-            model=OpenAIModel.GPT_3_5_TURBO,
+            model=OpenAIModel.GPT_4_TURBO_PREVIEW,
             api_key=SecretStr(os.environ["FRED_OPENAI_API_KEY"]),
             temperature=0,
         )
@@ -245,7 +245,7 @@ class Fred:
         self,
     ) -> RunnableSerializable[dict[Any, Any], Any]:
         factoids_check_duplicates_llm = ChatOpenAI(
-            model=OpenAIModel.GPT_4,
+            model=OpenAIModel.GPT_4_TURBO_PREVIEW,
             api_key=SecretStr(os.environ["FRED_OPENAI_API_KEY"]),
             temperature=0,
         )
@@ -268,6 +268,7 @@ class Fred:
 
         return factoids_check_duplicates_prompt_template | factoids_check_duplicates_llm
 
+    # TODO i should classify all factoids as "always supply to llm" or "require querying"
     def _learn_about_human(self) -> None:
         """
         Feeds the chat history plus a "what conclusions can you draw from this chat"
@@ -332,10 +333,6 @@ class Fred:
                     "new_factoid": factoid,
                 }
             )
-            # rich_print(f"{factoid=}")
-            # rich_print(f"{existing_factoids_numbered=}")
-            # rich_print(f"{response=}")
-            # breakpoint()
             assert isinstance(response, AIMessage)
             assert isinstance(response.content, str)
             factoids_to_overwrite: set[VectorStoreItem] = set()
@@ -466,7 +463,8 @@ class Fred:
 
     def start(self) -> Never:
         """
-        Starts a chat interface in your terminal. Consumes the terminal.
+        Starts a chat interface in your terminal. Consumes the terminal. Used for
+        debugging, so far.
         """
         rich_print("Type '/quit' to quit and '/help' for all options.")
 
