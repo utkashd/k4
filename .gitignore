@@ -1,4 +1,5 @@
 .DS_Store
+Thumbs.db
 *.pyc
 *.egg-info/
 __pycache__/
@@ -16,3 +17,12 @@ tmp/*
 
 build/
 dist/
+
+node_modules/
+
+.npm/
+
+.env
+.log
+/build
+/build/Release
