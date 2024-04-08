@@ -2,7 +2,12 @@ import os
 from fastapi import FastAPI
 from pydantic import BaseModel
 from gpt_home import GptHome
-from server_commons import ClientMessage, GptHomeMessage, GptHomeSystemMessage, Message
+from server_commons.server_commons import (
+    ClientMessage,
+    GptHomeMessage,
+    GptHomeSystemMessage,
+    Message,
+)
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_community.chat_message_histories.in_memory import ChatMessageHistory
 

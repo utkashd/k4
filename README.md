@@ -8,6 +8,13 @@ export GPT_HOME_HA_TOKEN="long-lived api token here"
 export GPT_HOME_OPENAI_API_KEY="openai api key here"
 ```
 
+to develop
+
+```bash
+mkvirtualenv -p python3.12 gpt_home
+python -m pip install -e ".[dev]"
+```
+
 optional env vars:
 
 ```bash
