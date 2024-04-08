@@ -11,10 +11,10 @@ dependencies = [
     "langchain >= 0.1.8", # i hate this
     "langchain-openai >= 0.0.6",
     "langchainhub >= 0.1.14",
-    "HomeAssistant-API >= 4.2.2",
-    "homeassistant = 2024.3.3", # needed for parsing "supported services" like this: https://github.com/home-assistant/core/blob/cabc4f797ae4f3b839e60248cb6da216acfe22b6/homeassistant/components/media_player/const.py#L178
+    "HomeAssistant-API >= 4.2.2.post1",
+    "homeassistant == 2024.3.3", # needed for parsing "supported services" like this: https://github.com/home-assistant/core/blob/cabc4f797ae4f3b839e60248cb6da216acfe22b6/homeassistant/components/media_player/const.py#L178
     "fastapi >= 0.110.1",
-    "uvicorn >= 0.29.0",
+    "uvicorn[standard] >= 0.29.0",
 ]
 requires-python = ">=3.11"
 
@@ -27,13 +27,13 @@ dev = [
 ]
 
 [tool.setuptools]
-package-dir = {"" = "src"}
+package-dir = {"" = "backend/src"}
 
 [tool.setuptools.package-data]
 "gpt_home" = ["py.typed"]
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["backend/src"]
 
 [tool.mypy]
 strict = true

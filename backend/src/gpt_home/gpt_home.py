@@ -13,7 +13,6 @@ from gpt_home.mutable_tools_agent_executor import MutableToolsAgentExecutor
 from gpt_home.mutable_tools_openai_tools_agent import MutableToolsOpenAiToolsAgent
 from gpt_home.openai_model import OpenAIModel
 from gpt_home.utils.save_llm_prompt import save_chat_create_inputs_as_dict
-import readline  # this improves the terminal UI--input() now ignores arrow keys  # noqa: F401
 from langchain_core.pydantic_v1 import SecretStr
 from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage, AIMessage
 from langchain_core.prompts import (
@@ -22,7 +21,7 @@ from langchain_core.prompts import (
     MessagesPlaceholder,
 )
 from langchain_core.runnables import RunnableSerializable
-from langchain.memory import ChatMessageHistory
+from langchain_community.chat_message_histories.in_memory import ChatMessageHistory
 from langchain_openai import ChatOpenAI
 from langchain.agents import create_openai_tools_agent
 from langchain.tools import BaseTool
@@ -466,6 +465,9 @@ class GptHome:
         Starts a chat interface in your terminal. Consumes the terminal. Used for
         debugging, so far.
         """
+
+        import readline  # this improves the terminal UI--input() now ignores arrow keys  # noqa: F401
+
         rich_print("Type '/quit' to quit and '/help' for all options.")
 
         ai_intro_message = "What can I do for you?"

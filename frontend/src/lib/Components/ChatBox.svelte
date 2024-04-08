@@ -22,7 +22,7 @@
 
     onMount(() => {
         try {
-            socket = new WebSocket("ws://localhost:8000/chat");
+            socket = new WebSocket("ws://localhost:8001/chat");
 
             socket.onopen = (ws, event) => {
                 console.log("connected");
@@ -32,7 +32,7 @@
             socket.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
-                    if (data["type"] == "connect") {
+                    if (data["type"] == "connection_successful") {
                         senderId = data["id"];
                     } else if (data["type"] == "disconnected") {
                         handleShowSnackBar("Disconnected", `Client ` + data["id"]);
@@ -86,7 +86,7 @@
 <Tile style="width: 500px; height: 700px">
     <p>ID: {senderId}</p>
     <div class="tile-header">
-        <h2>Flash Chat</h2>
+        <h2>GptHome</h2>
     </div>
 
     <div class="messages-history">
