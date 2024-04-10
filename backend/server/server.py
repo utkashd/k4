@@ -2,11 +2,11 @@ import os
 from fastapi import FastAPI
 from pydantic import BaseModel
 from gpt_home import GptHome
-from server_commons.server_commons import (
+from .server_commons.server_commons import (  # type: ignore[import-untyped] # idk why this is necessary
     ClientMessage,
     GptHomeMessage,
-    GptHomeSystemMessage,
     Message,
+    GptHomeSystemMessage,
 )
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_community.chat_message_histories.in_memory import ChatMessageHistory
@@ -78,10 +78,11 @@ def ask_gpt_home(client_message: ClientMessage) -> list[GptHomeMessage]:
     return cm.ask_clients_gpt_home(client_message)
 
 
-# @app.post("/delete_client")
-# def delete_client()
-
-if __name__ == "__main__":
+def main():
     import uvicorn
 
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+if __name__ == "__main__":
+    main()

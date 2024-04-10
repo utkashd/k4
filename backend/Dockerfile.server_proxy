@@ -1,0 +1,26 @@
+FROM python:3.12-bookworm
+
+RUN pip install poetry==1.8.2
+
+ENV POETRY_NO_INTERACTION=1 \
+    POETRY_VIRTUALENVS_IN_PROJECT=1 \
+    POETRY_VIRTUALENVS_CREATE=1 \
+    POETRY_CACHE_DIR=/tmp/poetry_cache
+
+WORKDIR /gpt_home_backend_server
+
+# at first, only install external dependencies (so these layers get cached)
+COPY pyproject.toml poetry.lock ./
+# this is necessary for `poetry install ...` later
+RUN touch README.md
+RUN poetry install --without dev --no-root && rm -rf $POETRY_CACHE_DIR
+
+EXPOSE 8001
+
+# Now copy the backend code, which has probably changed since the last `docker build ...`
+COPY gpt_home ./gpt_home
+COPY server ./server
+
+RUN poetry install --without dev
+
+ENTRYPOINT ["poetry", "run", "gpt_home_backend_server_proxy"]

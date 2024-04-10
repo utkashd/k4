@@ -1,0 +1,14 @@
+version: "1"
+services:
+    server:
+        build: ./backend/Dockerfile.server
+        ports:
+            - "8000:8000"
+    server_proxy:
+        build: ./backend/Dockerfile.server_proxy
+        ports:
+            - "8001:8001"
+    frontend:
+        build: ./frontend/Dockerfile.frontend
+        ports:
+            - "3000:3000"

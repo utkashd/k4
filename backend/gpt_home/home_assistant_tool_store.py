@@ -18,7 +18,7 @@ from gpt_home.errors import GptHomeError
 from gpt_home.mutable_tools_agent_executor import MutableToolsAgentExecutor
 from gpt_home.vector_store import VectorStore, VectorStoreItem, VectorStoreItemNotInDb
 from rich import print as rich_print
-from homeassistant.components.media_player import MediaPlayerEntityFeature
+from homeassistant.components.media_player import MediaPlayerEntityFeature  # type: ignore[import-untyped]
 
 log = logging.getLogger("gpt_home")
 

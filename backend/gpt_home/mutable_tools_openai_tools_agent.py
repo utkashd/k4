@@ -4,7 +4,6 @@ from typing import Any, Sequence
 from langchain_core.runnables import RunnableSequence, RunnableBinding
 from langchain_core.utils.function_calling import convert_to_openai_tool
 from pydantic.json_schema import GenerateJsonSchema
-# from pydantic.fields import FieldInfo
 
 
 class MutableToolsOpenAiToolsAgent(RunnableMultiActionAgent):

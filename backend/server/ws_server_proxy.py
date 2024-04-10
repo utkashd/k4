@@ -14,7 +14,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 import uuid
 import json
 import requests
-from server_commons.server_commons import (
+from .server_commons.server_commons import (  # type: ignore[import-untyped] # idk why this is necessary
     ClientMessage,
     GptHomeMessages,
     Message,
@@ -144,7 +144,11 @@ async def websocket_endpoint(client_websocket: WebSocket) -> None:
         connection_manager.disconnect(client_id)
 
 
-if __name__ == "__main__":
+def main():
     import uvicorn
 
     uvicorn.run(app, host="0.0.0.0", port=8001)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,6 +1,6 @@
 import os
 from typing import Any
-from transformers import AutoTokenizer, AutoModel, PreTrainedModel
+from transformers import AutoTokenizer, AutoModel, PreTrainedModel  # type: ignore[import-untyped]
 import torch
 from pydantic import BaseModel, RootModel
 import json

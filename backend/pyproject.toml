@@ -1,0 +1,43 @@
+[tool.poetry]
+name = "gpt_home_backend"
+version = "0.0.1"
+description = ""
+authors = ["Utkash Dubey <utkashd@gmail.com>"]
+readme = "README.md"
+packages = [
+    { include = "gpt_home" },
+    { include = "server" }
+]
+
+[tool.poetry.scripts]
+gpt_home_backend_server = "server.server:main" # backend/server/server.py main()
+gpt_home_backend_server_proxy = "server.ws_server_proxy:main"
+
+[tool.poetry.dependencies]
+python = ">=3.12,<3.13"
+transformers = {version = ">=4.31", extras = ["torch"]}
+openai = ">=1.11.1"
+pydantic = ">=2.6"
+rich = ">=13.7"
+langchain = "==0.1.14"
+langchain-openai = "==0.1.1"
+langchainhub = "==0.1.14"
+HomeAssistant-API = "==4.2.2.post1"
+homeassistant = ">=2024.3.3"
+fastapi = ">=0.110.1"
+uvicorn = {version = ">=0.29.0", extras = ["standard"]}
+
+[tool.poetry.group.dev.dependencies]
+ruff = ">=0.3.0"
+mypy = ">=1.8.0"
+ipdb = ">=0.13.13"
+poetry = ">=1.8.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.mypy]
+strict = true
+ignore_missing_imports = true # necessary for `transformers`. See https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-library-stubs-or-py-typed-marker
+incremental = true
