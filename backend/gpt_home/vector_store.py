@@ -105,6 +105,9 @@ class VectorStore:
     ) -> list[VectorStoreItem]:
         log.info(f"Loading any existing items from {items_filename}...")
         if os.path.exists(items_filename):
+            # TODO ensure we don't get conflicts with writing/reading at the same time.
+            # need some sort of lock mechanism here (and ideally one that doesn't
+            # require manual fixing if gpthome is killed mid-write)
             with open(items_filename, "r") as items_file:
                 return VectorStoreItems(json.load(items_file)).root
         else:

@@ -1,0 +1,164 @@
+from fastapi import FastAPI
+from pydantic import BaseModel
+from user_management.user_management import GptHomeUserAttributes, UsersManager
+
+from .server_commons import (
+    ClientMessage,
+    GptHomeMessage,
+    GptHomeSystemMessage,
+)
+# from langchain_core.messages import HumanMessage, AIMessage
+# from langchain_community.chat_message_histories.in_memory import ChatMessageHistory
+
+app = FastAPI()
+
+
+class ClientSession(BaseModel):
+    client_session_id: str
+    user_id: str | None
+
+
+class RegisteredUserClientSession(ClientSession):
+    user_id: str
+
+
+class ClientSessionsManager:
+    def __init__(self) -> None:
+        self.active_client_sessions_by_client_id: dict[str, ClientSession] = {}
+        self.users_manager = UsersManager()
+
+    def add_new_client_session(self, client_session_id: str, user_id: str) -> None:
+        if client_session_id not in self.active_client_sessions_by_client_id.keys():
+            # just gonna trust that the user_id supplied by the client is really theirs
+            # TODO authenticate or something
+            user = self.users_manager.get_user(user_id)
+            if user:
+                self.active_client_sessions_by_client_id[client_session_id] = (
+                    RegisteredUserClientSession(
+                        client_session_id=client_session_id, user_id=user_id
+                    )
+                )
+                self.users_manager.start_user(user)
+            else:
+                # this shouldn't happen, right? maybe this is where we tell the client
+                # that the user doesn't exist (anymore?)
+                pass
+        else:
+            print(
+                f"uh what? duplicate client session id? {client_session_id=} {user_id=}"
+            )
+
+    def _is_user_active(self, user_id: str) -> bool:
+        active_users = set(
+            client_session.user_id
+            for client_session in self.active_client_sessions_by_client_id.values()
+        )
+        return user_id in active_users
+
+    def end_client_session(self, client_session_id: str) -> None:
+        client_session = self.active_client_sessions_by_client_id.get(client_session_id)
+        if client_session:
+            user_id = client_session.user_id
+            self.active_client_sessions_by_client_id.pop(client_session_id)
+            if user_id and not self._is_user_active(user_id):
+                user = self.users_manager.get_user(user_id)
+                if user:
+                    self.users_manager.stop_user(user)
+        else:
+            # TODO log something?
+            pass
+
+    # def _format_chat_history_as_list_of_messages(
+    #     self, chat_history: ChatMessageHistory, client_id: str
+    # ) -> list[Message]:
+    #     formatted_chat_history: list[Message] = []
+    #     for message in chat_history.messages:
+    #         assert isinstance(message.content, str)
+    #         if isinstance(message, AIMessage):
+    #             formatted_chat_history.append(GptHomeMessage(text=message.content))
+    #         elif isinstance(message, HumanMessage):
+    #             formatted_chat_history.append(
+    #                 ClientMessage(text=message.content, senderId=client_id)
+    #             )
+    #         else:
+    #             raise Exception(
+    #                 f"Unexpected message type: {message=}. Skipping the message."
+    #             )
+    #     return formatted_chat_history
+
+    def ask_clients_gpt_home(
+        self, client_message: ClientMessage
+    ) -> list[GptHomeMessage]:
+        client_session = self.active_client_sessions_by_client_id.get(
+            client_message.senderId
+        )
+        if client_session and client_session.user_id:
+            user = self.users_manager.get_user(client_session.user_id)
+            if user:
+                return [
+                    GptHomeMessage(text=msg)
+                    for msg in user.ask_gpt_home(client_message.text)
+                ]
+        return [
+            GptHomeSystemMessage(text=f"invalid client id: {client_message.senderId=}")
+        ]
+
+
+cm = ClientSessionsManager()
+
+
+@app.post("/ask_gpt_home")
+def ask_gpt_home(client_message: ClientMessage) -> list[GptHomeMessage]:
+    return cm.ask_clients_gpt_home(client_message)
+
+
+@app.get("/users")
+def get_users() -> dict[str, GptHomeUserAttributes]:
+    return cm.users_manager.get_users()
+
+
+class CreateUserRequestBody(BaseModel):
+    ai_name: str
+    human_name: str
+
+
+@app.post("/user")
+def create_user(
+    create_user_request_body: CreateUserRequestBody,
+) -> GptHomeUserAttributes:
+    return cm.users_manager.create_user(
+        ai_name=create_user_request_body.ai_name,
+        human_name=create_user_request_body.human_name,
+    )
+
+
+@app.post("/registered_user_client_session")
+def create_client_session(
+    client_session_request_body: RegisteredUserClientSession,
+) -> None:
+    cm.add_new_client_session(
+        client_session_id=client_session_request_body.client_session_id,
+        user_id=client_session_request_body.user_id,
+    )
+
+
+@app.delete("/registered_user_client_session")
+def end_client_session(
+    end_client_session_request_body: RegisteredUserClientSession,
+) -> None:
+    # TODO finish this. should write files to the correct directory
+    # also I should only require the client-session-id here
+    cm.end_client_session(
+        client_session_id=end_client_session_request_body.client_session_id
+    )
+
+
+def main():
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # breakpoint()
+
+
+if __name__ == "__main__":
+    main()

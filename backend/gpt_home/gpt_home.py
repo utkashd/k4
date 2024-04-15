@@ -396,7 +396,7 @@ class GptHome:
     def _clear_factoids(self) -> None:
         self.factoids_vector_store.clear_db()
 
-    def ask_gpt_home(self, human_input: str) -> str:  # TODO type this better
+    def ask_gpt_home(self, human_input: str) -> list[str]:  # TODO type this better
         k = 6
         relevant_wrapped_tools = (
             self.home_assistant_tool_store.get_k_relevant_home_assistant_tools(
@@ -443,7 +443,7 @@ class GptHome:
         # TODO be smarter about resetting tools
         self.agent_executor.reset_tools(self.tools)
 
-        return str(response["output"])
+        return [str(response["output"])]
 
     def _write_requests_to_disk(self) -> None:
         with open(self.debug_options.requests_filename, "w") as requests_file:
@@ -459,6 +459,11 @@ class GptHome:
         self._save_self_to_disk()
         rich_print(f"\n'{self.ai_name}': Goodbye.")
         sys.exit(0)
+
+    def stop_chatting(self) -> None:
+        self._learn_about_human()
+        self._save_self_to_disk()
+        self.chat_history.clear()
 
     def start(self) -> Never:
         """
@@ -498,4 +503,6 @@ class GptHome:
                 self._learn_about_human()
                 self._save_self_to_disk()
             else:
-                rich_print(f"\n'{self.ai_name}': {self.ask_gpt_home(human_input)}")
+                gpt_home_responses = self.ask_gpt_home(human_input)
+                for msg in gpt_home_responses:
+                    rich_print(f"\n'{self.ai_name}': {msg}")

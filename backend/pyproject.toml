@@ -6,12 +6,12 @@ authors = ["Utkash Dubey <utkashd@gmail.com>"]
 readme = "README.md"
 packages = [
     { include = "gpt_home" },
-    { include = "server" }
+    { include = "gpt_home_api_server" }
 ]
 
 [tool.poetry.scripts]
-gpt_home_backend_server = "server.server:main" # backend/server/server.py main()
-gpt_home_backend_server_proxy = "server.ws_server_proxy:main"
+gpt_home_api_server = "gpt_home_api_server.gpt_home_api_server:main" # backend/server/server.py main()
+gpt_home_websocket_api_server_proxy = "gpt_home_api_server.websocket_api_server_proxy:main"
 
 [tool.poetry.dependencies]
 python = ">=3.12,<3.13"

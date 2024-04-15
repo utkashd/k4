@@ -14,7 +14,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 import uuid
 import json
 import requests
-from .server_commons.server_commons import (  # type: ignore[import-untyped] # idk why this is necessary
+from .server_commons import (  # type: ignore[import-untyped] # idk why this is necessary
     ClientMessage,
     GptHomeMessages,
     Message,
@@ -38,7 +38,7 @@ class ConnectionManager:
     async def connect(self, new_client_websocket: WebSocket) -> str:
         # Accept the connection
         await new_client_websocket.accept()
-        # Generate and assign the client an ID, and an instance of GptHome
+        # Generate and assign the client an ID
         new_client_id = str(uuid.uuid4())
         response = requests.post(
             "http://localhost:8000/new_client", json={"client_id": new_client_id}
