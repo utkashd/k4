@@ -1,29 +1,28 @@
 {
-    "name": "chat-app",
-    "private": true,
-    "version": "0.0.0",
-    "type": "module",
-    "scripts": {
-        "dev": "vite --port 3000",
-        "build": "vite build",
-        "preview": "vite preview",
-        "check": "svelte-check --tsconfig ./tsconfig.json"
-    },
-    "devDependencies": {
-        "@sveltejs/vite-plugin-svelte": "^2.0.2",
-        "@tsconfig/svelte": "^3.0.0",
-        "carbon-components-svelte": "^0.72.1",
-        "carbon-icons-svelte": "^11.4.0",
-        "svelte": "^3.55.1",
-        "svelte-check": "^2.10.3",
-        "tslib": "^2.5.0",
-        "typescript": "^4.9.3",
-        "vite": "^4.1.0"
-    },
-    "dependencies": {
-        "moment": "^2.29.4"
-    },
-    "bundleDependencies": [
-        "moment"
-    ]
+  "name": "frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.66",
+    "@types/react-dom": "^18.2.22",
+    "@typescript-eslint/eslint-plugin": "^7.2.0",
+    "@typescript-eslint/parser": "^7.2.0",
+    "@vitejs/plugin-react-swc": "^3.5.0",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.6",
+    "typescript": "^5.2.2",
+    "vite": "^5.2.0"
+  }
 }

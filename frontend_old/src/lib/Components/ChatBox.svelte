@@ -24,7 +24,7 @@
         try {
             socket = new WebSocket("ws://localhost:8001/chat");
 
-            socket.onopen = (ws, event) => {
+            socket.onopen = (_ws, _event) => {
                 console.log("connected");
                 handleShowSnackBar("Connected", "Success");
             };
