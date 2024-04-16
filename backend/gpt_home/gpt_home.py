@@ -4,6 +4,7 @@ import sys
 import os
 import logging
 from typing import Any, Literal, Never, Sequence
+from gpt_home.utils.file_io import get_a_users_directory
 import openai
 from pydantic import BaseModel
 
@@ -62,6 +63,7 @@ class GptHomeDebugOptions(BaseModel):
 class GptHome:
     def __init__(
         self,
+        user_id: str | None,
         ai_name: str = "GptHome",
         human_name: str = "Human",
         ignore_home_assistant_ssl: str | bool = False,
@@ -88,9 +90,13 @@ class GptHome:
         """
         self.debug_options = debug_options
         self._setup_development_tools()
+        if not user_id:
+            user_id = "development_user_id"
+        directory_to_load_from_and_save_to = get_a_users_directory(user_id)
         self.ai_name = ai_name
         self.human_name = human_name
         self.home_assistant_tool_store = HomeAssistantToolStore(
+            directory_to_load_from_and_save_to=directory_to_load_from_and_save_to,
             base_url=os.environ["GPT_HOME_HA_BASE_URL"],
             dry_run=self.debug_options.is_dry_run,
             verify_home_assistant_ssl=not ignore_home_assistant_ssl,
@@ -152,7 +158,10 @@ class GptHome:
         "Request bodies of OpenAI API calls are stored in this dict"
 
         # Set up instance variables for managing and using factoids.
-        self.factoids_vector_store = VectorStore("factoids")
+        self.factoids_vector_store = VectorStore(
+            directory_to_load_from_and_save_to=directory_to_load_from_and_save_to,
+            name="factoids",
+        )
         # one vector store for past conversations
         # one vector store for factoids/conclusions about the master
         # one vector store for tools (APIs)

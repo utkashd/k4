@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import Any
 from transformers import AutoTokenizer, AutoModel, PreTrainedModel  # type: ignore[import-untyped]
 import torch
@@ -43,6 +44,7 @@ class VectorStore:
     def __init__(
         self,
         name: str,
+        directory_to_load_from_and_save_to: Path,
     ):
         # TODO validate the name (ensure it can be a filename, etc)
         self.name = name
@@ -59,12 +61,20 @@ class VectorStore:
 
         self.tokenizer = AutoTokenizer.from_pretrained("BAAI/bge-small-en-v1.5")
 
-        self.items_filename = f"{name}_vector_store_items.json"
+        self.items_filename = Path(
+            os.path.join(
+                directory_to_load_from_and_save_to, f"{name}_vector_store_items.json"
+            )
+        )
         self.items: list[VectorStoreItem] = self._get_vector_store_items_from_file(
             self.items_filename
         )
 
-        self.embeddings_filename = f"{name}_vector_store_embeddings.pt"
+        self.embeddings_filename = Path(
+            os.path.join(
+                directory_to_load_from_and_save_to, f"{name}_vector_store_embeddings.pt"
+            )
+        )
         self.embeddings = self._get_vector_store_embeddings_from_file(
             self.embeddings_filename
         )
@@ -101,10 +111,10 @@ class VectorStore:
         self._has_db_changed_since_last_save = len(vector_store_items_to_remove) > 0
 
     def _get_vector_store_items_from_file(
-        self, items_filename: str
+        self, items_filename: Path
     ) -> list[VectorStoreItem]:
         log.info(f"Loading any existing items from {items_filename}...")
-        if os.path.exists(items_filename):
+        if items_filename.exists():
             # TODO ensure we don't get conflicts with writing/reading at the same time.
             # need some sort of lock mechanism here (and ideally one that doesn't
             # require manual fixing if gpthome is killed mid-write)
@@ -114,10 +124,10 @@ class VectorStore:
             return []
 
     def _get_vector_store_embeddings_from_file(
-        self, embeddings_filename: str
+        self, embeddings_filename: Path
     ) -> torch.Tensor:
         log.info(f"Loading any existing embedding data from {embeddings_filename}...")
-        if os.path.exists(embeddings_filename):
+        if embeddings_filename.exists():
             log.info("Existing embedding data found.")
             embeddings: torch.Tensor = torch.load(embeddings_filename)
             return embeddings

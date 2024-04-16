@@ -17,7 +17,7 @@ POST http://localhost:8000/registered_user_client_session HTTP/1.1
 content-type: application/json
 
 {
-    "client_session_id": "test_client_session_id",
+    "client_session_id": "test_client_session_id3",
     "user_id": "6d45ef74-9236-49bc-ac2d-c4d4f803b583"
 }
 
@@ -27,8 +27,8 @@ POST http://localhost:8000/ask_gpt_home HTTP/1.1
 content-type: application/json
 
 {
-    "senderId": "bad_client_session_id",
-    "text": "turn my light on pls"
+    "senderId": "test_client_session_id3",
+    "text": "I like taco bell"
 }
 
 ###
@@ -37,8 +37,8 @@ POST http://localhost:8000/ask_gpt_home HTTP/1.1
 content-type: application/json
 
 {
-    "senderId": "test_client_session_id",
-    "text": "turn my light off pls"
+    "senderId": "test_client_session_id3",
+    "text": "actually uh undo that, dark in here now"
 }
 
 ###
@@ -47,6 +47,6 @@ DELETE http://localhost:8000/registered_user_client_session HTTP/1.1
 content-type: application/json
 
 {
-    "client_session_id": "test_client_session_id",
+    "client_session_id": "test_client_session_id3",
     "user_id": "6d45ef74-9236-49bc-ac2d-c4d4f803b583"
 }

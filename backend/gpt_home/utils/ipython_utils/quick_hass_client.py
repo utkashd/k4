@@ -48,5 +48,5 @@ def create_hass_client() -> Client:
     return client
 
 
-hass = create_hass_client()
+hass = create_hass_client()  # TODO make this optional for faster ipython startup
 print(f"\n\nCreated a Home Assistant API client called hass: {hass=}")

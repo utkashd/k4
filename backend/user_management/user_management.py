@@ -1,6 +1,6 @@
 import logging
 from rich.logging import RichHandler
-from gpt_home.utils.file_io import get_gpt_home_directory
+from gpt_home.utils.file_io import get_gpt_home_root_directory
 import os
 from pathlib import Path
 import json
@@ -28,7 +28,7 @@ class GptHomeUserAttributes(BaseModel):
 
 
 class GptHomeUsersAttrs(RootModel):  # type: ignore[type-arg]
-    root: list[GptHomeUserAttributes]
+    root: dict[str, GptHomeUserAttributes]
 
 
 class GptHomeUser:
@@ -47,6 +47,7 @@ class GptHomeUser:
         """
         if not self.gpt_home:
             self.gpt_home = GptHome(
+                user_id=self.user_attributes.user_id,
                 ai_name=self.user_attributes.ai_name,
                 human_name=self.user_attributes.human_name,
                 ignore_home_assistant_ssl=True,
@@ -114,18 +115,19 @@ class UsersManager:
                     for user_id, gpt_home_user in self.users.items()
                 },
                 users_file,
+                indent=4,
             )
 
     def _load_users_from_filesystem(self) -> dict[str, GptHomeUser]:
         users_filename = self._get_users_filename()
         if not os.path.exists(users_filename):
             return {}
-        gpt_home_users_attrs: list[GptHomeUserAttributes] = []
+        gpt_home_users_attrs: dict[str, GptHomeUserAttributes] = {}
         with open(users_filename, "r") as users_file:
             gpt_home_users_attrs = GptHomeUsersAttrs(json.load(users_file)).root
 
         users: dict[str, GptHomeUser] = {}
-        for user_attributes in gpt_home_users_attrs:
+        for user_attributes in gpt_home_users_attrs.values():
             gpt_home_user = GptHomeUser(
                 ai_name=user_attributes.ai_name,
                 human_name=user_attributes.human_name,
@@ -149,7 +151,7 @@ class UsersManager:
         return Path(users_filename)
 
     def _get_users_directory_and_create_if_necessary(self) -> Path:
-        gpt_home_directory = get_gpt_home_directory()
+        gpt_home_directory = get_gpt_home_root_directory()
         users_directory = os.path.join(gpt_home_directory, "users")
         if not os.path.exists(users_directory):
             os.mkdir(users_directory)

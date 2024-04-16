@@ -136,6 +136,7 @@ def create_user(
 def create_client_session(
     client_session_request_body: RegisteredUserClientSession,
 ) -> None:
+    # TODO return something sensible based on whether the user_id is valid
     cm.add_new_client_session(
         client_session_id=client_session_request_body.client_session_id,
         user_id=client_session_request_body.user_id,
@@ -144,10 +145,8 @@ def create_client_session(
 
 @app.delete("/registered_user_client_session")
 def end_client_session(
-    end_client_session_request_body: RegisteredUserClientSession,
+    end_client_session_request_body: ClientSession,
 ) -> None:
-    # TODO finish this. should write files to the correct directory
-    # also I should only require the client-session-id here
     cm.end_client_session(
         client_session_id=end_client_session_request_body.client_session_id
     )
@@ -157,7 +156,6 @@ def main():
     import uvicorn
 
     uvicorn.run(app, host="0.0.0.0", port=8000)
-    # breakpoint()
 
 
 if __name__ == "__main__":

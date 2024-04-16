@@ -2,6 +2,7 @@ from functools import cached_property
 import json
 import logging
 import os
+from pathlib import Path
 from types import UnionType
 import homeassistant_api
 import requests
@@ -59,6 +60,7 @@ class HomeAssistantToolStore:
 
     def __init__(
         self,
+        directory_to_load_from_and_save_to: Path,
         base_url: str,
         hass_token: str = "",
         dry_run: bool = False,
@@ -103,7 +105,10 @@ class HomeAssistantToolStore:
             )
             for tool in self.wrapped_tools.values()
         ]
-        self.tools_vector_store = VectorStore("hass_tools")
+        self.tools_vector_store = VectorStore(
+            name="hass_tools",
+            directory_to_load_from_and_save_to=directory_to_load_from_and_save_to,
+        )
         log.info(
             f"Generating {len(vector_store_tools)} tool embeddings and saving them to the store..."
         )
