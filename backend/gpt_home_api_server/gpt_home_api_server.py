@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from user_management.user_management import GptHomeUserAttributes, UsersManager
 
@@ -11,6 +12,13 @@ from .server_commons import (
 # from langchain_community.chat_message_histories.in_memory import ChatMessageHistory
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "DELETE"],
+    allow_headers=["*"],
+)
 
 
 class ClientSession(BaseModel):
@@ -107,13 +115,8 @@ class ClientSessionsManager:
 cm = ClientSessionsManager()
 
 
-@app.post("/ask_gpt_home")
-def ask_gpt_home(client_message: ClientMessage) -> list[GptHomeMessage]:
-    return cm.ask_clients_gpt_home(client_message)
-
-
 @app.get("/users")
-def get_users() -> dict[str, GptHomeUserAttributes]:
+def get_users() -> list[GptHomeUserAttributes]:
     return cm.users_manager.get_users()
 
 
@@ -141,6 +144,11 @@ def create_client_session(
         client_session_id=client_session_request_body.client_session_id,
         user_id=client_session_request_body.user_id,
     )
+
+
+@app.post("/ask_gpt_home")
+def ask_gpt_home(client_message: ClientMessage) -> list[GptHomeMessage]:
+    return cm.ask_clients_gpt_home(client_message)
 
 
 @app.delete("/registered_user_client_session")

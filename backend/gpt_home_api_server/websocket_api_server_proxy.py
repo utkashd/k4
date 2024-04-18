@@ -18,7 +18,7 @@ from .server_commons import (  # type: ignore[import-untyped] # idk why this is 
     ClientMessage,
     GptHomeMessages,
     Message,
-    Messages,
+    # Messages,
 )
 
 
@@ -37,24 +37,25 @@ class ConnectionManager:
 
     async def connect(self, new_client_websocket: WebSocket) -> str:
         # Accept the connection
-        await new_client_websocket.accept()
         # Generate and assign the client an ID
-        new_client_id = str(uuid.uuid4())
-        response = requests.post(
-            "http://localhost:8000/new_client", json={"client_id": new_client_id}
-        )
+        new_client_id = f"client-session-{str(uuid.uuid4())}"
+        # response = requests.post(
+        #     "http://localhost:8000/registered_user_client_session",
+        #     json={"client_session_id": new_client_id},
+        # )
         self.active_connections[new_client_id] = GptHomeServerClientConnection(
             client_id=new_client_id,
             client_websocket=new_client_websocket,
         )
         # Tell the client that we're now connected. This is a special message, so we're
         # not using self.send_message_to(...) here
+        await new_client_websocket.accept()
         await new_client_websocket.send_text(
             json.dumps({"type": "connection_successful", "id": new_client_id}),
         )
-        chat_history = Messages(response.json())
-        for message in chat_history.root:
-            await self.send_message_to(new_client_id, message)
+        # chat_history = Messages(response.json())
+        # for message in chat_history.root:
+        #     await self.send_message_to(new_client_id, message)
         return new_client_id
 
     def disconnect(self, client_id_or_websocket: str | WebSocket) -> str:
@@ -115,7 +116,9 @@ class ConnectionManager:
         # forward the message to gpt_home
         response = requests.post(
             "http://localhost:8000/ask_gpt_home",
-            json=ClientMessage(text=client_message.text, senderId=client_id).__dict__,
+            json=ClientMessage(
+                text=client_message.text, senderId=client_id
+            ).model_dump(),
         )
         gpt_home_messages_from_response = GptHomeMessages(response.json())
         for gpt_home_message in gpt_home_messages_from_response.root:

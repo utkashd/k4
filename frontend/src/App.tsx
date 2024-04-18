@@ -1,44 +1,61 @@
 import { useEffect, useState } from "react";
-import reactLogo from "./assets/react.svg";
-import viteLogo from "/vite.svg";
 import "./App.css";
+import { useCookies } from "react-cookie";
+import axios from "axios";
+
+interface User {
+    user_id: string;
+    ai_name: string;
+    human_name: string;
+}
 
 function App() {
-    const [count, setCount] = useState(0);
+    const [cookies, setCookie, _removeCookie] = useCookies(["myUser"]);
+    const [users, setUsers] = useState([] as User[]);
+
+    const [myUser, setMyUser] = useState(cookies["myUser"] as User | undefined);
 
     useEffect(() => {
-        const connection = new WebSocket("ws://localhost:8001/chat");
-        connection.onopen = function (this: WebSocket, _ev: Event) {
-            console.log("connected");
+        const getUserIds = async () => {
+            try {
+                const response = await axios.get("http://0.0.0.0:8000/users");
+                setUsers(response.data as User[]);
+            } catch (error) {
+                console.error("couldn't fetch users", error);
+            }
         };
-    });
+
+        getUserIds();
+
+        return () => {};
+    }, []);
 
     return (
         <>
-            <div>
-                <a href="https://vitejs.dev" target="_blank">
-                    <img src={viteLogo} className="logo" alt="Vite logo" />
-                </a>
-                <a href="https://react.dev" target="_blank">
-                    <img
-                        src={reactLogo}
-                        className="logo react"
-                        alt="React logo"
-                    />
-                </a>
-            </div>
-            <h1>Vite + React</h1>
-            <div className="card">
-                <button onClick={() => setCount((count) => count + 1)}>
-                    count is {count}
-                </button>
-                <p>
-                    Edit <code>src/App.tsx</code> and save to test HMR
-                </p>
-            </div>
-            <p className="read-the-docs">
-                Click on the Vite and React logos to learn more
-            </p>
+            <header>
+                <div>
+                    <p>
+                        Your cookie says you are{" "}
+                        {myUser ? myUser.human_name : ""}
+                    </p>
+                </div>
+                <nav className="userIdsNav">
+                    {users.map((user: User, index) => (
+                        <a
+                            onClick={() => {
+                                setMyUser(user);
+                                setCookie("myUser", user);
+                            }}
+                            href=""
+                            key={index}
+                        >
+                            {user.human_name}: {user.ai_name}
+                        </a>
+                    ))}
+                </nav>
+            </header>
+            {/* <main>tests</main> */}
+            {/* <footer>atesate</footer> */}
         </>
     );
 }

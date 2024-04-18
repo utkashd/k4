@@ -73,10 +73,8 @@ class UsersManager:
     def __init__(self) -> None:
         self.users: dict[str, GptHomeUser] = self._load_users_from_filesystem()
 
-    def get_users(self) -> dict[str, GptHomeUserAttributes]:
-        return {
-            user_id: user.get_user_attributes() for user_id, user in self.users.items()
-        }
+    def get_users(self) -> list[GptHomeUserAttributes]:
+        return [user.get_user_attributes() for _, user in self.users.items()]
 
     def start_user(self, user: GptHomeUser) -> None:
         user.start_gpt_home()
