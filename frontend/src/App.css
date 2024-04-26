@@ -23,7 +23,7 @@ div.app-container {
 }
 
 div.left-side-panel {
-    background-color: #323232;
+    background-color: rgb(38, 41, 42);
     color: white;
     height: 100%;
     width: 15vw;
@@ -33,4 +33,14 @@ div.main-panel {
     background-color: #000000;
     height: 100%;
     width: 85vw;
+}
+
+img.logo-test {
+    width: 75%;
+    height: auto;
+    box-sizing: border-box;
+    padding-top: 40px;
+    padding-left: 20px;
+    padding-right: 20px;
+    padding-bottom: 20px;
 }

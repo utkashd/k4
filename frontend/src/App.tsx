@@ -64,12 +64,13 @@ function App() {
         <>
             <div className="app-container">
                 <div className="left-side-panel">
-                    <SignedInAs
-                        myUser={myUser}
-                        setMyUser={setMyUserAndSetTheMyUserCookie}
-                    />
+                    <img src="./gh.png" className="logo-test"></img>
                     <UsersList
                         users={users}
+                        setMyUser={setMyUserAndSetTheMyUserCookie}
+                    />
+                    <SignedInAs
+                        myUser={myUser}
                         setMyUser={setMyUserAndSetTheMyUserCookie}
                     />
                     <CreateUser />

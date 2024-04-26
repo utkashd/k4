@@ -1,7 +1,7 @@
 div.gpt-home-chatbox {
     height: 100%;
     /* width: 100%; */
-    overflow-y: scroll;
+    /* overflow-y: scroll; */
 }
 
 div.gpt-home-chatbox-padded {
@@ -15,14 +15,14 @@ div.gpt-home-chatbox-padded {
     margin: auto;
     height: 90%;
     overflow-y: scroll;
-    border: 3px solid gray;
+    /* border: 3px solid gray; */
     box-sizing: border-box;
 }
 
 div.gpt-home-chatbox-message-sender {
     height: 10%;
     padding: 3px;
-    border: 3px solid gray;
+    /* border: 3px solid gray; */
     box-sizing: border-box;
     display: flex;
 }
@@ -46,15 +46,16 @@ div.chat-message-right {
     position: relative;
     max-width: 100%;
     padding: 7px 15px;
-    margin-bottom: 2px;
+    margin-bottom: 5px;
     text-align: left;
 }
 
 .msg.sent {
     border-radius: var(--rad) var(--rad-sm) var(--rad-sm) var(--rad);
     box-sizing: border-box;
-    background: #42a5f5;
+    background: rgb(9, 93, 162);
     color: #fff;
+    max-width: 40%;
     /* moves it to the right */
     margin-left: auto;
 }
@@ -62,8 +63,9 @@ div.chat-message-right {
 .msg.received {
     border-radius: var(--rad-sm) var(--rad) var(--rad) var(--rad-sm);
     box-sizing: border-box;
-    background: #f1f1f1;
-    color: #555;
+    background: rgb(32, 35, 36);
+    color: rgb(178, 172, 162);
+    max-width: 40%;
     /* moves it to the left */
     margin-right: auto;
 }
@@ -131,4 +133,10 @@ div.chat-message-right {
     resize: none;
     width: 60%;
     height: 100%;
+}
+
+button.chatbox-send-button {
+    box-sizing: border-box;
+    margin-left: 5px;
+    margin-right: 5px;
 }

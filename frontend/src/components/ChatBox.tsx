@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./ChatBox.css";
 import axios from "axios";
+import Markdown from "react-markdown";
 
 interface Message {
     text: string;
@@ -10,8 +11,13 @@ interface Message {
 function ChatBox({ user }: { user: User | null }) {
     const [messages, setMessages] = useState([] as Message[]);
     const [clientId, setClientId] = useState(null as string | null);
-
+    const [isInputDisabled, setIsInputDisabled] = useState(false);
     const [humanInput, setHumanInput] = useState("");
+
+    const messagesEndRef = useRef<null | HTMLDivElement>(null);
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
 
     let socket: WebSocket | null = null;
 
@@ -35,38 +41,6 @@ function ChatBox({ user }: { user: User | null }) {
             } else if (typeof message.connection_status !== "string") {
                 setMessages((msgs) => [...msgs, message]);
             }
-
-            // setMessages([
-            //     { sender_id: "gpt_home", text: "test1" },
-            //     { sender_id: "gpt_home", text: "test1" },
-            //     { sender_id: "laksdjfsadlfj", text: "test1" },
-            //     { sender_id: "laksdjfsadlfj", text: "test1" },
-            //     { sender_id: "laksdjfsadlfj", text: "test1" },
-            //     { sender_id: "laksdjfsadlfj", text: "test1" },
-            //     { sender_id: "laksdjfsadlfj", text: "test1" },
-            //     { sender_id: "laksdjfsadlfj", text: "test1" },
-            //     { sender_id: "laksdjfsadlfj", text: "test1" },
-            //     { sender_id: "laksdjfsadlfj", text: "test1" },
-            //     { sender_id: "laksdjfsadlfj", text: "test1" },
-            //     { sender_id: "laksdjfsadlfj", text: "test1" },
-            //     { sender_id: "laksdjfsadlfj", text: "test1" },
-            //     { sender_id: "laksdjfsadlfj", text: "test1" },
-            //     { sender_id: "laksdjfsadlfj", text: "test1" },
-            //     { sender_id: "laksdjfsadlfj", text: "test1" },
-            //     { sender_id: "laksdjfsadlfj", text: "test1" },
-            //     { sender_id: "gpt_home", text: "test1" },
-            //     { sender_id: "gpt_home", text: "test1" },
-            //     { sender_id: "gpt_home", text: "test1" },
-            //     { sender_id: "laksdjfsadlfj", text: "test1" },
-            //     { sender_id: "laksdjfsadlfj", text: "test1" },
-            //     { sender_id: "laksdjfsadlfj", text: "test1" },
-            //     { sender_id: "laksdjfsadlfj", text: "test1" },
-            //     { sender_id: "laksdjfsadlfj", text: "test1" },
-            //     { sender_id: "laksdjfsadlfj", text: "test1" },
-            //     { sender_id: "laksdjfsadlfj", text: "test1" },
-            //     { sender_id: "laksdjfsadlfj", text: "test1" },
-            //     { sender_id: "laksdjfsadlfj", text: "test1" },
-            // ]);
         };
 
         socket.onerror = () => {
@@ -91,7 +65,12 @@ function ChatBox({ user }: { user: User | null }) {
         };
     }, [user]);
 
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages]);
+
     const submitHumanInput = async () => {
+        setIsInputDisabled(true);
         const humanInputSaved = humanInput;
         setHumanInput("");
 
@@ -119,6 +98,8 @@ function ChatBox({ user }: { user: User | null }) {
                     "couldn't fetch users. the backend is probably down",
                     error
                 );
+            } finally {
+                setIsInputDisabled(false);
             }
         }
     };
@@ -176,7 +157,7 @@ function ChatBox({ user }: { user: User | null }) {
                                         : "msg sent"
                                 }
                             >
-                                {message.text}
+                                <Markdown>{message.text}</Markdown>
                                 {/* <div
                                             data-time="2:30"
                                             className="msg sent"
@@ -186,6 +167,7 @@ function ChatBox({ user }: { user: User | null }) {
                             </div>
                         );
                     })}
+                    <div ref={messagesEndRef}></div>
                 </div>
                 <div className="gpt-home-chatbox-message-sender">
                     <textarea
@@ -204,12 +186,14 @@ function ChatBox({ user }: { user: User | null }) {
                                 submitHumanInput();
                             }
                         }}
+                        disabled={isInputDisabled}
                     />
                     <button
                         onClick={(event) => {
                             event.preventDefault();
                             submitHumanInput();
                         }}
+                        className="chatbox-send-button"
                     >
                         Send
                     </button>
