@@ -1,4 +1,5 @@
 import logging
+from gpt_home.gpt_home import GptHomeDebugOptions
 from rich.logging import RichHandler
 from gpt_home.utils.file_io import get_gpt_home_root_directory
 import os
@@ -51,6 +52,7 @@ class GptHomeUser:
                 ai_name=self.user_attributes.ai_name,
                 human_name=self.user_attributes.human_name,
                 ignore_home_assistant_ssl=True,
+                debug_options=GptHomeDebugOptions(log_level="warn"),
             )
 
     def stop_gpt_home(self) -> None:

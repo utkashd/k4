@@ -2,60 +2,82 @@ import { useEffect, useState } from "react";
 import "./App.css";
 import { useCookies } from "react-cookie";
 import axios from "axios";
-
-interface User {
-    user_id: string;
-    ai_name: string;
-    human_name: string;
-}
+import CreateUser from "./components/CreateUser";
+import SignedInAs from "./components/SignedInAs";
+import UsersList from "./components/UsersList";
+import ChatBox from "./components/ChatBox";
+// import { BsFillTrash3Fill } from "react-icons/bs";
 
 function App() {
     const [cookies, setCookie, _removeCookie] = useCookies(["myUser"]);
     const [users, setUsers] = useState([] as User[]);
 
-    const [myUser, setMyUser] = useState(cookies["myUser"] as User | undefined);
+    const [myUser, setMyUser] = useState(null as User | null);
+
+    const setMyUserAndSetTheMyUserCookie = (user: User | null) => {
+        setMyUser(user);
+        setCookie("myUser", user);
+    };
 
     useEffect(() => {
+        const source = axios.CancelToken.source();
         const getUserIds = async () => {
             try {
-                const response = await axios.get("http://0.0.0.0:8000/users");
+                const response = await axios.get("http://localhost:8000/users");
                 setUsers(response.data as User[]);
+                if (cookies["myUser"]) {
+                    const myUserCookie = cookies["myUser"] as User;
+                    (response.data as User[]).forEach((user: User) => {
+                        if (user.user_id === myUserCookie.user_id) {
+                            setMyUser(user);
+                        }
+                    });
+                }
             } catch (error) {
-                console.error("couldn't fetch users", error);
+                console.error(
+                    "couldn't fetch users. the backend is probably down",
+                    error
+                );
+                setUsers([] as User[]);
             }
         };
 
-        getUserIds();
+        setTimeout(() => {
+            getUserIds();
+        }, 1000);
 
-        return () => {};
-    }, []);
+        return () => {
+            source.cancel();
+        };
+    }, []); // TODO dependent on create user button
+
+    // const deleteUser = async (
+    //     event: React.MouseEvent<SVGElement, MouseEvent>
+    // ) => {
+    //     event.preventDefault();
+    //     // try {
+    //     //     const response = axios.delete("http://localhost:8000/user")
+    //     // }
+    // };
 
     return (
         <>
-            <header>
-                <div>
-                    <p>
-                        Your cookie says you are{" "}
-                        {myUser ? myUser.human_name : ""}
-                    </p>
+            <div className="app-container">
+                <div className="left-side-panel">
+                    <SignedInAs
+                        myUser={myUser}
+                        setMyUser={setMyUserAndSetTheMyUserCookie}
+                    />
+                    <UsersList
+                        users={users}
+                        setMyUser={setMyUserAndSetTheMyUserCookie}
+                    />
+                    <CreateUser />
                 </div>
-                <nav className="userIdsNav">
-                    {users.map((user: User, index) => (
-                        <a
-                            onClick={() => {
-                                setMyUser(user);
-                                setCookie("myUser", user);
-                            }}
-                            href=""
-                            key={index}
-                        >
-                            {user.human_name}: {user.ai_name}
-                        </a>
-                    ))}
-                </nav>
-            </header>
-            {/* <main>tests</main> */}
-            {/* <footer>atesate</footer> */}
+                <div className="main-panel">
+                    <ChatBox user={myUser} />
+                </div>
+            </div>
         </>
     );
 }

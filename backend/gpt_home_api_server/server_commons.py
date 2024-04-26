@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field, RootModel
 
 class Message(BaseModel):
     text: str
-    senderId: str
+    sender_id: str
 
 
 class Messages(RootModel):  # type: ignore[type-arg]
@@ -23,7 +23,7 @@ class GptHomeMessage(Message):
     A message from GptHome
     """
 
-    senderId: str = Field(default="gpt_home")
+    sender_id: str = Field(default="gpt_home")
 
 
 class GptHomeSystemMessage(GptHomeMessage):
@@ -31,7 +31,7 @@ class GptHomeSystemMessage(GptHomeMessage):
     A system message from GptHome (not to be confused with a system message for an LLM)
     """
 
-    senderId: str = Field(default="system")
+    sender_id: str = Field(default="system")
 
 
 class GptHomeMessages(RootModel):  # type: ignore[type-arg]

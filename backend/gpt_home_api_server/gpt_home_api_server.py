@@ -3,11 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from user_management.user_management import GptHomeUserAttributes, UsersManager
 
-from .server_commons import (
-    ClientMessage,
-    GptHomeMessage,
-    GptHomeSystemMessage,
-)
+from .server_commons import ClientMessage, GptHomeMessage, GptHomeSystemMessage
 # from langchain_core.messages import HumanMessage, AIMessage
 # from langchain_community.chat_message_histories.in_memory import ChatMessageHistory
 
@@ -98,7 +94,7 @@ class ClientSessionsManager:
         self, client_message: ClientMessage
     ) -> list[GptHomeMessage]:
         client_session = self.active_client_sessions_by_client_id.get(
-            client_message.senderId
+            client_message.sender_id
         )
         if client_session and client_session.user_id:
             user = self.users_manager.get_user(client_session.user_id)
@@ -108,7 +104,7 @@ class ClientSessionsManager:
                     for msg in user.ask_gpt_home(client_message.text)
                 ]
         return [
-            GptHomeSystemMessage(text=f"invalid client id: {client_message.senderId=}")
+            GptHomeSystemMessage(text=f"invalid client id: {client_message.sender_id=}")
         ]
 
 
