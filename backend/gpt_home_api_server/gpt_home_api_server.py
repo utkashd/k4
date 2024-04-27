@@ -1,11 +1,19 @@
-from fastapi import FastAPI
+from dataclasses import dataclass
+import json
+from typing import Any
+import uuid
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from user_management.user_management import GptHomeUserAttributes, UsersManager
 
-from .server_commons import ClientMessage, GptHomeMessage, GptHomeSystemMessage
-# from langchain_core.messages import HumanMessage, AIMessage
-# from langchain_community.chat_message_histories.in_memory import ChatMessageHistory
+from .server_commons import (
+    ClientMessage,
+    GptHomeMessage,
+    GptHomeSystemMessage,
+    Message,
+)
+
 
 app = FastAPI()
 app.add_middleware(
@@ -108,12 +116,12 @@ class ClientSessionsManager:
         ]
 
 
-cm = ClientSessionsManager()
+client_sessions_manager = ClientSessionsManager()
 
 
 @app.get("/users")
 def get_users() -> list[GptHomeUserAttributes]:
-    return cm.users_manager.get_users()
+    return client_sessions_manager.users_manager.get_users()
 
 
 class CreateUserRequestBody(BaseModel):
@@ -125,35 +133,155 @@ class CreateUserRequestBody(BaseModel):
 def create_user(
     create_user_request_body: CreateUserRequestBody,
 ) -> GptHomeUserAttributes:
-    return cm.users_manager.create_user(
+    return client_sessions_manager.users_manager.create_user(
         ai_name=create_user_request_body.ai_name,
         human_name=create_user_request_body.human_name,
     )
 
 
-@app.post("/registered_user_client_session")
-def create_client_session(
-    client_session_request_body: RegisteredUserClientSession,
-) -> None:
-    # TODO return something sensible based on whether the user_id is valid
-    cm.add_new_client_session(
-        client_session_id=client_session_request_body.client_session_id,
-        user_id=client_session_request_body.user_id,
-    )
+@dataclass
+class GptHomeServerClientConnection:
+    client_id: str
+    client_websocket: WebSocket
+    user_id: str | None = None
 
 
-@app.post("/ask_gpt_home")
-def ask_gpt_home(client_message: ClientMessage) -> list[GptHomeMessage]:
-    return cm.ask_clients_gpt_home(client_message)
+class ConnectionManager:
+    def __init__(self) -> None:
+        self.active_connections: dict[str, GptHomeServerClientConnection] = {}
+
+    async def connect(self, new_client_websocket: WebSocket) -> str:
+        # Accept the connection
+        # Generate and assign the client an ID
+        new_client_id = f"client-session-{str(uuid.uuid4())}"
+        self.active_connections[new_client_id] = GptHomeServerClientConnection(
+            client_id=new_client_id,
+            client_websocket=new_client_websocket,
+        )
+        # Tell the client that we're now connected. This is a special message, so we're
+        # not using self.send_message_to(...) here
+        await new_client_websocket.accept()
+        await new_client_websocket.send_json(
+            {"connection_status": "connection_successful", "id": new_client_id},
+        )
+        # chat_history = Messages(response.json())
+        # for message in chat_history.root:
+        #     await self.send_message_to(new_client_id, message)
+        return new_client_id
+
+    async def disconnect(self, client_id_or_websocket: str | WebSocket) -> str:
+        if isinstance(client_id_or_websocket, str):
+            disconnected_client_id = client_id_or_websocket
+        else:
+            try:
+                client_websocket = client_id_or_websocket
+                disconnected_client_id = self.get_client_id_by_websocket(
+                    client_websocket
+                )
+            except Exception:
+                # log.warn(
+                #     f"Unexpectedly failed to find client id: {client_websocket=}\n"
+                #     "Going to ignore this and move on..."
+                # )
+                return ""
+        client_sessions_manager.end_client_session(
+            client_session_id=disconnected_client_id
+        )
+        self.active_connections.pop(disconnected_client_id)
+        return disconnected_client_id
+
+    def get_clients(self) -> dict[str, GptHomeServerClientConnection]:
+        return self.active_connections
+
+    def get_client_by_id(self, client_id: str) -> GptHomeServerClientConnection | None:
+        return self.active_connections.get(client_id)
+
+    def get_client_id_by_websocket(self, client_websocket: WebSocket) -> str:
+        for id, websocket in self.active_connections.items():
+            if websocket == client_websocket:
+                return id
+        raise Exception(f"Unexpectedly failed to find client id: {client_websocket=}")
+
+    async def send_custom_message_to(self, client_id, json: dict[str, Any]) -> None:
+        client = self.get_client_by_id(client_id)
+        if client:
+            await client.client_websocket.send_json(json)
+
+    async def send_message_to(self, client_id: str, message: Message) -> None:
+        """
+        Parameters
+        ----------
+        client_id : str
+        message : Message
+
+        Returns
+        -------
+        bool
+            False iff the client ID isn't valid, i.e., they aren't a known client
+        """
+        client = self.get_client_by_id(client_id)
+        if client:
+            await client.client_websocket.send_text(message.model_dump_json())
+        else:
+            raise Exception(
+                f"Tried to send a message to an unknown client: {client_id=}, {message=}"
+            )
+
+    async def _handle_client_system_message(
+        self, client_id: str, client_message: ClientMessage
+    ) -> None:
+        if client_message.text.startswith("start_chat "):
+            # start_chat <user_id>
+            user_id = client_message.text.split(" ")[1]
+            active_server_client_connection = self.active_connections.get(client_id)
+            if active_server_client_connection:
+                active_server_client_connection.user_id = user_id
+                # TODO return something sensible based on whether the user_id is valid
+                client_sessions_manager.add_new_client_session(
+                    client_session_id=client_id,
+                    user_id=user_id,
+                )
+
+    async def acknowledge_and_reply_to_client_message(
+        self, client_id: str, client_message: ClientMessage
+    ) -> None:
+        if (
+            client_message.sender_id == f"{client_id}_system"
+        ):  # TODO make a dedicated class for this
+            await self._handle_client_system_message(client_id, client_message)
+        else:
+            # forward the message to gpt_home
+            gpt_home_messages_from_response = (
+                client_sessions_manager.ask_clients_gpt_home(client_message)
+            )
+            for gpt_home_message in gpt_home_messages_from_response:
+                # TODO there's only one message, so this loop is ok. later I'll have to ensure
+                # that they get sent in the correct order (or that the order is encoded in
+                # the messages somehow, e.g. timestamps)
+                await connection_manager.send_message_to(client_id, gpt_home_message)
 
 
-@app.delete("/registered_user_client_session")
-def end_client_session(
-    end_client_session_request_body: ClientSession,
-) -> None:
-    cm.end_client_session(
-        client_session_id=end_client_session_request_body.client_session_id
-    )
+connection_manager = ConnectionManager()
+
+
+@app.websocket("/chat")
+async def websocket_endpoint(client_websocket: WebSocket) -> None:
+    # Accept the connection from the client
+    client_id = await connection_manager.connect(client_websocket)
+    try:
+        await connection_manager.send_custom_message_to(
+            client_id=client_id, json={"client_id": client_id}
+        )
+        while True:
+            # Receive the message from the client
+            data = json.loads(await client_websocket.receive_text())
+            client_message = ClientMessage(**data)
+            await connection_manager.acknowledge_and_reply_to_client_message(
+                client_id, client_message
+            )
+    except WebSocketDisconnect:
+        # This means the user disconnected, e.g., closed the browser tab
+        await connection_manager.disconnect(client_id)
 
 
 def main():

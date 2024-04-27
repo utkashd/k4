@@ -63,10 +63,9 @@ class GptHomeDebugOptions(BaseModel):
 class GptHome:
     def __init__(
         self,
-        user_id: str | None,
+        user_id: str | None = None,
         ai_name: str = "GptHome",
         human_name: str = "Human",
-        ignore_home_assistant_ssl: str | bool = False,
         debug_options: GptHomeDebugOptions = GptHomeDebugOptions(),
     ):
         """
@@ -92,14 +91,11 @@ class GptHome:
         self._setup_development_tools()
         if not user_id:
             user_id = "development_user_id"
-        directory_to_load_from_and_save_to = get_a_users_directory(user_id)
+        self.directory_to_load_from_and_save_to = get_a_users_directory(user_id)
         self.ai_name = ai_name
         self.human_name = human_name
         self.home_assistant_tool_store = HomeAssistantToolStore(
-            directory_to_load_from_and_save_to=directory_to_load_from_and_save_to,
-            base_url=os.environ["GPT_HOME_HA_BASE_URL"],
             dry_run=self.debug_options.is_dry_run,
-            verify_home_assistant_ssl=not ignore_home_assistant_ssl,
         )
         log.info("Creating chat_history...")
         self.chat_history = ChatMessageHistory()
@@ -159,7 +155,7 @@ class GptHome:
 
         # Set up instance variables for managing and using factoids.
         self.factoids_vector_store = VectorStore(
-            directory_to_load_from_and_save_to=directory_to_load_from_and_save_to,
+            directory_to_load_from_and_save_to=self.directory_to_load_from_and_save_to,
             name="factoids",
         )
         # one vector store for past conversations
@@ -167,6 +163,13 @@ class GptHome:
         # one vector store for tools (APIs)
 
         log.info("GptHome is initialized.")
+
+    async def async_init(self, ignore_home_assistant_ssl: str | bool = False):
+        await self.home_assistant_tool_store.async_init(
+            base_url=os.environ["GPT_HOME_HA_BASE_URL"],
+            directory_to_load_from_and_save_to=self.directory_to_load_from_and_save_to,
+            verify_home_assistant_ssl=not ignore_home_assistant_ssl,
+        )
 
     @cached_property
     def is_verbose(self) -> bool:

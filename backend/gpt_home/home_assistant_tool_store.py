@@ -5,10 +5,11 @@ import os
 from pathlib import Path
 from types import UnionType
 import homeassistant_api
-import requests
+from requests.exceptions import SSLError
 import urllib3
 from typing import Any, Optional
-from homeassistant_api import Client, Domain, Group, Service, Entity, State
+from homeassistant_api import Domain, Group, Service, Entity, State
+from homeassistant_api.rawasyncclient import RawAsyncClient
 from homeassistant_api.models.domains import ServiceField
 from urllib.parse import urljoin
 from langchain.tools import BaseTool
@@ -60,27 +61,35 @@ class HomeAssistantToolStore:
 
     def __init__(
         self,
-        directory_to_load_from_and_save_to: Path,
-        base_url: str,
-        hass_token: str = "",
         dry_run: bool = False,
-        verify_home_assistant_ssl: bool = True,
     ):
         self.dry_run = dry_run
 
         # TODO pick one of "home_assistant", "hass", "ha". I keep switching
-        self.hass_client = self._create_hass_client(
-            base_url, hass_token, verify_home_assistant_ssl
-        )
+        self.hass_client: RawAsyncClient | None = None
 
         self.domains: dict[str, Domain] = {}
         self.entities: dict[str, Group] = {}
-        self.wrapped_tools: dict[str, SerializableHomeAssistantToolWrapper] = {}
+        self.wrapped_tools: dict[str, SerializableHomeAssistantToolWrapper] | None = (
+            None
+        )
+
         self.tool_searcher_tool: BaseTool | None = None
 
-        self.domains = self._get_domains()
-        self.entities = self._get_entities()
-        self.wrapped_tools = self._get_wrapped_tools()
+    async def async_init(
+        self,
+        base_url: str,
+        directory_to_load_from_and_save_to: Path,
+        verify_home_assistant_ssl: bool = True,
+        hass_token: str = "",
+    ):
+        self.hass_client = await self._create_hass_client(
+            base_url, hass_token, verify_home_assistant_ssl
+        )
+
+        self.domains = await self._get_domains(self.hass_client)
+        self.entities = await self._get_entities(self.hass_client)
+        self.wrapped_tools = self._get_wrapped_tools(self.domains, self.entities)
 
         vector_store_tools: list[VectorStoreItemNotInDb] = [
             VectorStoreItemNotInDb(
@@ -197,9 +206,9 @@ class HomeAssistantToolStore:
         self.tool_searcher_tool = SearchHassToolsTool()
         return self.tool_searcher_tool
 
-    def _create_hass_client(
+    async def _create_hass_client(
         self, base_url: str, hass_token: str, verify_home_assistant_ssl: bool = True
-    ) -> Client:
+    ) -> RawAsyncClient:
         api_url = urljoin(base_url, "/api")
         hass_token = self._get_hass_token(hass_token)
 
@@ -214,14 +223,16 @@ class HomeAssistantToolStore:
                 category=urllib3.connectionpool.InsecureRequestWarning  # type: ignore[attr-defined]
             )
 
-        client = Client(
+        client = RawAsyncClient(
             api_url=api_url,
             token=hass_token,
             verify_ssl=verify_home_assistant_ssl,
         )
         try:
-            client.get_config()  # if the client
-        except requests.exceptions.SSLError as ssl_error:
+            await (
+                client.async_get_config()
+            )  # if the client isn't set up right, this will fail
+        except SSLError as ssl_error:
             error = GptHomeError(
                 "Failed to create a Home Assistant API client due to SSL certificate "
                 "issues. If you don't have a valid SSL certificate for your Home "
@@ -245,7 +256,7 @@ class HomeAssistantToolStore:
         return hass_token
 
     def _get_hass_entity_state_tool_instantiator_func(
-        self, entity: Entity, dry_run: bool = False
+        self, hass_client: RawAsyncClient, entity: Entity, dry_run: bool = False
     ) -> type[BaseTool]:
         entity_friendly_name = (
             entity.state.attributes.get("friendly_name") or entity.slug
@@ -264,12 +275,15 @@ class HomeAssistantToolStore:
                 return self.name
 
             def _run(_s) -> str:
+                raise NotImplementedError("tool doesn't support running synchronously")
+
+            async def _arun(_s) -> str:
                 # Since we're only reading an entity's state, we'll always get the
                 # entity state and ignore whether this is a dry-run.
                 rich_print(
                     f"\n[italic blue]Getting the state of {entity.entity_id}.[/italic blue]"
                 )
-                latest_entity_info = self.hass_client.get_entity(
+                latest_entity_info = await hass_client.async_get_entity(
                     entity_id=entity.entity_id
                 )
                 if latest_entity_info is None:
@@ -409,14 +423,20 @@ class HomeAssistantToolStore:
         return original_type
 
     def _get_hass_service_entity_tool_instantiator_func_with_params(
-        self, domain: Domain, service: Service, entity: Entity, dry_run: bool = False
+        self,
+        hass_client: RawAsyncClient,
+        domain: Domain,
+        service: Service,
+        entity: Entity,
+        dry_run: bool = False,
     ) -> type[BaseTool]:
         if not service.fields:
             log.warning(
                 f"Unexpectedly attempted to create a tool with parameters, but the service doesn't have any parameters: {domain.domain_id}.{service.service_id}"
             )
+            assert self.hass_client
             return self._get_hass_service_entity_tool_instantiator_func(
-                domain, service, entity, dry_run=dry_run
+                self.hass_client, domain, service, entity, dry_run=dry_run
             )
 
         field_definitions: dict[str, Any] = {}
@@ -453,12 +473,15 @@ class HomeAssistantToolStore:
                 return self.name
 
             def _run(_s, **service_data: dict[str, Any]) -> str:
+                raise NotImplementedError("tool doesn't support running synchronously")
+
+            async def _arun(_s, **service_data: dict[str, Any]) -> str:
                 if not dry_run:
                     rich_print(
                         f"\n[italic blue]Calling {domain.domain_id}.{service.service_id} on {entity.entity_id} with {service_data}.[/italic blue]",
                     )
                     try:
-                        self.hass_client.trigger_service(
+                        await hass_client.async_trigger_service(
                             domain=domain.domain_id,
                             service=service.service_id,
                             entity_id=entity.entity_id,
@@ -482,7 +505,12 @@ class HomeAssistantToolStore:
         return HassServiceEntityToolWithParams
 
     def _get_hass_service_entity_tool_instantiator_func(
-        self, domain: Domain, service: Service, entity: Entity, dry_run: bool = False
+        self,
+        hass_client: RawAsyncClient,
+        domain: Domain,
+        service: Service,
+        entity: Entity,
+        dry_run: bool = False,
     ) -> type[BaseTool]:
         class HassServiceEntityToolArgs(BaseModel):
             pass
@@ -501,12 +529,15 @@ class HomeAssistantToolStore:
                 return self.name
 
             def _run(_s) -> str:
+                raise NotImplementedError("tool doesn't support running synchronously")
+
+            async def _arun(_s) -> str:
                 if not dry_run:
                     rich_print(
                         f"\n[italic blue]Calling {domain.domain_id}.{service.service_id} on {entity.entity_id}.[/italic blue]",
                     )
                     try:
-                        self.hass_client.trigger_service(
+                        await hass_client.async_trigger_service(
                             domain=domain.domain_id,
                             service=service.service_id,
                             entity_id=entity.entity_id,
@@ -529,9 +560,10 @@ class HomeAssistantToolStore:
     def _tool_search_result_to_wrapped_tool(
         self, tool_search_result: VectorStoreItem
     ) -> SerializableHomeAssistantToolWrapper:
+        assert self.wrapped_tools
         return self.wrapped_tools[tool_search_result.metadata["name"]]
 
-    def _get_domains(self) -> dict[str, Domain]:
+    async def _get_domains(self, hass_client: RawAsyncClient) -> dict[str, Domain]:
         if self.domains:
             return self.domains
 
@@ -551,7 +583,7 @@ class HomeAssistantToolStore:
             log.info(
                 f"No existing {domains_filename} found (because that isn't implemented yet—this is normal). Hitting the Home Assistant API for domains."
             )
-            self.domains = self.hass_client.get_domains()
+            self.domains = await hass_client.async_get_domains()
             log.info(f"Saving domains to {domains_filename}.")
             # with open(domains_filename, "w") as domains_file:
             #     json_serializable_domains = {
@@ -561,7 +593,7 @@ class HomeAssistantToolStore:
             #     json.dump(json_serializable_domains, domains_file, indent=4)
         return self.domains
 
-    def _get_entities(self) -> dict[str, Group]:
+    async def _get_entities(self, hass_client: RawAsyncClient) -> dict[str, Group]:
         if self.entities:
             return self.entities
 
@@ -576,7 +608,7 @@ class HomeAssistantToolStore:
             log.info(
                 f"No existing {entities_filename} found (because that isn't implemented yet—this is normal). Hitting the Home Assistant API for entities."
             )
-            self.entities = self.hass_client.get_entities()
+            self.entities = await hass_client.async_get_entities()
             log.info(f"Saving entities to {entities_filename}.")
             # with open(entities_filename, "w") as entities_file:
             #     json_serializable_entities = {
@@ -591,11 +623,16 @@ class HomeAssistantToolStore:
             #     )
         return self.entities
 
-    def _get_wrapped_tools(self) -> dict[str, SerializableHomeAssistantToolWrapper]:
-        self.wrapped_tools = self.wrapped_tools or self._create_wrapped_tools()
+    def _get_wrapped_tools(
+        self, domains: dict[str, Any], entities: dict[str, Group]
+    ) -> dict[str, SerializableHomeAssistantToolWrapper]:
+        if self.wrapped_tools is None:
+            self.wrapped_tools = self._create_wrapped_tools(domains, entities)
         return self.wrapped_tools
 
-    def _create_wrapped_tools(self) -> dict[str, SerializableHomeAssistantToolWrapper]:
+    def _create_wrapped_tools(
+        self, domains: dict[str, Any], entities: dict[str, Group]
+    ) -> dict[str, SerializableHomeAssistantToolWrapper]:
         entity_to_supported_services: dict[str, list[str]] = {}
 
         def _does_entity_support_service(
@@ -742,10 +779,9 @@ class HomeAssistantToolStore:
                     return True
 
         wrapped_tools: dict[str, SerializableHomeAssistantToolWrapper] = {}
-        domains = self._get_domains()
-        entities = self._get_entities()
 
         # create tools for getting entity states
+        assert self.hass_client
         for group_id, entity_group in entities.items():
             if group_id in SUPPORTED_DOMAINS or "*" in SUPPORTED_DOMAINS:
                 for entity_slug, entity in entity_group.entities.items():
@@ -761,7 +797,7 @@ class HomeAssistantToolStore:
                         )
                         get_hass_entity_state_tool = (
                             self._get_hass_entity_state_tool_instantiator_func(
-                                entity, dry_run=self.dry_run
+                                self.hass_client, entity, dry_run=self.dry_run
                             )
                         )
 
@@ -819,11 +855,19 @@ class HomeAssistantToolStore:
                                 #     f"Skipped creating tool {service.service_id}_{entity.entity_id.replace('.', '_')} because we don't support fields yet."
                                 # )
                                 get_hass_service_entity_tool = self._get_hass_service_entity_tool_instantiator_func_with_params(
-                                    domain, service, entity, dry_run=self.dry_run
+                                    self.hass_client,
+                                    domain,
+                                    service,
+                                    entity,
+                                    dry_run=self.dry_run,
                                 )
                             else:
                                 get_hass_service_entity_tool = self._get_hass_service_entity_tool_instantiator_func(
-                                    domain, service, entity, dry_run=self.dry_run
+                                    self.hass_client,
+                                    domain,
+                                    service,
+                                    entity,
+                                    dry_run=self.dry_run,
                                 )
                             call_service_on_entity_tool: BaseTool = (
                                 get_hass_service_entity_tool(

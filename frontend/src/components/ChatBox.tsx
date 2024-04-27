@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import "./ChatBox.css";
-import axios from "axios";
 import Markdown from "react-markdown";
 
 interface Message {
@@ -11,8 +10,8 @@ interface Message {
 function ChatBox({ user }: { user: User | null }) {
     const [messages, setMessages] = useState([] as Message[]);
     const [clientId, setClientId] = useState(null as string | null);
-    const [isInputDisabled, setIsInputDisabled] = useState(false);
-    const [humanInput, setHumanInput] = useState("");
+    const [isInputDisabled, _setIsInputDisabled] = useState(false);
+    const [textAreaValue, setTextAreaValue] = useState("");
 
     const messagesEndRef = useRef<null | HTMLDivElement>(null);
     const scrollToBottom = () => {
@@ -23,23 +22,25 @@ function ChatBox({ user }: { user: User | null }) {
 
     useEffect(() => {
         if (!user) return;
-        socket = new WebSocket("ws://localhost:8001/chat");
+        socket = new WebSocket("ws://localhost:8000/chat");
 
         socket.onopen = () => {};
 
         socket.onmessage = (event) => {
             // console.log("message received: ", event);
-            const message = JSON.parse(event.data);
-            if (typeof message.client_id === "string") {
-                setClientId(message.client_id);
+            const receivedMessage = JSON.parse(event.data);
+            if (typeof receivedMessage.client_id === "string") {
+                setClientId(receivedMessage.client_id);
                 socket!.send(
                     JSON.stringify({
-                        sender_id: message.client_id + "_system",
+                        sender_id: receivedMessage.client_id + "_system",
                         text: "start_chat " + user.user_id,
                     })
                 );
-            } else if (typeof message.connection_status !== "string") {
-                setMessages((msgs) => [...msgs, message]);
+            } else if (typeof receivedMessage.connection_status !== "string") {
+                setMessages((currentMessages) => {
+                    return [...currentMessages, ...receivedMessage];
+                });
             }
         };
 
@@ -52,7 +53,7 @@ function ChatBox({ user }: { user: User | null }) {
 
         socket.onclose = () => {
             console.log(
-                "disconnected. not currently handled correctly. refresh the page after ensuring the backend is running"
+                "disconnected. not currently handled. refresh the page, and if you still have problems, ensure the backend is running"
             );
         };
 
@@ -70,68 +71,23 @@ function ChatBox({ user }: { user: User | null }) {
     }, [messages]);
 
     const submitHumanInput = async () => {
-        setIsInputDisabled(true);
-        const humanInputSaved = humanInput;
-        setHumanInput("");
+        // setIsInputDisabled(true);
+        const humanInput = textAreaValue;
+        setTextAreaValue("");
 
-        if (humanInputSaved && clientId) {
-            try {
-                const humanMessage: Message = {
-                    text: humanInputSaved,
-                    sender_id: clientId,
-                };
-                setMessages([...messages, humanMessage]);
-                const response = await axios.post(
-                    "http://localhost:8000/ask_gpt_home",
-                    humanMessage,
-                    {
-                        headers: {
-                            Accept: "application/json",
-                            "Content-Type": "application/json",
-                        },
-                    }
-                );
-                const receivedMessages: Message[] = response.data;
-                setMessages([...messages, humanMessage, ...receivedMessages]);
-            } catch (error) {
-                console.error(
-                    "couldn't fetch users. the backend is probably down",
-                    error
-                );
-            } finally {
-                setIsInputDisabled(false);
-            }
+        if (humanInput && clientId && socket) {
+            const humanMessage: Message = {
+                text: humanInput,
+                sender_id: clientId,
+            };
+            socket.send(JSON.stringify(humanMessage));
+            setMessages((currentMessages) => [
+                ...currentMessages,
+                humanMessage,
+            ]);
+            // setIsInputDisabled(false);
         }
     };
-
-    // useEffect(() => {}, [user]);
-
-    // useEffect(() => {
-    //     const source = axios.CancelToken.source();
-    //     const askGptHome = async (message: Message) => {
-    //         try {
-    //             const response = await axios.post(
-    //                 "http://localhost:8000/users"
-    //             );
-    //             console.log(response.data);
-    //             // setUsers(response.data as User[]);
-    //         } catch (error) {
-    //             console.error(
-    //                 "couldn't fetch users. the backend is probably down",
-    //                 error
-    //             );
-    //             // setUsers([] as User[]);
-    //         }
-    //     };
-
-    //     setTimeout(() => {
-    //         askGptHome();
-    //     }, 1000);
-
-    //     return () => {
-    //         source.cancel();
-    //     };
-    // }, sentMessages);
 
     if (!user) {
         return (
@@ -173,9 +129,9 @@ function ChatBox({ user }: { user: User | null }) {
                     <textarea
                         className="chat-input chat-input-textarea"
                         placeholder="Your query here"
-                        value={humanInput}
+                        value={textAreaValue}
                         onChange={(event) => {
-                            setHumanInput(event.target.value);
+                            setTextAreaValue(event.target.value);
                         }}
                         onKeyDown={(event) => {
                             if (
