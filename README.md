@@ -18,6 +18,7 @@ todo
     switches)
 -   display system messages
 -   make easily extensible. marketplace for additional features
+-   avoid assertions in python backend
 
 # GptHome
 
