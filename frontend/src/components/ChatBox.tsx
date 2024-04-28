@@ -12,7 +12,7 @@ function ChatBox({ user }: { user: User | null }) {
     const [messages, setMessages] = useState([] as Message[]);
     const [clientId, setClientId] = useState(null as string | null);
     const [isInputDisabled, setIsInputDisabled] = useState(false);
-    const [humanInput, setHumanInput] = useState("");
+    const [textAreaValue, setTextAreaValue] = useState("");
 
     const messagesEndRef = useRef<null | HTMLDivElement>(null);
     const scrollToBottom = () => {
@@ -28,18 +28,21 @@ function ChatBox({ user }: { user: User | null }) {
         socket.onopen = () => {};
 
         socket.onmessage = (event) => {
-            // console.log("message received: ", event);
-            const message = JSON.parse(event.data);
-            if (typeof message.client_id === "string") {
-                setClientId(message.client_id);
+            const receivedMessage = JSON.parse(event.data);
+            if (typeof receivedMessage.client_id === "string") {
+                setClientId(receivedMessage.client_id);
                 socket!.send(
                     JSON.stringify({
-                        sender_id: message.client_id + "_system",
+                        sender_id: receivedMessage.client_id + "_system",
                         text: "start_chat " + user.user_id,
                     })
                 );
-            } else if (typeof message.connection_status !== "string") {
-                setMessages((msgs) => [...msgs, message]);
+            } else if (typeof receivedMessage.connection_status !== "string") {
+                // we won't receive anything like this yet, but when we do, this is all
+                // that needs to happen
+                setMessages((currentMessages) => {
+                    return [...currentMessages, receivedMessage];
+                });
             }
         };
 
@@ -71,16 +74,18 @@ function ChatBox({ user }: { user: User | null }) {
 
     const submitHumanInput = async () => {
         setIsInputDisabled(true);
-        const humanInputSaved = humanInput;
-        setHumanInput("");
+        const humanInputSaved = textAreaValue;
+        setTextAreaValue("");
 
         if (humanInputSaved && clientId) {
+            const humanMessage: Message = {
+                text: humanInputSaved,
+                sender_id: clientId,
+            };
+            setMessages((currentMessages) => {
+                return [...currentMessages, humanMessage];
+            });
             try {
-                const humanMessage: Message = {
-                    text: humanInputSaved,
-                    sender_id: clientId,
-                };
-                setMessages([...messages, humanMessage]);
                 const response = await axios.post(
                     "http://localhost:8000/ask_gpt_home",
                     humanMessage,
@@ -92,7 +97,9 @@ function ChatBox({ user }: { user: User | null }) {
                     }
                 );
                 const receivedMessages: Message[] = response.data;
-                setMessages([...messages, humanMessage, ...receivedMessages]);
+                setMessages((currentMessages) => {
+                    return [...currentMessages, ...receivedMessages];
+                });
             } catch (error) {
                 console.error(
                     "couldn't fetch users. the backend is probably down",
@@ -103,35 +110,6 @@ function ChatBox({ user }: { user: User | null }) {
             }
         }
     };
-
-    // useEffect(() => {}, [user]);
-
-    // useEffect(() => {
-    //     const source = axios.CancelToken.source();
-    //     const askGptHome = async (message: Message) => {
-    //         try {
-    //             const response = await axios.post(
-    //                 "http://localhost:8000/users"
-    //             );
-    //             console.log(response.data);
-    //             // setUsers(response.data as User[]);
-    //         } catch (error) {
-    //             console.error(
-    //                 "couldn't fetch users. the backend is probably down",
-    //                 error
-    //             );
-    //             // setUsers([] as User[]);
-    //         }
-    //     };
-
-    //     setTimeout(() => {
-    //         askGptHome();
-    //     }, 1000);
-
-    //     return () => {
-    //         source.cancel();
-    //     };
-    // }, sentMessages);
 
     if (!user) {
         return (
@@ -146,24 +124,26 @@ function ChatBox({ user }: { user: User | null }) {
             <div className="gpt-home-chatbox">
                 <div className="gpt-home-chatbox-padded">
                     {messages.map((message: Message, index) => {
+                        if (
+                            ["gpt_home", clientId].includes(message.sender_id)
+                        ) {
+                            return (
+                                <div
+                                    key={index}
+                                    className={
+                                        message.sender_id === "gpt_home"
+                                            ? "msg received"
+                                            : "msg sent"
+                                    }
+                                >
+                                    <Markdown>{message.text}</Markdown>
+                                </div>
+                            );
+                        }
+                        // else, it's a system message
                         return (
-                            <div
-                                key={index}
-                                className={
-                                    ["gpt_home", "system"].includes(
-                                        message.sender_id
-                                    )
-                                        ? "msg received"
-                                        : "msg sent"
-                                }
-                            >
+                            <div key={index} className="system-message">
                                 <Markdown>{message.text}</Markdown>
-                                {/* <div
-                                            data-time="2:30"
-                                            className="msg sent"
-                                        >
-                                            asdfasdf
-                                        </div> */}
                             </div>
                         );
                     })}
@@ -173,9 +153,9 @@ function ChatBox({ user }: { user: User | null }) {
                     <textarea
                         className="chat-input chat-input-textarea"
                         placeholder="Your query here"
-                        value={humanInput}
+                        value={textAreaValue}
                         onChange={(event) => {
-                            setHumanInput(event.target.value);
+                            setTextAreaValue(event.target.value);
                         }}
                         onKeyDown={(event) => {
                             if (
@@ -204,36 +184,3 @@ function ChatBox({ user }: { user: User | null }) {
 }
 
 export default ChatBox;
-
-// import { useState, useRef } from "react";
-// import MessageComponent from "./MessageComponent";
-
-// type Message = {
-//     senderId: string;
-//     text: string;
-// };
-
-// function ChatBox() {
-//     const [messages, setMessages] = useState([]);
-//     const scroll = useRef();
-
-//     return (
-//         <main className="chatbox">
-//             <div className="msg-wrapper">
-//                 {messages?.map((message: Message) => {
-//                     return (
-//                         <MessageComponent
-//                             senderId={message.senderId}
-//                             text={message.text}
-//                             userId="Utkash"
-//                         />
-//                     );
-//                 })}
-//             </div>
-//             <span ref={scroll}></span>
-//             <SendMessage scroll={scroll} />
-//         </main>
-//     );
-// }
-
-// export default ChatBox;

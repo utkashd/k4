@@ -15,7 +15,7 @@ import uuid
 import json
 import aiohttp
 import uvicorn
-from .server_commons import (
+from backend_commons.messages import (
     ClientMessage,
     GptHomeMessages,
     Message,

@@ -1,9 +1,12 @@
 from functools import cached_property
 import json
+from pathlib import Path
 import sys
 import os
 import logging
 from typing import Any, Literal, Never, Sequence
+import uuid
+from backend_commons.messages import ClientMessage, GptHomeMessage, Message
 from gpt_home.utils.file_io import get_a_users_directory
 import openai
 from pydantic import BaseModel
@@ -63,7 +66,7 @@ class GptHomeDebugOptions(BaseModel):
 class GptHome:
     def __init__(
         self,
-        user_id: str | None,
+        user_id: str | None = None,
         ai_name: str = "GptHome",
         human_name: str = "Human",
         ignore_home_assistant_ssl: str | bool = False,
@@ -90,9 +93,8 @@ class GptHome:
         """
         self.debug_options = debug_options
         self._setup_development_tools()
-        if not user_id:
-            user_id = "development_user_id"
-        directory_to_load_from_and_save_to = get_a_users_directory(user_id)
+        self.user_id = user_id or "development_user_id"
+        directory_to_load_from_and_save_to = get_a_users_directory(self.user_id)
         self.ai_name = ai_name
         self.human_name = human_name
         self.home_assistant_tool_store = HomeAssistantToolStore(
@@ -103,6 +105,7 @@ class GptHome:
         )
         log.info("Creating chat_history...")
         self.chat_history = ChatMessageHistory()
+        self._chat_history_with_system_messages: list[Message] = []
         log.info("Creating prompt_template...")
         self.tool_calling_prompt_template = ChatPromptTemplate.from_messages(
             [
@@ -405,7 +408,7 @@ class GptHome:
     def _clear_factoids(self) -> None:
         self.factoids_vector_store.clear_db()
 
-    def ask_gpt_home(self, human_input: str) -> list[str]:  # TODO type this better
+    def ask_gpt_home(self, human_input: str) -> list[GptHomeMessage]:
         k = 6
         relevant_wrapped_tools = (
             self.home_assistant_tool_store.get_k_relevant_home_assistant_tools(
@@ -449,10 +452,22 @@ class GptHome:
             AIMessage(name=self.ai_name, content=response["output"])
         )
 
-        # TODO be smarter about resetting tools
+        system_messages: list[GptHomeMessage] = [
+            msg for msg in self.home_assistant_tool_store.system_messages_queue
+        ]
+        self.home_assistant_tool_store.system_messages_queue.clear()
+        ai_response = GptHomeMessage(text=str(response["output"]))
+        system_messages.append(ai_response)
+
+        self._chat_history_with_system_messages.append(
+            ClientMessage(text=human_input, sender_id=self.user_id)
+        )
+        self._chat_history_with_system_messages.extend(system_messages)
+
+        # TODO be smarter about resetting tools?
         self.agent_executor.reset_tools(self.tools)
 
-        return [str(response["output"])]
+        return system_messages
 
     def _write_requests_to_disk(self) -> None:
         with open(self.debug_options.requests_filename, "w") as requests_file:
@@ -465,14 +480,28 @@ class GptHome:
 
     def _shutdown(self) -> Never:
         log.info("Shutting down gracefully.")
-        self._save_self_to_disk()
+        self.stop_chatting()
         rich_print(f"\n'{self.ai_name}': Goodbye.")
         sys.exit(0)
 
+    def _save_chat_history_with_system_messages_to_disk(self) -> None:
+        if self._chat_history_with_system_messages:
+            directory = get_a_users_directory(self.user_id)
+            chat_history_filename = Path(
+                os.path.join(directory, f"chat_history_{uuid.uuid4()}.json")
+            )
+            serializable_chat_history = [
+                msg.model_dump() for msg in self._chat_history_with_system_messages
+            ]
+            with open(chat_history_filename, "w") as chat_history_file:
+                json.dump(serializable_chat_history, chat_history_file, indent=4)
+
     def stop_chatting(self) -> None:
+        self._save_chat_history_with_system_messages_to_disk()
         self._learn_about_human()
         self._save_self_to_disk()
         self.chat_history.clear()
+        self._chat_history_with_system_messages.clear()
 
     def start(self) -> Never:
         """
@@ -514,4 +543,4 @@ class GptHome:
             else:
                 gpt_home_responses = self.ask_gpt_home(human_input)
                 for msg in gpt_home_responses:
-                    rich_print(f"\n'{self.ai_name}': {msg}")
+                    rich_print(f"\n'{self.ai_name}': {msg.text}")

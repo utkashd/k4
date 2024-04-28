@@ -16,9 +16,10 @@ todo
 -   option to keep gpt home running (uses more memory, less compute)
 -   better device/entity descriptions (it keeps thinking that smart plugs are light
     switches)
--   display system messages
+-   [x] display system messages
 -   make easily extensible. marketplace for additional features
 -   avoid assertions in python backend
+-   first-time flow for setting system message (pronouns, "act as X character" nonsense)
 
 # GptHome
 

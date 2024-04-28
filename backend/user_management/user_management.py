@@ -1,4 +1,5 @@
 import logging
+from backend_commons.messages import GptHomeMessage
 from gpt_home.gpt_home import GptHomeDebugOptions
 from rich.logging import RichHandler
 from gpt_home.utils.file_io import get_gpt_home_root_directory
@@ -62,7 +63,7 @@ class GptHomeUser:
             # idk if this is a good decision.
             self.gpt_home = None
 
-    def ask_gpt_home(self, human_input: str) -> list[str]:
+    def ask_gpt_home(self, human_input: str) -> list[GptHomeMessage]:
         if self.gpt_home:
             return self.gpt_home.ask_gpt_home(human_input)
         return []
