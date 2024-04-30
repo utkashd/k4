@@ -2,11 +2,11 @@ todo
 
 TODOs before releasing asap:
 
--   [ ] ensure user doesn't send anything until a response
+-   [x] ensure user doesn't send anything until a response
 -   [ ] documentation
     -   [ ] setup guide (improve names of entities)
 -   [ ] improve hass tool store:
-    -   [ ] summary
+    -   [x] summary
     -   [ ] test vacuum, climate, media controls. find other stuff worth testing
 -   [x] tear out factoid stuff for now
 -   display chat history

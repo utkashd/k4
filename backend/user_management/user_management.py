@@ -53,7 +53,7 @@ class GptHomeUser:
                 ai_name=self.user_attributes.ai_name,
                 human_name=self.user_attributes.human_name,
                 ignore_home_assistant_ssl=True,
-                debug_options=GptHomeDebugOptions(log_level="warn"),
+                debug_options=GptHomeDebugOptions(log_level="warn", is_dry_run=True),
             )
 
     def stop_gpt_home(self) -> None:
