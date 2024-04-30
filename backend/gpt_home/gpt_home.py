@@ -10,8 +10,6 @@ from backend_commons.messages import ClientMessage, GptHomeMessage, Message
 from gpt_home.utils.file_io import get_a_users_directory
 import openai
 from pydantic import BaseModel
-
-from gpt_home.vector_store import VectorStore, VectorStoreItem, VectorStoreItemNotInDb
 from gpt_home.home_assistant_tool_store import HomeAssistantToolStore
 from gpt_home.mutable_tools_agent_executor import MutableToolsAgentExecutor
 from gpt_home.mutable_tools_openai_tools_agent import MutableToolsOpenAiToolsAgent
@@ -20,11 +18,9 @@ from gpt_home.utils.save_llm_prompt import save_chat_create_inputs_as_dict
 from langchain_core.pydantic_v1 import SecretStr
 from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage, AIMessage
 from langchain_core.prompts import (
-    PromptTemplate,
     ChatPromptTemplate,
     MessagesPlaceholder,
 )
-from langchain_core.runnables import RunnableSerializable
 from langchain_community.chat_message_histories.in_memory import ChatMessageHistory
 from langchain_openai import ChatOpenAI
 from langchain.agents import create_openai_tools_agent
@@ -61,6 +57,16 @@ class GptHomeDebugOptions(BaseModel):
     Overwrites the existing file, if any.
     """
     requests_filename: str = "tmp/llm_requests.json"
+    opt_in_to_factoids: bool = False
+    """
+    Disabling factoids for now because: there's no limit to how many factoids get
+    stored, it seems like many of the factoids aren't that relevant/useful (so maybe I
+    should tune the prompt), and most importantly, it makes stopping a chat a bit slow,
+    and I want to avoid race conditions for free where possible (IOW, to enable
+    factoids wider, I should ensure that there is no race condition issue)
+
+    https://stackoverflow.com/questions/30407352/how-to-prevent-a-race-condition-when-multiple-processes-attempt-to-write-to-and
+    """
 
 
 class GptHome:
@@ -111,8 +117,9 @@ class GptHome:
             [
                 SystemMessage(
                     content=f"You are a personal AI assistant for {self.human_name}. "
-                    f"Your name is {self.ai_name}. When opportune, ask simple questions "
-                    f"to learn more about {self.human_name}'s preferences."
+                    f"Your name is {self.ai_name}."
+                    # "When opportune, ask simple questions "
+                    # f"to learn more about {self.human_name}'s preferences."
                 ),
                 MessagesPlaceholder(variable_name="chat_history"),
                 # HumanMessage(content="{human_input}"), # TODO understand why I can't
@@ -160,11 +167,6 @@ class GptHome:
         self.timestamp_to_prompts_sent: dict[str, Any] = {}
         "Request bodies of OpenAI API calls are stored in this dict"
 
-        # Set up instance variables for managing and using factoids.
-        self.factoids_vector_store = VectorStore(
-            directory_to_load_from_and_save_to=directory_to_load_from_and_save_to,
-            name="factoids",
-        )
         # one vector store for past conversations
         # one vector store for factoids/conclusions about the master
         # one vector store for tools (APIs)
@@ -194,219 +196,7 @@ class GptHome:
                 f"Bypassing logger to warn you that you probably want dry_run=True and log_level='info'. You have {self.debug_options.is_dry_run=} and {self.debug_options.log_level=}"
             )
 
-    def _get_k_relevant_factoids(self, human_input: str, k: int = 5) -> SystemMessage:
-        factoids = self.factoids_vector_store.get_top_k_relevant_items_in_db(
-            human_input, k
-        )
-        if len(factoids.relevant_items_and_scores) == 0:
-            return SystemMessage(content="")
-        temp = ""
-        for factoid in factoids.relevant_items_and_scores:
-            temp += f" - {factoid.item.item_str}\n"
-        return SystemMessage(
-            content=f"Here are some facts that may or may not be relevant to the query:\n{temp}"
-        )
-
-    @cached_property
-    def factoids_chain(self) -> RunnableSerializable[dict[Any, Any], Any]:
-        factoids_llm = ChatOpenAI(
-            model=OpenAIModel.GPT_4_TURBO_PREVIEW,
-            api_key=SecretStr(os.environ["GPT_HOME_OPENAI_API_KEY"]),
-            temperature=0,
-        )
-        factoids_prompt_template = PromptTemplate.from_template(
-            template_format="f-string",
-            template=f"Review the following chat history between a human ({self.human_name}) "
-            f"and an AI assistant ({self.ai_name}). Your task is to draw succinct conclusions "
-            "about the human that may be relevant to future conversations between the human and "
-            "the AI assistant, e.g., personal preferences, facts relevant to controlling devices. "
-            'If nothing useful can be concluded, respond "<no conclusions>". Have a bias for not '
-            "drawing any conclusions."
-            "\n"
-            "\nExample:"
-            f"\n{self.ai_name}: What can I do for you?"
-            f"\n{self.human_name}: turn on tv and turn lights off"
-            f"\n{self.ai_name}: I have turned on your television and I have turned your "
-            "bedroom light off. Is there anything else I can help you with?"
-            f"\n{self.human_name}: set thermostat to heat 66 degrees\n"
-            f"\n{self.ai_name}: Ok, I have turned on the Bedroom's thermostat and set it "
-            "to heat at 66 degrees Fahrenheit. Do you usually want this when you watch TV?"
-            f"\n{self.human_name}: no\n"
-            "\n\nConclusions:"
-            f"\n{self.human_name} may prefer the lights to be off when they watch TV."
-            f"\n{self.human_name}'s preferred thermostat heating temperature may be 66 degrees F."
-            "\n"
-            "\nExample:"
-            f"\n{self.ai_name}: What can I do for you?"
-            f"\n{self.human_name}: turn my light on pls"
-            f"\n{self.ai_name}: I have turned on your light. Is there anything else I can help you with?"
-            "\n\nConclusions:"
-            f"\n<no conclusions>"
-            "\n"
-            "\nChat History:"
-            "\n{chat_history}"
-            "\n\nConclusions:"
-            "\n",
-        )
-
-        return factoids_prompt_template | factoids_llm
-
-    @cached_property
-    def factoids_check_duplicates_chain(
-        self,
-    ) -> RunnableSerializable[dict[Any, Any], Any]:
-        factoids_check_duplicates_llm = ChatOpenAI(
-            model=OpenAIModel.GPT_4_TURBO_PREVIEW,
-            api_key=SecretStr(os.environ["GPT_HOME_OPENAI_API_KEY"]),
-            temperature=0,
-        )
-        factoids_check_duplicates_prompt_template = PromptTemplate.from_template(
-            template_format="f-string",
-            template="The following 4 statements reflect what we currently know:"
-            "\n{four_existing_factoids_numbered}"
-            "\n\nWe've received 1 new statement: {new_factoid}"
-            "\n\nWe need to store as few statements as possible while keeping all information. "
-            "Which of the following actions should we perform? Indicate all that apply. "
-            "Only include the letter(s). Do not provide an explanation or any other information."
-            "\nA. Keep all 5 statements."
-            "\nB. Overwrite the 1st statement with the new statement"
-            "\nC. Overwrite the 2nd statement with the new statement"
-            "\nD. Overwrite the 3rd statement with the new statement"
-            "\nE. Overwrite the 4th statement with the new statement"
-            "\nF. Discard the new statement, because it doesn't contain new information."
-            "\n\nAnswer: ",
-        )
-
-        return factoids_check_duplicates_prompt_template | factoids_check_duplicates_llm
-
-    # TODO i should classify all factoids as "always supply to llm" or "require querying"
-    def _learn_about_human(self) -> None:
-        """
-        Feeds the chat history plus a "what conclusions can you draw from this chat"
-        prompt to an LLM to get a list of factoids. Then, adds the factoids to the
-        factoids db
-        """
-
-        if len(self.chat_history.messages) == 0:
-            # we have no chat history to use, don't try to "learn" anything
-            return
-
-        def get_factoids_to_overwrite(
-            factoid: str,
-        ) -> set[VectorStoreItem] | Literal["discard"]:
-            """
-            Returns 'discard' to indicate that the factoid should just be discarded.
-            Otherwise, returns a set for which factoids should be removed in favor of
-            this new factoid.
-            """
-            if self.factoids_vector_store.is_empty():
-                return set()
-
-            similar_factoids = (
-                self.factoids_vector_store.get_top_k_relevant_items_in_db(factoid, k=4)
-            )
-            existing_factoids_numbered = ""
-            for index, similar_factoid in enumerate(
-                similar_factoids.relevant_items_and_scores
-            ):
-                existing_factoids_numbered += (
-                    f"{index + 1}. {similar_factoid.item.item_str}"
-                )
-                if index < 3:
-                    existing_factoids_numbered += "\n"
-            if len(similar_factoids.relevant_items_and_scores) < 4:
-                # this means that the factoids db had fewer than 4 factoids
-                # we're just gonna add bogus factoids for filler. yikes!
-                # should probably fix this...but for now...this will work
-                factoids_to_add = 4 - len(similar_factoids.relevant_items_and_scores)
-                match factoids_to_add:
-                    case 3:
-                        extra_factoids = (
-                            "2. Mowgli is a character in The Jungle Book.\n"
-                            "3. Bagheera is a character in The Jungle Book.\n"
-                            "4. Baloo is a character in The Jungle Book."
-                        )
-                    case 2:
-                        extra_factoids = (
-                            "3. Bagheera is a character in The Jungle Book.\n"
-                            "4. Baloo is a character in The Jungle Book."
-                        )
-                    case 1:
-                        extra_factoids = "4. Baloo is a character in The Jungle Book."
-                    case _:
-                        extra_factoids = ""
-
-                existing_factoids_numbered += extra_factoids
-
-            response = self.factoids_check_duplicates_chain.invoke(
-                {
-                    "four_existing_factoids_numbered": existing_factoids_numbered,
-                    "new_factoid": factoid,
-                }
-            )
-            assert isinstance(response, AIMessage)
-            assert isinstance(response.content, str)
-            factoids_to_overwrite: set[VectorStoreItem] = set()
-            if "A" in response.content:
-                return set()
-            if "F" in response.content:
-                return "discard"
-            if "B" in response.content:
-                factoids_to_overwrite.add(
-                    similar_factoids.relevant_items_and_scores[0].item
-                )
-            if "C" in response.content:
-                if len(similar_factoids) >= 2:
-                    factoids_to_overwrite.add(
-                        similar_factoids.relevant_items_and_scores[1].item
-                    )
-            if "D" in response.content:
-                if len(similar_factoids) >= 3:
-                    factoids_to_overwrite.add(
-                        similar_factoids.relevant_items_and_scores[2].item
-                    )
-            if "E" in response.content:
-                if len(similar_factoids) >= 4:
-                    factoids_to_overwrite.add(
-                        similar_factoids.relevant_items_and_scores[3].item
-                    )
-
-            return factoids_to_overwrite
-
-        # TODO somehow ensure I don't add something that is already in the db
-        formatted_chat_history = "\n".join(
-            [f"{msg.name}: {msg.content}" for msg in self.chat_history.messages]
-        )
-        response = self.factoids_chain.invoke({"chat_history": formatted_chat_history})
-        assert isinstance(response, AIMessage)
-        assert isinstance(response.content, str)
-        if "<no conclusion>" in response.content:
-            rich_print(f"no conclusions: {response=}")
-        else:
-            factoid_items: list[VectorStoreItemNotInDb] = []
-            factoids_to_remove: list[VectorStoreItem] = []
-            for new_factoid_str in response.content.split("\n"):
-                # we're assuming that the factoids don't have any duplicates among them
-                factoids_to_overwrite = get_factoids_to_overwrite(new_factoid_str)
-                if factoids_to_overwrite == "discard":
-                    # this means that our "new factoid" isn't actually new information.
-                    # so we're are not adding this to our factoids db
-                    pass
-                else:
-                    for factoid_to_overwrite in factoids_to_overwrite:
-                        factoids_to_remove.append(factoid_to_overwrite)
-                    factoid_items.append(
-                        VectorStoreItemNotInDb(item_str=new_factoid_str)
-                    )
-            self.factoids_vector_store.remove_items(factoids_to_remove)
-            self.factoids_vector_store.generate_embeddings_and_save_embeddings_to_db(
-                factoid_items
-            )
-
     def _intro(self) -> None: ...
-
-    def _clear_factoids(self) -> None:
-        self.factoids_vector_store.clear_db()
 
     def ask_gpt_home(self, human_input: str) -> list[GptHomeMessage]:
         k = 6
@@ -433,7 +223,6 @@ class GptHome:
                     {
                         "human_input": human_input,
                         "chat_history": self.chat_history.messages,
-                        "factoids": self._get_k_relevant_factoids(human_input, k=5),
                     }
                 )
         except openai.RateLimitError:
@@ -452,29 +241,29 @@ class GptHome:
             AIMessage(name=self.ai_name, content=response["output"])
         )
 
-        system_messages: list[GptHomeMessage] = [
+        gpt_home_system_messages: list[GptHomeMessage] = [
             msg for msg in self.home_assistant_tool_store.system_messages_queue
         ]
         self.home_assistant_tool_store.system_messages_queue.clear()
         ai_response = GptHomeMessage(text=str(response["output"]))
-        system_messages.append(ai_response)
+        gpt_home_system_messages.append(ai_response)
 
         self._chat_history_with_system_messages.append(
             ClientMessage(text=human_input, sender_id=self.user_id)
         )
-        self._chat_history_with_system_messages.extend(system_messages)
+        self._chat_history_with_system_messages.extend(gpt_home_system_messages)
 
         # TODO be smarter about resetting tools?
         self.agent_executor.reset_tools(self.tools)
 
-        return system_messages
+        return gpt_home_system_messages
 
     def _write_requests_to_disk(self) -> None:
         with open(self.debug_options.requests_filename, "w") as requests_file:
             json.dump(self.timestamp_to_prompts_sent, requests_file, indent=4)
 
     def _save_self_to_disk(self) -> None:
-        self.factoids_vector_store.save_db_to_disk()
+        # self.factoids_vector_store.save_db_to_disk()
         if self.debug_options.should_save_requests:
             self._write_requests_to_disk()
 
@@ -498,7 +287,7 @@ class GptHome:
 
     def stop_chatting(self) -> None:
         self._save_chat_history_with_system_messages_to_disk()
-        self._learn_about_human()
+        # self._learn_about_human()
         self._save_self_to_disk()
         self.chat_history.clear()
         self._chat_history_with_system_messages.clear()
@@ -529,17 +318,9 @@ class GptHome:
             elif human_input.lower() in ["/clear_chat"]:
                 self.chat_history.clear()
                 rich_print("Chat history cleared.")
-            elif human_input.lower() in ["/clear_factoids"]:
-                self._clear_factoids()
-                rich_print("All factoids deleted.")
             elif human_input.lower() in ["/clear"]:
                 self.chat_history.clear()
                 rich_print("Chat history cleared.")
-                self._clear_factoids()
-                rich_print("All factoids deleted.")
-            elif human_input.lower() in ["/glean"]:
-                self._learn_about_human()
-                self._save_self_to_disk()
             else:
                 gpt_home_responses = self.ask_gpt_home(human_input)
                 for msg in gpt_home_responses:

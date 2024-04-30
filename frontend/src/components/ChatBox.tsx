@@ -140,7 +140,7 @@ function ChatBox({ user }: { user: User | null }) {
                                 </div>
                             );
                         }
-                        // else, it's a system message
+                        // else, it's a system message (gpt_home_system)
                         return (
                             <div key={index} className="system-message">
                                 <Markdown>{message.text}</Markdown>

@@ -156,7 +156,7 @@ class HomeAssistantToolStore:
         #     pass
         #     if index == last_tool_index:
 
-        # return f"Of the {num_tools}, "
+        # return f"Of the {num_tools} tools, {}"
         return ""
 
     def _create_tool_searcher_tool(

@@ -31,7 +31,7 @@ class GptHomeSystemMessage(GptHomeMessage):
     A system message from GptHome (not to be confused with a system message for an LLM)
     """
 
-    sender_id: str = Field(default="system")
+    sender_id: str = Field(default="gpt_home_system")
 
 
 class GptHomeMessages(RootModel):  # type: ignore[type-arg]

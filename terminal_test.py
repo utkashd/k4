@@ -12,6 +12,7 @@ if __name__ == "__main__":
             is_dry_run=False,
             log_level="warn",
             should_save_requests=True,
+            opt_in_to_factoids=False,
         ),
     )
     gpt_home.start()
