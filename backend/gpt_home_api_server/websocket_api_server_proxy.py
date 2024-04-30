@@ -126,13 +126,17 @@ class ConnectionManager:
             if active_server_client_connection:
                 active_server_client_connection.user_id = user_id
                 async with aiohttp.ClientSession() as session:
-                    await session.post(
+                    async with session.post(
                         "http://localhost:8000/registered_user_client_session",
                         json={
                             "client_session_id": client_id,
                             "user_id": user_id,
                         },
-                    )
+                    ) as response:
+                        response_json = await response.json()
+                        await self.send_custom_message_to(
+                            client_id=client_id, json=response_json
+                        )
 
     async def acknowledge_and_reply_to_client_message(
         self, client_id: str, client_message: ClientMessage
@@ -174,6 +178,7 @@ async def websocket_endpoint(client_websocket: WebSocket) -> None:
     # Accept the connection from the client
     client_id = await connection_manager.connect(client_websocket)
     try:
+        # immediately tell them their client id
         await connection_manager.send_custom_message_to(
             client_id=client_id, json={"client_id": client_id}
         )

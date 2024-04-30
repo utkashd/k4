@@ -31,7 +31,7 @@ class ClientSessionsManager:
         self.active_client_sessions_by_client_id: dict[str, ClientSession] = {}
         self.users_manager = UsersManager()
 
-    def add_new_client_session(self, client_session_id: str, user_id: str) -> None:
+    def add_new_client_session(self, client_session_id: str, user_id: str) -> bool:
         if client_session_id not in self.active_client_sessions_by_client_id.keys():
             # just gonna trust that the user_id supplied by the client is really theirs
             # TODO authenticate or something
@@ -43,6 +43,7 @@ class ClientSessionsManager:
                     )
                 )
                 self.users_manager.start_user(user)
+                return True
             else:
                 # this shouldn't happen, right? maybe this is where we tell the client
                 # that the user doesn't exist (anymore?)
@@ -51,6 +52,7 @@ class ClientSessionsManager:
             print(
                 f"uh what? duplicate client session id? {client_session_id=} {user_id=}"
             )
+        return False
 
     def _is_user_active(self, user_id: str) -> bool:
         active_users = set(
@@ -128,15 +130,20 @@ def create_user(
     )
 
 
+class CreateClientSessionResponseBody(BaseModel):
+    ready: bool
+
+
 @app.post("/registered_user_client_session")
 def create_client_session(
     client_session_request_body: RegisteredUserClientSession,
-) -> None:
+) -> CreateClientSessionResponseBody:
     # TODO return something sensible based on whether the user_id is valid
-    cm.add_new_client_session(
+    ready = cm.add_new_client_session(
         client_session_id=client_session_request_body.client_session_id,
         user_id=client_session_request_body.user_id,
     )
+    return CreateClientSessionResponseBody(ready=ready)
 
 
 @app.post("/ask_gpt_home")

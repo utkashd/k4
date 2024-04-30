@@ -11,7 +11,7 @@ interface Message {
 function ChatBox({ user }: { user: User | null }) {
     const [messages, setMessages] = useState([] as Message[]);
     const [clientId, setClientId] = useState(null as string | null);
-    const [isInputDisabled, setIsInputDisabled] = useState(false);
+    const [isInputDisabled, setIsInputDisabled] = useState(true);
     const [textAreaValue, setTextAreaValue] = useState("");
 
     const messagesEndRef = useRef<null | HTMLDivElement>(null);
@@ -37,6 +37,8 @@ function ChatBox({ user }: { user: User | null }) {
                         text: "start_chat " + user.user_id,
                     })
                 );
+            } else if (receivedMessage.ready === true) {
+                setIsInputDisabled(false);
             } else if (typeof receivedMessage.connection_status !== "string") {
                 // we won't receive anything like this yet, but when we do, this is all
                 // that needs to happen
@@ -148,6 +150,9 @@ function ChatBox({ user }: { user: User | null }) {
                         );
                     })}
                     <div ref={messagesEndRef}></div>
+                    <div hidden={!isInputDisabled}>
+                        <p>Please wait...</p>
+                    </div>
                 </div>
                 <div className="gpt-home-chatbox-message-sender">
                     <textarea

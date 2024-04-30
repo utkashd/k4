@@ -9,10 +9,11 @@ if __name__ == "__main__":
         human_name=os.environ.get("GPT_HOME_HUMAN_NAME") or "Human",
         ignore_home_assistant_ssl=os.environ.get("GPT_HOME_HA_IGNORE_SSL") or False,
         debug_options=GptHomeDebugOptions(
-            is_dry_run=False,
+            is_dry_run=True,
             log_level="warn",
             should_save_requests=True,
             opt_in_to_factoids=False,
+            should_save_chat_history=True,
         ),
     )
     gpt_home.start()

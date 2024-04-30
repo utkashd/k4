@@ -10,7 +10,9 @@ TODOs before releasing asap:
     -   [ ] test vacuum, climate, media controls. find other stuff worth testing
 -   [x] tear out factoid stuff for now
 -   display chat history
--   [ ] move to a single docker container
+-   [ ] deployment
+    -   [ ] single docker container
+    -   [ ] docker compose
 -   [x] display system messages
 
 -   address all code TODOs

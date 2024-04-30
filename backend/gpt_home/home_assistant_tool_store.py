@@ -24,9 +24,9 @@ from homeassistant.components.media_player import MediaPlayerEntityFeature  # ty
 
 log = logging.getLogger("gpt_home")
 
-# SUPPORTED_DOMAINS = {"switch", "media_player"}
+SUPPORTED_DOMAINS = {"switch", "media_player", "vacuum", "sensor", "binary_sensor"}
 # SUPPORTED_DOMAINS = {"*"}
-SUPPORTED_DOMAINS = {"switch"}
+# SUPPORTED_DOMAINS = {"switch"}
 # SUPPORTED_SERVICE_FIELDS = {"number", "text", "boolean", "select"}
 
 
@@ -79,6 +79,7 @@ class HomeAssistantToolStore:
         self.entities: dict[str, Group] = {}
         self.wrapped_tools: dict[str, SerializableHomeAssistantToolWrapper] = {}
         self.tool_searcher_tool: BaseTool | None = None
+        self.summary_of_tools: dict[str, int] = {}
 
         self.domains = self._get_domains()
         self.entities = self._get_entities()
@@ -119,7 +120,7 @@ class HomeAssistantToolStore:
         )
         log.info(f"Done adding {len(vector_store_tools)} tools to the store.")
 
-    def _add_system_message(self, system_message: str):
+    def _add_system_message(self, system_message: str) -> None:
         self.system_messages_queue.append(GptHomeSystemMessage(text=system_message))
         rich_print(f"[italic blue]{system_message}[/italic blue]")
 
@@ -145,19 +146,16 @@ class HomeAssistantToolStore:
         return self.tool_searcher_tool
 
     @cached_property
-    def summary_of_tools(self) -> str:
-        # num_entities = 0
-        # num_domains = 0
-        # num_tools = 0
+    def summary_of_tools_str(self) -> str:
+        x_tools_are_y_str = "\n".join(
+            [
+                f"- {number_of_tools} {tool_summary}"
+                for tool_summary, number_of_tools in self.summary_of_tools.items()
+            ]
+        )
 
-        # s = ""
-        # last_tool_index = len(self.tools_vector_store.items) - 1
-        # for index, tool in enumerate(self.tools_vector_store.items):
-        #     pass
-        #     if index == last_tool_index:
-
-        # return f"Of the {num_tools} tools, {}"
-        return ""
+        num_tools = len(self.tools_vector_store.items)
+        return f"There are {num_tools} tools. Of those: \n{x_tools_are_y_str}"
 
     def _create_tool_searcher_tool(
         self,
@@ -178,7 +176,7 @@ class HomeAssistantToolStore:
                 "`k` or with a better query, such as by including more context. "
                 "You might not get the tool you need, in which case you should inform the "
                 "human that you could not find the right tool. "
-                f"{self.summary_of_tools}"
+                f"\n\n{self.summary_of_tools_str}"
             )
             return_direct: bool = False
             args_schema: type[BaseModel] = SearchHassToolsToolArgs
@@ -253,6 +251,13 @@ class HomeAssistantToolStore:
     def _get_hass_entity_state_tool_instantiator_func(
         self, entity: Entity, dry_run: bool = False
     ) -> type[BaseTool]:
+        # first let's maintain the summary of tools, which will be rendered as
+        # f"{value} {key}"
+        tool_summary = f"get the state of a {entity.group.group_id}"
+        if tool_summary not in self.summary_of_tools.keys():
+            self.summary_of_tools[tool_summary] = 0
+        self.summary_of_tools[tool_summary] += 1
+
         entity_friendly_name = (
             entity.state.attributes.get("friendly_name") or entity.slug
         )
@@ -261,7 +266,7 @@ class HomeAssistantToolStore:
             pass
 
         class HassEntityStateTool(BaseTool):
-            name: str = f"get_state_{entity.entity_id.replace('.', '_')}"
+            name: str = f"get_state_of_{entity.entity_id.replace('.', '_')}"
             description: str = f"Get state/attributes of {entity_friendly_name}"
             return_direct: bool = False
             args_schema: type[BaseModel] = HassEntityStateToolArgs
@@ -425,6 +430,13 @@ class HomeAssistantToolStore:
                 domain, service, entity, dry_run=dry_run
             )
 
+        # first let's maintain the summary of tools, which will be rendered as
+        # f"{value} {key}"
+        tool_summary = f"call a service on a {domain.domain_id}"
+        if tool_summary not in self.summary_of_tools.keys():
+            self.summary_of_tools[tool_summary] = 0
+        self.summary_of_tools[tool_summary] += 1
+
         field_definitions: dict[str, Any] = {}
         for field_name, service_field in service.fields.items():
             field_type = self._get_field_type(service_field)
@@ -490,6 +502,13 @@ class HomeAssistantToolStore:
     def _get_hass_service_entity_tool_instantiator_func(
         self, domain: Domain, service: Service, entity: Entity, dry_run: bool = False
     ) -> type[BaseTool]:
+        # first let's maintain the summary of tools, which will be rendered as
+        # f"{value} {key}"
+        tool_summary = f"call a service on a {domain.domain_id}"
+        if tool_summary not in self.summary_of_tools.keys():
+            self.summary_of_tools[tool_summary] = 0
+        self.summary_of_tools[tool_summary] += 1
+
         class HassServiceEntityToolArgs(BaseModel):
             pass
 
@@ -755,7 +774,7 @@ class HomeAssistantToolStore:
         for group_id, entity_group in entities.items():
             if group_id in SUPPORTED_DOMAINS or "*" in SUPPORTED_DOMAINS:
                 for entity_slug, entity in entity_group.entities.items():
-                    tool_name = f"get_state_{entity.entity_id.replace('.', '_')}"
+                    tool_name = f"get_state_of_{entity.entity_id.replace('.', '_')}"
                     tool_description = f'Get state/attributes of {entity.state.attributes.get("friendly_name") or entity_slug}'
                     if len(tool_name) > 64:
                         log.info(

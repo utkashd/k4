@@ -6,7 +6,12 @@ import os
 import logging
 from typing import Any, Literal, Never, Sequence
 import uuid
-from backend_commons.messages import ClientMessage, GptHomeMessage, Message
+from backend_commons.messages import (
+    ClientMessage,
+    GptHomeMessage,
+    GptHomeSystemMessage,
+    Message,
+)
 from gpt_home.utils.file_io import get_a_users_directory
 import openai
 from pydantic import BaseModel
@@ -59,6 +64,8 @@ class GptHomeDebugOptions(BaseModel):
     requests_filename: str = "tmp/llm_requests.json"
     opt_in_to_factoids: bool = False
     """
+    CURRENTLY DOESN'T DO ANYTHING. FACTOIDS IS NOT IMPLEMENTED FOR NOW
+
     Disabling factoids for now because: there's no limit to how many factoids get
     stored, it seems like many of the factoids aren't that relevant/useful (so maybe I
     should tune the prompt), and most importantly, it makes stopping a chat a bit slow,
@@ -67,6 +74,7 @@ class GptHomeDebugOptions(BaseModel):
 
     https://stackoverflow.com/questions/30407352/how-to-prevent-a-race-condition-when-multiple-processes-attempt-to-write-to-and
     """
+    should_save_chat_history: bool = True
 
 
 class GptHome:
@@ -171,6 +179,8 @@ class GptHome:
         # one vector store for factoids/conclusions about the master
         # one vector store for tools (APIs)
 
+        self.system_messages_queue: list[GptHomeSystemMessage] = []
+
         log.info("GptHome is initialized.")
 
     @cached_property
@@ -198,6 +208,10 @@ class GptHome:
 
     def _intro(self) -> None: ...
 
+    def _add_system_message(self, message: str) -> None:
+        rich_print(f"[italic blue]{message}[/italic blue]")
+        self.system_messages_queue.append(GptHomeSystemMessage(text=message))
+
     def ask_gpt_home(self, human_input: str) -> list[GptHomeMessage]:
         k = 6
         relevant_wrapped_tools = (
@@ -209,8 +223,9 @@ class GptHome:
             relevant_wrapped_tool.hass_tool
             for relevant_wrapped_tool in relevant_wrapped_tools
         ]
-        rich_print(
-            f"[italic blue]Preemptively retrieved {len(potentially_relevant_tools)} tools: {[potentially_relevant_tool.name for potentially_relevant_tool in potentially_relevant_tools]}[/italic blue]"
+
+        self._add_system_message(
+            f"Preemptively retrieved {len(potentially_relevant_tools)} tools: {'\n'.join(potentially_relevant_tool.name for potentially_relevant_tool in potentially_relevant_tools)}"
         )
         self.agent_executor.add_tools(
             potentially_relevant_tools
@@ -242,8 +257,13 @@ class GptHome:
         )
 
         gpt_home_system_messages: list[GptHomeMessage] = [
-            msg for msg in self.home_assistant_tool_store.system_messages_queue
+            # this is done because the type of the list won't change, so we just create
+            # a new one. this should be pretty quick and should cost next-to-nothing
+            msg
+            for msg in self.system_messages_queue
+            + self.home_assistant_tool_store.system_messages_queue
         ]
+        self.system_messages_queue.clear()
         self.home_assistant_tool_store.system_messages_queue.clear()
         ai_response = GptHomeMessage(text=str(response["output"]))
         gpt_home_system_messages.append(ai_response)
@@ -267,14 +287,11 @@ class GptHome:
         if self.debug_options.should_save_requests:
             self._write_requests_to_disk()
 
-    def _shutdown(self) -> Never:
-        log.info("Shutting down gracefully.")
-        self.stop_chatting()
-        rich_print(f"\n'{self.ai_name}': Goodbye.")
-        sys.exit(0)
-
     def _save_chat_history_with_system_messages_to_disk(self) -> None:
-        if self._chat_history_with_system_messages:
+        if (
+            self.debug_options.should_save_chat_history
+            and self._chat_history_with_system_messages
+        ):
             directory = get_a_users_directory(self.user_id)
             chat_history_filename = Path(
                 os.path.join(directory, f"chat_history_{uuid.uuid4()}.json")
@@ -312,7 +329,10 @@ class GptHome:
             human_input = input(f"\n{self.human_name}: ")
 
             if human_input.lower() in ["/quit", "/exit", "quit"]:
-                self._shutdown()
+                log.info("Shutting down gracefully.")
+                self.stop_chatting()
+                rich_print(f"\n'{self.ai_name}': Goodbye.")
+                sys.exit(0)
             elif human_input.lower() in ["/help"]:
                 rich_print("'/quit' to quit")  # the rest is just for developing
             elif human_input.lower() in ["/clear_chat"]:
