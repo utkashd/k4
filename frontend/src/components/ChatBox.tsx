@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import "./ChatBox.css";
 import axios from "axios";
 import Markdown from "react-markdown";
+import Collapsible from "react-collapsible";
 
 interface Message {
     text: string;
@@ -23,6 +24,7 @@ function ChatBox({ user }: { user: User | null }) {
 
     useEffect(() => {
         if (!user) return;
+        setMessages([]);
         socket = new WebSocket("ws://localhost:8001/chat");
 
         socket.onopen = () => {};
@@ -40,8 +42,6 @@ function ChatBox({ user }: { user: User | null }) {
             } else if (receivedMessage.ready === true) {
                 setIsInputDisabled(false);
             } else if (typeof receivedMessage.connection_status !== "string") {
-                // we won't receive anything like this yet, but when we do, this is all
-                // that needs to happen
                 setMessages((currentMessages) => {
                     return [...currentMessages, receivedMessage];
                 });
@@ -55,18 +55,15 @@ function ChatBox({ user }: { user: User | null }) {
             }
         };
 
-        socket.onclose = () => {
-            console.log(
-                "disconnected. not currently handled correctly. refresh the page after ensuring the backend is running"
-            );
-        };
+        socket.onclose = () => {};
 
         return () => {
-            // component unmounted, so we should close the websocket
+            // component unmounted, so we should close the websocket and reset messages
             if (socket) {
                 // TODO read this and fix: https://stackoverflow.com/questions/12487828/what-does-websocket-is-closed-before-the-connection-is-established-mean
                 socket.close();
             }
+            setMessages([]);
         };
     }, [user]);
 
@@ -145,7 +142,16 @@ function ChatBox({ user }: { user: User | null }) {
                         // else, it's a system message (gpt_home_system)
                         return (
                             <div key={index} className="system-message">
-                                <Markdown>{message.text}</Markdown>
+                                <a
+                                    href=""
+                                    onClick={(event) => {
+                                        event.preventDefault();
+                                    }}
+                                >
+                                    <Collapsible trigger=" > System messages">
+                                        <Markdown>{message.text}</Markdown>
+                                    </Collapsible>
+                                </a>
                             </div>
                         );
                     })}

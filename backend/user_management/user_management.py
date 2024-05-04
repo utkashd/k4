@@ -1,6 +1,7 @@
 import logging
-from backend_commons.messages import GptHomeMessage
+from backend_commons.messages import Message
 from gpt_home.gpt_home import GptHomeDebugOptions
+from gpt_home.gpt_home_human import GptHomeHuman
 from rich.logging import RichHandler
 from gpt_home.utils.file_io import get_gpt_home_root_directory
 import os
@@ -49,11 +50,13 @@ class GptHomeUser:
         """
         if not self.gpt_home:
             self.gpt_home = GptHome(
-                user_id=self.user_attributes.user_id,
-                ai_name=self.user_attributes.ai_name,
-                human_name=self.user_attributes.human_name,
+                gpt_home_human=GptHomeHuman(
+                    ai_name=self.user_attributes.ai_name,
+                    user_id=self.user_attributes.user_id,
+                    human_name=self.user_attributes.human_name,
+                ),
+                debug_options=GptHomeDebugOptions(log_level="warn", is_dry_run=False),
                 ignore_home_assistant_ssl=True,
-                debug_options=GptHomeDebugOptions(log_level="warn", is_dry_run=True),
             )
 
     def stop_gpt_home(self) -> None:
@@ -61,9 +64,10 @@ class GptHomeUser:
             self.gpt_home.stop_chatting()
             # save ram, but the next time the user logs in, the user will have to wait?
             # idk if this is a good decision.
-            self.gpt_home = None
+            # **Update** Which is why I'm commenting it out! lol
+            # self.gpt_home = None
 
-    def ask_gpt_home(self, human_input: str) -> list[GptHomeMessage]:
+    def ask_gpt_home(self, human_input: str) -> list[Message]:
         if self.gpt_home:
             return self.gpt_home.ask_gpt_home(human_input)
         return []
@@ -106,6 +110,15 @@ class UsersManager:
         self.users[user_id] = gpt_home_user
         self._save_users_to_filesystem()
         return gpt_home_user.get_user_attributes()
+
+    def delete_user(self, user_id: str) -> None:
+        if self.users.get(user_id):
+            self.stop_user(self.users[user_id])
+            if self.users[user_id].gpt_home:
+                # ensure we free up the memory. prob not necessary tbh
+                self.users[user_id].gpt_home = None
+            self.users.pop(user_id)
+            self._save_users_to_filesystem()
 
     def _save_users_to_filesystem(self) -> None:
         users_filename = self._get_users_filename()

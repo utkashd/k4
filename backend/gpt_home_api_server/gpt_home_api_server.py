@@ -3,7 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from user_management.user_management import GptHomeUserAttributes, UsersManager
 
-from backend_commons.messages import ClientMessage, GptHomeMessage, GptHomeSystemMessage
+from backend_commons.messages import (
+    ClientMessage,
+    GptHomeSystemMessage,
+    Message,
+)
 # from langchain_core.messages import HumanMessage, AIMessage
 # from langchain_community.chat_message_histories.in_memory import ChatMessageHistory
 
@@ -92,9 +96,7 @@ class ClientSessionsManager:
     #             )
     #     return formatted_chat_history
 
-    def ask_clients_gpt_home(
-        self, client_message: ClientMessage
-    ) -> list[GptHomeMessage]:
+    def ask_clients_gpt_home(self, client_message: ClientMessage) -> list[Message]:
         client_session = self.active_client_sessions_by_client_id.get(
             client_message.sender_id
         )
@@ -130,6 +132,15 @@ def create_user(
     )
 
 
+class DeleteUserRequestBody(BaseModel):
+    user_id: str
+
+
+@app.delete("/user")
+def delete_user(delete_user_request_body: DeleteUserRequestBody) -> None:
+    cm.users_manager.delete_user(user_id=delete_user_request_body.user_id)
+
+
 class CreateClientSessionResponseBody(BaseModel):
     ready: bool
 
@@ -147,7 +158,7 @@ def create_client_session(
 
 
 @app.post("/ask_gpt_home")
-def ask_gpt_home(client_message: ClientMessage) -> list[GptHomeMessage]:
+def ask_gpt_home(client_message: ClientMessage) -> list[Message]:
     return cm.ask_clients_gpt_home(client_message)
 
 
@@ -158,6 +169,11 @@ def end_client_session(
     cm.end_client_session(
         client_session_id=end_client_session_request_body.client_session_id
     )
+
+
+@app.post("/_inspect")
+def _inspect() -> None:
+    breakpoint()
 
 
 def main():

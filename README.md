@@ -1,5 +1,3 @@
-todo
-
 TODOs before releasing asap:
 
 -   [x] ensure user doesn't send anything until a response

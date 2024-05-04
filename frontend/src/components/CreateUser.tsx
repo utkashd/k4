@@ -1,7 +1,7 @@
 import axios from "axios";
 import { useState } from "react";
 
-function CreateUser() {
+function CreateUser({ refreshUsers }: { refreshUsers: () => void }) {
     const [humanNameInput, setHumanNameInput] = useState("");
     const [aiNameInput, setAiNameInput] = useState("");
 
@@ -9,6 +9,21 @@ function CreateUser() {
         event: React.MouseEvent<HTMLElement, MouseEvent>
     ) => {
         event.preventDefault();
+
+        const openAiNameRegex = /^[a-zA-Z0-9_-]+$/;
+
+        if (!openAiNameRegex.test(humanNameInput)) {
+            alert("username must match ^[a-zA-Z0-9_-]+$");
+            return;
+        }
+
+        if (!openAiNameRegex.test(aiNameInput)) {
+            alert("username must match ^[a-zA-Z0-9_-]+$");
+            return;
+        }
+
+        setHumanNameInput("");
+        setAiNameInput("");
 
         if (aiNameInput && humanNameInput) {
             try {
@@ -25,6 +40,7 @@ function CreateUser() {
                         },
                     }
                 );
+                refreshUsers();
             } catch (error) {
                 console.error(
                     "couldn't fetch users. the backend is probably down",

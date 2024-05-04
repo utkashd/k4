@@ -1,17 +1,15 @@
 from functools import cached_property
 import json
-from pathlib import Path
 import sys
 import os
 import logging
-from typing import Any, Literal, Never, Sequence
-import uuid
+from typing import Any, Literal, Never
 from backend_commons.messages import (
-    ClientMessage,
-    GptHomeMessage,
     GptHomeSystemMessage,
     Message,
 )
+from gpt_home.chat_history import ChatHistory
+from gpt_home.gpt_home_human import GptHomeHuman
 from gpt_home.utils.file_io import get_a_users_directory
 import openai
 from pydantic import BaseModel
@@ -21,12 +19,12 @@ from gpt_home.mutable_tools_openai_tools_agent import MutableToolsOpenAiToolsAge
 from gpt_home.openai_model import OpenAIModel
 from gpt_home.utils.save_llm_prompt import save_chat_create_inputs_as_dict
 from langchain_core.pydantic_v1 import SecretStr
-from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage, AIMessage
+from langchain_core.messages import SystemMessage
 from langchain_core.prompts import (
     ChatPromptTemplate,
     MessagesPlaceholder,
 )
-from langchain_community.chat_message_histories.in_memory import ChatMessageHistory
+
 from langchain_openai import ChatOpenAI
 from langchain.agents import create_openai_tools_agent
 from langchain.tools import BaseTool
@@ -39,13 +37,6 @@ logging.basicConfig(
     level="WARN", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
 )
 log = logging.getLogger("gpt_home")
-
-
-# TODO use this
-class PromptTemplateArgs(BaseModel):
-    human_input: str
-    # factoids: str
-    chat_history: Sequence[BaseMessage]
 
 
 class GptHomeDebugOptions(BaseModel):
@@ -80,11 +71,9 @@ class GptHomeDebugOptions(BaseModel):
 class GptHome:
     def __init__(
         self,
-        user_id: str | None = None,
-        ai_name: str = "GptHome",
-        human_name: str = "Human",
-        ignore_home_assistant_ssl: str | bool = False,
+        gpt_home_human: GptHomeHuman = GptHomeHuman(),
         debug_options: GptHomeDebugOptions = GptHomeDebugOptions(),
+        ignore_home_assistant_ssl: str | bool = False,
     ):
         """
         TODO write summary here
@@ -107,25 +96,26 @@ class GptHome:
         """
         self.debug_options = debug_options
         self._setup_development_tools()
-        self.user_id = user_id or "development_user_id"
-        directory_to_load_from_and_save_to = get_a_users_directory(self.user_id)
-        self.ai_name = ai_name
-        self.human_name = human_name
+        self.gpt_home_human = gpt_home_human
+        directory_to_load_from_and_save_to = get_a_users_directory(
+            self.gpt_home_human.user_id
+        )
+        log.info("Creating chat_history...")
+        self.chat_history = ChatHistory(gpt_home_user=gpt_home_human)
         self.home_assistant_tool_store = HomeAssistantToolStore(
             directory_to_load_from_and_save_to=directory_to_load_from_and_save_to,
             base_url=os.environ["GPT_HOME_HA_BASE_URL"],
+            chat_history=self.chat_history,
             dry_run=self.debug_options.is_dry_run,
             verify_home_assistant_ssl=not ignore_home_assistant_ssl,
         )
-        log.info("Creating chat_history...")
-        self.chat_history = ChatMessageHistory()
-        self._chat_history_with_system_messages: list[Message] = []
         log.info("Creating prompt_template...")
         self.tool_calling_prompt_template = ChatPromptTemplate.from_messages(
             [
                 SystemMessage(
-                    content=f"You are a personal AI assistant for {self.human_name}. "
-                    f"Your name is {self.ai_name}."
+                    content=f"You are a personal AI assistant for {self.gpt_home_human.human_name}. "
+                    f"Your name is {self.gpt_home_human.ai_name}. Respond concisely, and "
+                    " ask for clarification when necessary."
                     # "When opportune, ask simple questions "
                     # f"to learn more about {self.human_name}'s preferences."
                 ),
@@ -203,33 +193,39 @@ class GptHome:
         )
         if self.debug_options.is_dry_run and not self.is_verbose:
             print(
-                f"Bypassing logger to warn you that you probably want dry_run=True and log_level='info'. You have {self.debug_options.is_dry_run=} and {self.debug_options.log_level=}"
+                f"Bypassing logger to warn you that you may want dry_run=True and log_level='info'. You have {self.debug_options.is_dry_run=} and {self.debug_options.log_level=}"
             )
 
     def _intro(self) -> None: ...
 
     def _add_system_message(self, message: str) -> None:
-        rich_print(f"[italic blue]{message}[/italic blue]")
         self.system_messages_queue.append(GptHomeSystemMessage(text=message))
 
-    def ask_gpt_home(self, human_input: str) -> list[GptHomeMessage]:
+    def get_potentially_relevant_tools(self, human_input: str) -> list[BaseTool]:
         k = 6
         relevant_wrapped_tools = (
             self.home_assistant_tool_store.get_k_relevant_home_assistant_tools(
-                f"{self.human_name} {human_input}", k=k
+                f"{self.gpt_home_human.human_name} {human_input}", k=k
             )
         )
         potentially_relevant_tools = [
             relevant_wrapped_tool.hass_tool
             for relevant_wrapped_tool in relevant_wrapped_tools
         ]
-
-        self._add_system_message(
-            f"Preemptively retrieved {len(potentially_relevant_tools)} tools: {'\n'.join(potentially_relevant_tool.name for potentially_relevant_tool in potentially_relevant_tools)}"
+        self.chat_history.add_gpt_home_system_message(
+            f"Starting with {len(potentially_relevant_tools)} tools:\n{'\n'.join(potentially_relevant_tool.name for potentially_relevant_tool in potentially_relevant_tools)}"
         )
+        return potentially_relevant_tools
+
+    def ask_gpt_home(self, human_input: str) -> list[Message]:
+        self.chat_history.add_human_message(human_input)
+
+        potentially_relevant_tools = self.get_potentially_relevant_tools(human_input)
+
         self.agent_executor.add_tools(
             potentially_relevant_tools
         )  # TODO avoid duplicates with existing stuff in there
+
         try:
             with save_chat_create_inputs_as_dict(
                 self.tool_calling_llm.client, self.timestamp_to_prompts_sent
@@ -237,7 +233,7 @@ class GptHome:
                 response = self.agent_executor.invoke(
                     {
                         "human_input": human_input,
-                        "chat_history": self.chat_history.messages,
+                        "chat_history": self.chat_history.get_chat_history_for_langchain_agent(),
                     }
                 )
         except openai.RateLimitError:
@@ -246,68 +242,25 @@ class GptHome:
             )
             response = {"output": "Failed due to an API error. Should I retry?"}
         except Exception as e:
-            response = {"output": "Failed due to an unforeseen issue."}
-            raise e
+            response = {"output": f"Failed due to an unforeseen issue: {str(e)}"}
 
-        self.chat_history.add_user_message(
-            HumanMessage(name=self.human_name, content=human_input)
-        )
-        self.chat_history.add_ai_message(
-            AIMessage(name=self.ai_name, content=response["output"])
-        )
-
-        gpt_home_system_messages: list[GptHomeMessage] = [
-            # this is done because the type of the list won't change, so we just create
-            # a new one. this should be pretty quick and should cost next-to-nothing
-            msg
-            for msg in self.system_messages_queue
-            + self.home_assistant_tool_store.system_messages_queue
-        ]
-        self.system_messages_queue.clear()
-        self.home_assistant_tool_store.system_messages_queue.clear()
-        ai_response = GptHomeMessage(text=str(response["output"]))
-        gpt_home_system_messages.append(ai_response)
-
-        self._chat_history_with_system_messages.append(
-            ClientMessage(text=human_input, sender_id=self.user_id)
-        )
-        self._chat_history_with_system_messages.extend(gpt_home_system_messages)
+        self.chat_history.add_gpt_home_message(response["output"])
 
         # TODO be smarter about resetting tools?
         self.agent_executor.reset_tools(self.tools)
 
-        return gpt_home_system_messages
+        return self.chat_history.get_latest_response()
 
     def _write_requests_to_disk(self) -> None:
         with open(self.debug_options.requests_filename, "w") as requests_file:
             json.dump(self.timestamp_to_prompts_sent, requests_file, indent=4)
 
-    def _save_self_to_disk(self) -> None:
-        # self.factoids_vector_store.save_db_to_disk()
+    def stop_chatting(self) -> None:
+        if self.debug_options.should_save_chat_history:
+            self.chat_history.save_chat_history_with_system_messages_to_disk()
         if self.debug_options.should_save_requests:
             self._write_requests_to_disk()
-
-    def _save_chat_history_with_system_messages_to_disk(self) -> None:
-        if (
-            self.debug_options.should_save_chat_history
-            and self._chat_history_with_system_messages
-        ):
-            directory = get_a_users_directory(self.user_id)
-            chat_history_filename = Path(
-                os.path.join(directory, f"chat_history_{uuid.uuid4()}.json")
-            )
-            serializable_chat_history = [
-                msg.model_dump() for msg in self._chat_history_with_system_messages
-            ]
-            with open(chat_history_filename, "w") as chat_history_file:
-                json.dump(serializable_chat_history, chat_history_file, indent=4)
-
-    def stop_chatting(self) -> None:
-        self._save_chat_history_with_system_messages_to_disk()
-        # self._learn_about_human()
-        self._save_self_to_disk()
         self.chat_history.clear()
-        self._chat_history_with_system_messages.clear()
 
     def start(self) -> Never:
         """
@@ -320,18 +273,16 @@ class GptHome:
         rich_print("Type '/quit' to quit and '/help' for all options.")
 
         ai_intro_message = "What can I do for you?"
-        rich_print(f"\n'{self.ai_name}': {ai_intro_message}")
-        self.chat_history.add_ai_message(
-            AIMessage(name=self.ai_name, content=ai_intro_message)
-        )
+        rich_print(f"\n'{self.gpt_home_human.ai_name}': {ai_intro_message}")
+        self.chat_history.add_gpt_home_message(ai_intro_message)
 
         while True:
-            human_input = input(f"\n{self.human_name}: ")
+            human_input = input(f"\n{self.gpt_home_human.human_name}: ")
 
             if human_input.lower() in ["/quit", "/exit", "quit"]:
                 log.info("Shutting down gracefully.")
                 self.stop_chatting()
-                rich_print(f"\n'{self.ai_name}': Goodbye.")
+                rich_print(f"\n'{self.gpt_home_human.ai_name}': Goodbye.")
                 sys.exit(0)
             elif human_input.lower() in ["/help"]:
                 rich_print("'/quit' to quit")  # the rest is just for developing
@@ -344,4 +295,9 @@ class GptHome:
             else:
                 gpt_home_responses = self.ask_gpt_home(human_input)
                 for msg in gpt_home_responses:
-                    rich_print(f"\n'{self.ai_name}': {msg.text}")
+                    if isinstance(msg, GptHomeSystemMessage):
+                        pass  # ignore them because instead we just print them in realtime. See chat_history.py
+                    else:
+                        rich_print(
+                            f"\n[green]{self.gpt_home_human.ai_name}[/green]: {msg.text}"
+                        )

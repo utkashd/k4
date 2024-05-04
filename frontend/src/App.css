@@ -32,11 +32,18 @@ div.left-side-panel {
 div.main-panel {
     background-color: #000000;
     height: 100%;
-    width: 85vw;
+    width: 75vw;
+}
+
+div.right-side-panel {
+    background-color: rgb(38, 41, 42);
+    color: white;
+    height: 100%;
+    width: 10vw;
 }
 
 img.logo-test {
-    width: 75%;
+    width: 66%;
     height: auto;
     box-sizing: border-box;
     padding-top: 40px;

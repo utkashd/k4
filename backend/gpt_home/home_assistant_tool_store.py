@@ -4,7 +4,7 @@ import logging
 import os
 from pathlib import Path
 from types import UnionType
-from backend_commons.messages import GptHomeSystemMessage
+from gpt_home.chat_history import ChatHistory
 import homeassistant_api
 import requests
 import urllib3
@@ -19,14 +19,13 @@ from pydantic import create_model as create_v2_model
 from gpt_home.errors import GptHomeError
 from gpt_home.mutable_tools_agent_executor import MutableToolsAgentExecutor
 from gpt_home.vector_store import VectorStore, VectorStoreItem, VectorStoreItemNotInDb
-from rich import print as rich_print
 from homeassistant.components.media_player import MediaPlayerEntityFeature  # type: ignore[import-untyped]
 
 log = logging.getLogger("gpt_home")
 
-SUPPORTED_DOMAINS = {"switch", "media_player", "vacuum", "sensor", "binary_sensor"}
+# SUPPORTED_DOMAINS = {"switch", "media_player", "vacuum", "sensor", "binary_sensor"}
 # SUPPORTED_DOMAINS = {"*"}
-# SUPPORTED_DOMAINS = {"switch"}
+SUPPORTED_DOMAINS = {"switch"}
 # SUPPORTED_SERVICE_FIELDS = {"number", "text", "boolean", "select"}
 
 
@@ -63,11 +62,12 @@ class HomeAssistantToolStore:
         self,
         directory_to_load_from_and_save_to: Path,
         base_url: str,
+        chat_history: ChatHistory,
         hass_token: str = "",
         dry_run: bool = False,
         verify_home_assistant_ssl: bool = True,
     ):
-        self.system_messages_queue: list[GptHomeSystemMessage] = []
+        self.chat_history = chat_history
         self.dry_run = dry_run
 
         # TODO pick one of "home_assistant", "hass", "ha". I keep switching
@@ -119,10 +119,6 @@ class HomeAssistantToolStore:
             vector_store_tools
         )
         log.info(f"Done adding {len(vector_store_tools)} tools to the store.")
-
-    def _add_system_message(self, system_message: str) -> None:
-        self.system_messages_queue.append(GptHomeSystemMessage(text=system_message))
-        rich_print(f"[italic blue]{system_message}[/italic blue]")
 
     def get_k_relevant_home_assistant_tools(
         self, human_input: str, k: int = 5
@@ -185,7 +181,7 @@ class HomeAssistantToolStore:
                 return self.name
 
             def _run(_s, query: str, k: int = 5) -> str:
-                self._add_system_message(
+                self.chat_history.add_gpt_home_system_message(
                     f"\nSearching for {k=} Home Assistant tools with {query=}."
                 )
                 wrapped_tools = self.get_k_relevant_home_assistant_tools(query, k)
@@ -193,7 +189,7 @@ class HomeAssistantToolStore:
                     wrapped_tool.hass_tool for wrapped_tool in wrapped_tools
                 ]
                 agent_executor.add_tools(unwrapped_tools)
-                self._add_system_message(
+                self.chat_history.add_gpt_home_system_message(
                     f"\nFound these tools: {[(wrapped_tool.service_id or 'get state', wrapped_tool.entity_id) for wrapped_tool in wrapped_tools]}"
                 )
                 return f"Retrieved {len(unwrapped_tools)} tools: {[unwrapped_tool.name for unwrapped_tool in unwrapped_tools]}"
@@ -277,7 +273,7 @@ class HomeAssistantToolStore:
             def _run(_s) -> str:
                 # Since we're only reading an entity's state, we'll always get the
                 # entity state and ignore whether this is a dry-run.
-                self._add_system_message(
+                self.chat_history.add_gpt_home_system_message(
                     f"\nGetting the state of {entity.entity_id}..."
                 )
                 latest_entity_info = self.hass_client.get_entity(
@@ -289,7 +285,9 @@ class HomeAssistantToolStore:
                 formatted_entity_state = self._format_entity_state(
                     latest_entity_info.state
                 )
-                self._add_system_message(f"```json\n{formatted_entity_state}\n```")
+                self.chat_history.add_gpt_home_system_message(
+                    f"```json\n{formatted_entity_state}\n```"
+                )
                 return formatted_entity_state
 
         return HassEntityStateTool
@@ -472,7 +470,7 @@ class HomeAssistantToolStore:
 
             def _run(_s, **service_data: dict[str, Any]) -> str:
                 if not dry_run:
-                    self._add_system_message(
+                    self.chat_history.add_gpt_home_system_message(
                         f"\nCalling {domain.domain_id}.{service.service_id} on {entity.entity_id} with {service_data}.",
                     )
                     try:
@@ -490,7 +488,7 @@ class HomeAssistantToolStore:
                         )
                         return failure_message
                 else:
-                    log.info(
+                    self.chat_history.add_gpt_home_system_message(
                         f"Dry run: would have called {domain.domain_id}.{service.service_id} on {entity.entity_id} with {service_data}."
                     )
                 return f"Successfully called service {domain.domain_id}.{service.service_id} on {entity_friendly_name} with {service_data}."
@@ -527,7 +525,7 @@ class HomeAssistantToolStore:
 
             def _run(_s) -> str:
                 if not dry_run:
-                    self._add_system_message(
+                    self.chat_history.add_gpt_home_system_message(
                         f"\nCalling {domain.domain_id}.{service.service_id} on {entity.entity_id}.",
                     )
                     try:
@@ -544,7 +542,7 @@ class HomeAssistantToolStore:
                         )
                         return failure_message
                 else:
-                    log.info(
+                    self.chat_history.add_gpt_home_system_message(
                         f"Dry run: would have called {domain.domain_id}.{service.service_id} on {entity.entity_id}."
                     )
                 return f"Successfully called service {domain.domain_id}.{service.service_id} on {entity_friendly_name}."
