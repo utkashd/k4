@@ -9,6 +9,18 @@ content-type: application/json
 
 ###
 
+POST http://localhost:8000/user HTTP/1.1
+content-type: application/json
+
+{
+    "user_email": "utkash2@gmail.com",
+    "user_password": "cartoonsandcereal",
+    "ai_name": "Fred",
+    "human_name": "Utkash"
+}
+
+###
+
 GET http://localhost:8000/users HTTP/1.1
 
 ###

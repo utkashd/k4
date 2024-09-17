@@ -1,19 +1,24 @@
-from fastapi import FastAPI
+import asyncio
+from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from jose import JWTError, jwt
+from passlib.context import CryptContext
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from user_management.user_management import (
-    ChatPreview,
-    GptHomeUserAttributes,
-    UsersManager,
+    # ChatPreview,
+    RegisteredUser,
+    UsersManagerAsync,
 )
 
 from backend_commons.messages import (
     ClientMessage,
-    GptHomeSystemMessage,
     Message,
 )
 # from langchain_core.messages import HumanMessage, AIMessage
 # from langchain_community.chat_message_histories.in_memory import ChatMessageHistory
+
+users_manager = UsersManagerAsync()
 
 app = FastAPI()
 app.add_middleware(
@@ -25,166 +30,174 @@ app.add_middleware(
 )
 
 
-class ClientSession(BaseModel):
-    client_session_id: str
-    user_id: str | None
+# class ClientSession(BaseModel):
+#     client_session_id: str
+#     user_id: str | None
 
 
-class RegisteredUserClientSession(ClientSession):
-    user_id: str
+# class RegisteredUserClientSession(ClientSession):
+#     user_id: str
 
 
-class ClientSessionsManager:
-    def __init__(self) -> None:
-        self.active_client_sessions_by_client_id: dict[str, ClientSession] = {}
-        self.users_manager = UsersManager()
+# class ClientSessionsManager:
+#     def __init__(self) -> None:
+#         self.active_client_sessions_by_client_id: dict[str, ClientSession] = {}
+#         self.users_manager = UsersManager()
 
-    def add_new_client_session(self, client_session_id: str, user_id: str) -> bool:
-        if client_session_id not in self.active_client_sessions_by_client_id.keys():
-            # just gonna trust that the user_id supplied by the client is really theirs
-            # TODO authenticate or something
-            user = self.users_manager.get_user(user_id)
-            if user:
-                self.active_client_sessions_by_client_id[client_session_id] = (
-                    RegisteredUserClientSession(
-                        client_session_id=client_session_id, user_id=user_id
-                    )
-                )
-                self.users_manager.start_user(user)
-                return True
-            else:
-                # this shouldn't happen, right? maybe this is where we tell the client
-                # that the user doesn't exist (anymore?)
-                pass
-        else:
-            print(
-                f"uh what? duplicate client session id? {client_session_id=} {user_id=}"
-            )
-        return False
+#     def add_new_client_session(self, client_session_id: str, user_id: str) -> bool:
+#         if client_session_id not in self.active_client_sessions_by_client_id.keys():
+#             # just gonna trust that the user_id supplied by the client is really theirs
+#             # TODO authenticate or something
+#             user = self.users_manager.get_user(user_id)
+#             if user:
+#                 self.active_client_sessions_by_client_id[client_session_id] = (
+#                     RegisteredUserClientSession(
+#                         client_session_id=client_session_id, user_id=user_id
+#                     )
+#                 )
+#                 # self.users_manager.start_user(user)
+#                 return True
+#             else:
+#                 # this shouldn't happen, right? maybe this is where we tell the client
+#                 # that the user doesn't exist (anymore?)
+#                 pass
+#         else:
+#             print(
+#                 f"uh what? duplicate client session id? {client_session_id=} {user_id=}"
+#             )
+#         return False
 
-    def _is_user_active(self, user_id: str) -> bool:
-        active_users = set(
-            client_session.user_id
-            for client_session in self.active_client_sessions_by_client_id.values()
-        )
-        return user_id in active_users
+#     def _is_user_active(self, user_id: str) -> bool:
+#         active_users = set(
+#             client_session.user_id
+#             for client_session in self.active_client_sessions_by_client_id.values()
+#         )
+#         return user_id in active_users
 
-    def end_client_session(self, client_session_id: str) -> None:
-        client_session = self.active_client_sessions_by_client_id.get(client_session_id)
-        if client_session:
-            user_id = client_session.user_id
-            self.active_client_sessions_by_client_id.pop(client_session_id)
-            if user_id and not self._is_user_active(user_id):
-                user = self.users_manager.get_user(user_id)
-                if user:
-                    self.users_manager.stop_user(user)
-        else:
-            # TODO log something?
-            pass
+#     def end_client_session(self, client_session_id: str) -> None:
+#         client_session = self.active_client_sessions_by_client_id.get(client_session_id)
+#         if client_session:
+#             user_id = client_session.user_id
+#             self.active_client_sessions_by_client_id.pop(client_session_id)
+#             if user_id and not self._is_user_active(user_id):
+#                 user = self.users_manager.get_user(user_id)
+#                 if user:
+#                     # self.users_manager.stop_user(user)
+#                     pass
+#         else:
+#             # TODO log something?
+#             pass
 
-    # def _format_chat_history_as_list_of_messages(
-    #     self, chat_history: ChatMessageHistory, client_id: str
-    # ) -> list[Message]:
-    #     formatted_chat_history: list[Message] = []
-    #     for message in chat_history.messages:
-    #         assert isinstance(message.content, str)
-    #         if isinstance(message, AIMessage):
-    #             formatted_chat_history.append(GptHomeMessage(text=message.content))
-    #         elif isinstance(message, HumanMessage):
-    #             formatted_chat_history.append(
-    #                 ClientMessage(text=message.content, senderId=client_id)
-    #             )
-    #         else:
-    #             raise Exception(
-    #                 f"Unexpected message type: {message=}. Skipping the message."
-    #             )
-    #     return formatted_chat_history
+#     # def _format_chat_history_as_list_of_messages(
+#     #     self, chat_history: ChatMessageHistory, client_id: str
+#     # ) -> list[Message]:
+#     #     formatted_chat_history: list[Message] = []
+#     #     for message in chat_history.messages:
+#     #         assert isinstance(message.content, str)
+#     #         if isinstance(message, AIMessage):
+#     #             formatted_chat_history.append(GptHomeMessage(text=message.content))
+#     #         elif isinstance(message, HumanMessage):
+#     #             formatted_chat_history.append(
+#     #                 ClientMessage(text=message.content, senderId=client_id)
+#     #             )
+#     #         else:
+#     #             raise Exception(
+#     #                 f"Unexpected message type: {message=}. Skipping the message."
+#     #             )
+#     #     return formatted_chat_history
 
-    def ask_clients_gpt_home(self, client_message: ClientMessage) -> list[Message]:
-        client_session = self.active_client_sessions_by_client_id.get(
-            client_message.sender_id
-        )
-        if client_session and client_session.user_id:
-            user = self.users_manager.get_user(client_session.user_id)
-            if user:
-                return user.ask_gpt_home(client_message.text)
-        return [
-            GptHomeSystemMessage(text=f"invalid client id: {client_message.sender_id=}")
-        ]
-
-
-cm = ClientSessionsManager()
+#     def ask_clients_gpt_home(self, client_message: ClientMessage) -> list[Message]:
+#         client_session = self.active_client_sessions_by_client_id.get(
+#             client_message.sender_id
+#         )
+#         if client_session and client_session.user_id:
+#             user = self.users_manager.get_user(client_session.user_id)
+#             if user:
+#                 return []
+#                 # return user.ask_gpt_home(client_message.text)
+#         return [
+#             GptHomeSystemMessage(text=f"invalid client id: {client_message.sender_id=}")
+#         ]
 
 
-@app.get("/users")
-def get_users() -> list[GptHomeUserAttributes]:
-    return cm.users_manager.get_users()
+# cm = ClientSessionsManager()
 
 
 class CreateUserRequestBody(BaseModel):
     ai_name: str
     human_name: str
+    user_email: str
+    user_password: str
 
 
-@app.post("/user")
-def create_user(
-    create_user_request_body: CreateUserRequestBody,
-) -> GptHomeUserAttributes:
-    return cm.users_manager.create_user(
-        ai_name=create_user_request_body.ai_name,
-        human_name=create_user_request_body.human_name,
-    )
+# @app.post("/user")
+# async def create_user(
+#     create_user_request_body: CreateUserRequestBody,
+# ) -> RegisteredUser:
+#     assert users_manager
+#     return await users_manager.create_user(
+#         user_email=create_user_request_body.user_email,
+#         user_password=create_user_request_body.user_password,
+#         human_name=create_user_request_body.human_name,
+#         ai_name=create_user_request_body.ai_name,
+#     )
 
 
-class DeleteUserRequestBody(BaseModel):
-    user_id: str
+@app.get("/users")
+async def get_users() -> str:
+    await users_manager.initialize()
+    return await users_manager.get_users_async()
 
 
-@app.delete("/user")
-def delete_user(delete_user_request_body: DeleteUserRequestBody) -> None:
-    cm.users_manager.delete_user(user_id=delete_user_request_body.user_id)
+# class DeleteUserRequestBody(BaseModel):
+#     user_id: str
 
 
-@app.get("/chats")
-def get_users_chats(user_id: str, start: int, end: int) -> list[ChatPreview]:
-    if cm.users_manager.get_user(user_id):
-        return cm.users_manager.get_user_chat_previews(user_id, start, end)
-    return []
+# @app.delete("/user")
+# def delete_user(delete_user_request_body: DeleteUserRequestBody) -> None:
+#     users_manager.delete_user(user_id=delete_user_request_body.user_id)
 
 
-class CreateClientSessionResponseBody(BaseModel):
-    ready: bool
+# @app.get("/chats")
+# def get_users_chats(user_id: str, start: int, end: int) -> list[ChatPreview]:
+#     if users_manager.get_user(user_id):
+#         return users_manager.get_user_chat_previews(user_id, start, end)
+#     return []
 
 
-@app.post("/registered_user_client_session")
-def create_client_session(
-    client_session_request_body: RegisteredUserClientSession,
-) -> CreateClientSessionResponseBody:
-    # TODO return something sensible based on whether the user_id is valid
-    ready = cm.add_new_client_session(
-        client_session_id=client_session_request_body.client_session_id,
-        user_id=client_session_request_body.user_id,
-    )
-    return CreateClientSessionResponseBody(ready=ready)
+# class CreateClientSessionResponseBody(BaseModel):
+#     ready: bool
 
 
-@app.post("/ask_gpt_home")
-def ask_gpt_home(client_message: ClientMessage) -> list[Message]:
-    return cm.ask_clients_gpt_home(client_message)
+# @app.post("/registered_user_client_session")
+# def create_client_session(
+#     client_session_request_body: RegisteredUserClientSession,
+# ) -> CreateClientSessionResponseBody:
+#     # TODO return something sensible based on whether the user_id is valid
+#     ready = cm.add_new_client_session(
+#         client_session_id=client_session_request_body.client_session_id,
+#         user_id=client_session_request_body.user_id,
+#     )
+#     return CreateClientSessionResponseBody(ready=ready)
 
 
-@app.delete("/registered_user_client_session")
-def end_client_session(
-    end_client_session_request_body: ClientSession,
-) -> None:
-    cm.end_client_session(
-        client_session_id=end_client_session_request_body.client_session_id
-    )
+# @app.post("/ask_gpt_home")
+# def ask_gpt_home(client_message: ClientMessage) -> list[Message]:
+#     return cm.ask_clients_gpt_home(client_message)
 
 
-@app.post("/_inspect")
-def _inspect() -> None:
-    breakpoint()
+# @app.delete("/registered_user_client_session")
+# def end_client_session(
+#     end_client_session_request_body: ClientSession,
+# ) -> None:
+#     cm.end_client_session(
+#         client_session_id=end_client_session_request_body.client_session_id
+#     )
+
+
+# @app.post("/_inspect")
+# def _inspect() -> None:
+#     breakpoint()
 
 
 def main():

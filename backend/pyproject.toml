@@ -15,7 +15,9 @@ gpt_home_websocket_api_server_proxy = "gpt_home_api_server.websocket_api_server_
 
 [tool.poetry.dependencies]
 python = ">=3.12,<3.13" # set this to exactly 3.12.4? because pydantic had an issue with python 3.12.4 until it was updated to 2.8.2
-transformers = {version = ">=4.31", extras = ["torch"]}
+# transformers = {version = ">=4.31", extras = ["torch"]}
+transformers = ">=4.31"
+torch = "==2.2.2" # technically this version doesn't work with python3.12.4, but my machine doesn't want to install 2.4.0 rn. Maybe a future version of torch will be compatible with my machine and python3.12.4
 openai = ">=1.11.1"
 pydantic = ">=2.8.2"
 rich = ">=13.7"
@@ -26,6 +28,11 @@ HomeAssistant-API = "==4.2.2.post1"
 homeassistant = ">=2024.3.3"
 fastapi = ">=0.110.1"
 uvicorn = {version = ">=0.29.0", extras = ["standard"]}
+python-multipart = "^0.0.9"
+types-python-jose = {extras = ["cryptography"], version = "^3.3.4.20240106"}
+types-passlib = {extras = ["bcrypt"], version = "^1.7.7.20240819"}
+passlib = {extras = ["bcrypt"], version = "^1.7.4"}
+aiomysql = "^0.2.0"
 
 [tool.poetry.group.dev.dependencies]
 ruff = ">=0.3.0"

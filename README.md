@@ -1,6 +1,8 @@
-TODOs before releasing asap:
+Authentication
 
--   [x] ensure user doesn't send anything until a response
+-   [ ] Switch to refresh token + short-lived access token
+-   [ ] hash user passwords
+
 -   [ ] documentation
     -   [ ] setup guide (improve names of entities)
 -   [ ] improve hass tool store:
