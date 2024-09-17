@@ -1,9 +1,11 @@
+from datetime import datetime
 from pydantic import BaseModel, Field, RootModel
 
 
 class Message(BaseModel):
     text: str
     sender_id: str
+    time_message_was_sent: float = datetime.now().timestamp()
 
 
 class Messages(RootModel):  # type: ignore[type-arg]

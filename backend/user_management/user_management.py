@@ -34,6 +34,10 @@ class GptHomeUsersAttrs(RootModel):  # type: ignore[type-arg]
     root: dict[str, GptHomeUserAttributes]
 
 
+class ChatPreview(BaseModel):
+    pass
+
+
 class GptHomeUser:
     def __init__(self, ai_name: str, human_name: str, user_id: str):
         self.user_attributes = GptHomeUserAttributes(
@@ -119,6 +123,13 @@ class UsersManager:
                 self.users[user_id].gpt_home = None
             self.users.pop(user_id)
             self._save_users_to_filesystem()
+
+    def get_user_chat_previews(
+        self, user_id: str, start: int, end: int
+    ) -> list[ChatPreview]:
+        if self.users.get(user_id):
+            pass
+        return []
 
     def _save_users_to_filesystem(self) -> None:
         users_filename = self._get_users_filename()

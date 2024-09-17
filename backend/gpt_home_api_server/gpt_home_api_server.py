@@ -1,7 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from user_management.user_management import GptHomeUserAttributes, UsersManager
+from user_management.user_management import (
+    ChatPreview,
+    GptHomeUserAttributes,
+    UsersManager,
+)
 
 from backend_commons.messages import (
     ClientMessage,
@@ -139,6 +143,13 @@ class DeleteUserRequestBody(BaseModel):
 @app.delete("/user")
 def delete_user(delete_user_request_body: DeleteUserRequestBody) -> None:
     cm.users_manager.delete_user(user_id=delete_user_request_body.user_id)
+
+
+@app.get("/chats")
+def get_users_chats(user_id: str, start: int, end: int) -> list[ChatPreview]:
+    if cm.users_manager.get_user(user_id):
+        return cm.users_manager.get_user_chat_previews(user_id, start, end)
+    return []
 
 
 class CreateClientSessionResponseBody(BaseModel):

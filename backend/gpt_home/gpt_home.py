@@ -217,7 +217,7 @@ class GptHome:
         )
         return potentially_relevant_tools
 
-    def ask_gpt_home(self, human_input: str) -> list[Message]:
+    def ask_gpt_home(self, human_input: str, chat_id: str = "") -> list[Message]:
         self.chat_history.add_human_message(human_input)
 
         potentially_relevant_tools = self.get_potentially_relevant_tools(human_input)

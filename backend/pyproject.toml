@@ -14,10 +14,10 @@ gpt_home_api_server = "gpt_home_api_server.gpt_home_api_server:main" # backend/s
 gpt_home_websocket_api_server_proxy = "gpt_home_api_server.websocket_api_server_proxy:main"
 
 [tool.poetry.dependencies]
-python = ">=3.12,<3.13"
+python = ">=3.12,<3.13" # set this to exactly 3.12.4? because pydantic had an issue with python 3.12.4 until it was updated to 2.8.2
 transformers = {version = ">=4.31", extras = ["torch"]}
 openai = ">=1.11.1"
-pydantic = ">=2.6"
+pydantic = ">=2.8.2"
 rich = ">=13.7"
 langchain = "==0.1.14"
 langchain-openai = "==0.1.1"
