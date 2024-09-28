@@ -19,7 +19,7 @@ python = ">=3.12,<3.13" # set this to exactly 3.12.4? because pydantic had an is
 transformers = ">=4.31"
 torch = "==2.2.2" # technically this version doesn't work with python3.12.4, but my machine doesn't want to install 2.4.0 rn. Maybe a future version of torch will be compatible with my machine and python3.12.4
 openai = ">=1.11.1"
-pydantic = ">=2.8.2"
+pydantic = {version = ">=2.8.2", extras = ["email"]}
 rich = ">=13.7"
 langchain = "==0.1.14"
 langchain-openai = "==0.1.1"

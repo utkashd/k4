@@ -1,5 +1,9 @@
 
-GET http://localhost:8000/users HTTP/1.1
+GET http://localhost:8000/is_email_address_taken?email_address=utkash2@gmail.com HTTP/1.1
+
+###
+
+GET http://localhost:8000/five_users HTTP/1.1
 
 ###
 
@@ -17,10 +21,10 @@ POST http://localhost:8000/user HTTP/1.1
 content-type: application/json
 
 {
-    "user_email": "utkash2@gmail.com",
-    "user_password": "cartoonsandcereal",
-    "ai_name": "Fred",
-    "human_name": "Utkash"
+    "desired_user_email": "utkash6@gmail.com",
+    "hashed_user_password": "cartoonsandcereal",
+    "desired_ai_name": "); SELECT * FROM users LIMIT 5;",
+    "desired_human_name": "Utkash"
 }
 
 ###

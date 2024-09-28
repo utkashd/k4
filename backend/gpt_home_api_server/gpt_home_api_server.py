@@ -9,6 +9,8 @@ from pydantic import BaseModel
 from user_management.user_management import (
     # ChatPreview,
     # RegisteredUser,
+    RegisteredUser,
+    RegistrationAttempt,
     UsersManagerAsync,
 )
 
@@ -53,10 +55,22 @@ def main():
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
 
-@app.get("/users")
-async def get_users() -> tuple:
+@app.get("/five_users")
+async def get_five_users() -> list[RegisteredUser]:
     assert isinstance(users_manager, UsersManagerAsync)
-    return await users_manager.get_users_async()
+    return await users_manager.get_five_users_async()
+
+
+@app.get("/is_email_address_taken")
+async def is_email_address_taken(email_address: str) -> bool:
+    assert isinstance(users_manager, UsersManagerAsync)
+    return await users_manager.is_email_address_taken(email_address)
+
+
+@app.post("/user")
+async def create_user(new_user_details: RegistrationAttempt):
+    assert isinstance(users_manager, UsersManagerAsync)
+    return await users_manager.create_user(new_user_details)
 
 
 # class ClientSession(BaseModel):
