@@ -1,20 +1,24 @@
 import logging
+import warnings
 import aiomysql  # type: ignore[import-untyped]
-from aiomysql.pool import Pool as ConnectionPool  # type: ignore[import-untyped]
-from backend_commons.messages import Message
-from gpt_home.gpt_home import GptHomeDebugOptions
-from gpt_home.gpt_home_human import GptHomeHuman
-from rich.logging import RichHandler
-from gpt_home.utils.file_io import get_gpt_home_root_directory
-import os
-from pathlib import Path
-from gpt_home import GptHome
-from pydantic import BaseModel, RootModel
+from aiomysql.pool import Pool  # type: ignore[import-untyped]
 
+# from backend_commons.messages import Message
+# from gpt_home.gpt_home import GptHomeDebugOptions
+# from gpt_home.gpt_home_human import GptHomeHuman
+from gpt_home.utils.utils import AsyncObject
+from rich.logging import RichHandler
+
+# from gpt_home.utils.file_io import get_gpt_home_root_directory
+# import os
+# from pathlib import Path
+# from gpt_home import GptHome
+from pydantic import BaseModel  # , RootModel
+from typing import cast
 
 FORMAT = "%(message)s"
 logging.basicConfig(
-    level="WARN", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
+    level="INFO", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
 )
 log = logging.getLogger("gpt_home")
 
@@ -89,22 +93,19 @@ class RegisteredUser(BaseModel):
 #         return self.user_attributes
 
 
-class UsersManagerAsync:
+class UsersManagerAsync(AsyncObject):
     """
     This class is intended to be instantiated like so:
 
     ```
-    users_manager = await UsersManagerAsync.create()
+    users_manager = await UsersManagerAsync()
     ```
 
     This lets us start the asynchronous DB connection pool upon instantiation.
-    See more here: https://stackoverflow.com/questions/33128325/how-to-set-class-attribute-with-await-in-init
     """
 
-    def __init__(self) -> None:
-        self.mysql_connection_pool: ConnectionPool | None = None
-
-    async def initialize(self):
+    async def __init__(self):
+        log.info("Starting the users DB connection pool")
         # TODO error handling if connection fails
         self.mysql_connection_pool = await aiomysql.create_pool(
             host="localhost",
@@ -115,16 +116,32 @@ class UsersManagerAsync:
             minsize=1,
             maxsize=5,
         )
+        self.mysql_connection_pool = cast(Pool, self.mysql_connection_pool)
+        if self.mysql_connection_pool._free:  # `.is_serving()` is not implemented
+            log.info("Successfully started the users DB connection pool")
 
-        # if self.mysql_connection.is_connected():
-        #     log.info("Successfully connected to MySQL DB")
+        log.info("Creating the users table if it doesn't already exist")
+        # Suppress warnings only for aiomysql, all other modules can send warnings
+        warnings.filterwarnings("ignore", module=r"aiomysql")
+        async with self.mysql_connection_pool.acquire() as connection:
+            connection = cast(aiomysql.connection.Connection, connection)
+            async with connection.cursor() as cursor:
+                cursor = cast(aiomysql.cursors.Cursor, cursor)
+                await cursor.execute("""
+                                     CREATE TABLE IF NOT EXISTS users (user_id INT
+                                     AUTO_INCREMENT PRIMARY KEY, user_email VARCHAR(255)
+                                     NOT NULL UNIQUE, user_password VARCHAR(255) NOT NULL,
+                                     human_name VARCHAR(255) NOT NULL, ai_name VARCHAR(255))
+                                     """)
+                await connection.commit()
+        # Enable warnings again
+        warnings.filterwarnings("default", module=r"aiomysql")
+        log.info("Finished ensuring the users table is created")
 
-        # self.general_mysql_cursor = self.mysql_connection.cursor()
-        # self.general_mysql_cursor.execute("""
-        #     CREATE TABLE IF NOT EXISTS users (user_id INT AUTO_INCREMENT PRIMARY KEY,
-        #     user_email VARCHAR(255) NOT NULL UNIQUE, user_password VARCHAR(255) NOT
-        #     NULL, human_name VARCHAR(255) NOT NULL, ai_name VARCHAR(255))
-        #                """)
+    async def end(self):
+        log.info("Closing the users DB connection pool")
+        self.mysql_connection_pool.close()
+        await self.mysql_connection_pool.wait_closed()
 
         # self.prepared_statements: dict[
         #     str, tuple[mysql.connector.cursor.MySQLCursorAbstract, str]
@@ -135,20 +152,16 @@ class UsersManagerAsync:
         #     )
         # }
 
-    async def get_users_async(self) -> str:
-        assert self.mysql_connection_pool
-        output = ""
-        async with self.mysql_connection_pool.acquire() as connection_untyped:
-            connection: aiomysql.connection.Connection = connection_untyped
-            async with connection.cursor() as cursor_untyped:
-                cursor: aiomysql.cursors.Cursor = cursor_untyped
+    async def get_users_async(self) -> tuple:
+        async with self.mysql_connection_pool.acquire() as connection:
+            connection = cast(
+                aiomysql.connection.Connection, connection
+            )  # this is just so VSCode + mypy works nicely
+            async with connection.cursor() as cursor:
+                cursor = cast(aiomysql.cursors.Cursor, cursor)
                 await cursor.execute("SELECT * FROM users LIMIT 5;")
-                log.info(cursor.description)
                 response = await cursor.fetchall()
-                output = response
-
-        return str(output)
-        return []
+                return response
         # self.general_mysql_cursor.execute("SELECT * FROM users LIMIT 5")
         # results = self.general_mysql_cursor.fetchall()
         # # for row in results:

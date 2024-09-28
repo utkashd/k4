@@ -34,7 +34,7 @@ from rich import print as rich_print
 
 FORMAT = "%(message)s"
 logging.basicConfig(
-    level="WARN", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
+    level="INFO", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
 )
 log = logging.getLogger("gpt_home")
 

@@ -1,4 +1,8 @@
 
+GET http://localhost:8000/users HTTP/1.1
+
+###
+
 POST http://localhost:8000/user HTTP/1.1
 content-type: application/json
 
@@ -18,10 +22,6 @@ content-type: application/json
     "ai_name": "Fred",
     "human_name": "Utkash"
 }
-
-###
-
-GET http://localhost:8000/users HTTP/1.1
 
 ###
 

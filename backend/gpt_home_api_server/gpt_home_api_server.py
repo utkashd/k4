@@ -1,26 +1,43 @@
-import asyncio
-from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from jose import JWTError, jwt
-from passlib.context import CryptContext
+from contextlib import asynccontextmanager
+from fastapi import FastAPI  # , Depends, HTTPException, status
+
+# from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+# from jose import JWTError, jwt
+# from passlib.context import CryptContext
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from user_management.user_management import (
     # ChatPreview,
-    RegisteredUser,
+    # RegisteredUser,
     UsersManagerAsync,
 )
 
-from backend_commons.messages import (
-    ClientMessage,
-    Message,
-)
+# from backend_commons.messages import (
+#     ClientMessage,
+#     Message,
+# )
 # from langchain_core.messages import HumanMessage, AIMessage
 # from langchain_community.chat_message_histories.in_memory import ChatMessageHistory
 
-users_manager = UsersManagerAsync()
+users_manager: UsersManagerAsync | None = None
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        """
+        we do this because the `finally` clause will *always* be run, even if there's an
+        error somewhere during the `yield`
+        """
+        global users_manager
+        users_manager = await UsersManagerAsync()  # type: ignore[misc]
+        yield  # everything above the yield is for startup, everything after is for shutdown
+    finally:
+        assert isinstance(users_manager, UsersManagerAsync)
+        await users_manager.end()
+
+
+app = FastAPI(lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
@@ -28,6 +45,18 @@ app.add_middleware(
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
 )
+
+
+def main():
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+@app.get("/users")
+async def get_users() -> tuple:
+    assert isinstance(users_manager, UsersManagerAsync)
+    return await users_manager.get_users_async()
 
 
 # class ClientSession(BaseModel):
@@ -143,12 +172,6 @@ class CreateUserRequestBody(BaseModel):
 #     )
 
 
-@app.get("/users")
-async def get_users() -> str:
-    await users_manager.initialize()
-    return await users_manager.get_users_async()
-
-
 # class DeleteUserRequestBody(BaseModel):
 #     user_id: str
 
@@ -198,13 +221,3 @@ async def get_users() -> str:
 # @app.post("/_inspect")
 # def _inspect() -> None:
 #     breakpoint()
-
-
-def main():
-    import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)
-
-
-if __name__ == "__main__":
-    main()

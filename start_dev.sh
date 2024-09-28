@@ -15,7 +15,7 @@ END_COLOR='\033[0m' # No Color
 echo "1. Ensuring Docker Desktop (/Applications/Docker.app) is running..."
 if (! docker stats --no-stream > /dev/null 2>&1 ); then # if docker is not running
     printf "${RED}Docker Desktop not running. Starting it now.${END_COLOR}\n"
-    printf "${YELLOW}You can close the Docker Desktop window that opens.${END_COLOR}\n"
+    printf "${YELLOW}If a Docker Desktop window opens, you can close it.${END_COLOR}\n"
     sleep 3
     open /Applications/Docker.app
     while (! docker stats --no-stream > /dev/null 2>&1 ); do # while docker isn't yet running
