@@ -1,9 +1,6 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI  # , Depends, HTTPException, status
 
-# from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-# from jose import JWTError, jwt
-# from passlib.context import CryptContext
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from user_management.user_management import (
@@ -20,6 +17,7 @@ from user_management.user_management import (
 # )
 # from langchain_core.messages import HumanMessage, AIMessage
 # from langchain_community.chat_message_histories.in_memory import ChatMessageHistory
+
 
 users_manager: UsersManagerAsync | None = None
 

@@ -12,6 +12,9 @@ from rich.logging import RichHandler
 # import os
 # from pathlib import Path
 # from gpt_home import GptHome
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from jose import JWTError, jwt
+from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr, Field, SecretStr  # , RootModel
 from typing import cast
 
@@ -28,6 +31,7 @@ class RegisteredUser(BaseModel):
     hashed_user_password: SecretStr
     human_name: str = Field(min_length=1)
     ai_name: str = Field(min_length=1)
+    is_user_email_verified: bool  # `0 | 1` works natively https://docs.pydantic.dev/2.9/api/standard_library_types/#booleans
 
 
 class RegistrationAttempt(BaseModel):
@@ -39,6 +43,20 @@ class RegistrationAttempt(BaseModel):
     hashed_user_password: SecretStr
     desired_human_name: str
     desired_ai_name: str
+
+
+SECRET_KEY = "18e8e912cce442d5fe6af43a003dedd7cedd7248efc16ac926f21f8f940398a8"  # Generated with `openssl rand -hex 32`
+ALGORITHM = "HS256"
+JWT_EXPIRE_MINUTES = 30
+
+
+class Token(BaseModel):
+    jwt: str
+    token_type: str
+
+
+class TokenData(BaseModel):
+    user_email: str | None = None
 
 
 # class GptHomeUsersAttrs(RootModel):  # type: ignore[type-arg]
@@ -125,6 +143,12 @@ class UsersManagerAsync(AsyncObject):
         if self.mysql_connection_pool._free:  # `.is_serving()` is not implemented
             log.info("Successfully started the users DB connection pool")
 
+        self._ensure_users_table_is_created_in_db()
+
+        self.pwd_context = CryptContext(schemes=["bcrypt"])
+        self.oauth_2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+    async def _ensure_users_table_is_created_in_db(self):
         log.info(
             """Creating the users table if it doesn't already exist. You may see a
             warning from aiomysql that the table already exists, this is expected and
@@ -134,6 +158,13 @@ class UsersManagerAsync(AsyncObject):
             aiomysql.Connection, self.mysql_connection_pool.acquire()
         ) as connection:
             async with cast(aiomysql.cursors.Cursor, connection.cursor()) as cursor:
+                # If you're changing the table, you'll need to drop the existing table
+                # on your local machine first. Something like:
+                # > docker exec -it mysql-dev bash
+                # > > mysql -u root -p # the password is in <repo root>/start_dev.sh
+                # > > > drop table mydb.users;
+                # `exit` a couple times to return to your terminal
+                # TODO should have a script or something for modifying tables elegantly
                 await cursor.execute("""
                                      CREATE TABLE IF NOT EXISTS users 
                                      (
@@ -142,6 +173,7 @@ class UsersManagerAsync(AsyncObject):
                                      hashed_user_password VARCHAR(255) NOT NULL,
                                      human_name VARCHAR(255) NOT NULL,
                                      ai_name VARCHAR(255),
+                                     is_user_email_verified BIT NOT NULL,
                                      INDEX idx_user_email (user_email)
                                      )
                                      """)
@@ -160,9 +192,7 @@ class UsersManagerAsync(AsyncObject):
             async with cast(
                 aiomysql.DictCursor, connection.cursor(aiomysql.DictCursor)
             ) as cursor:
-                await cursor.execute(
-                    "SELECT user_id, user_email, hashed_user_password, human_name, ai_name FROM users LIMIT 5;"
-                )
+                await cursor.execute("SELECT * FROM users LIMIT 5;")
                 response = await cursor.fetchall()
                 five_users: list[RegisteredUser] = []
                 for row in response:
@@ -186,6 +216,10 @@ class UsersManagerAsync(AsyncObject):
     async def _are_new_user_details_valid_with_reasons(
         self, new_user_details: RegistrationAttempt
     ) -> tuple[bool, dict[str, str]]:
+        """
+        This function ensures that the new_user_details are valid values. It does not
+        (and should not) check that the email address is already being used
+        """
         are_details_valid = True
         issues: dict[str, str] = {
             "desired_user_email": "no issues",
@@ -193,9 +227,10 @@ class UsersManagerAsync(AsyncObject):
             "desired_human_name": "no issues",
             "desired_ai_name": "no issues",
         }
-        if await self.is_email_address_taken(new_user_details.desired_user_email):
-            are_details_valid = False
-            issues["desired_user_email"] = "email address is taken"
+        # Skipping checking that the email address is taken
+        # if await self.is_email_address_taken(new_user_details.desired_user_email):
+        #     are_details_valid = False
+        #     issues["desired_user_email"] = "email address is taken"
         return are_details_valid, issues
 
     async def create_user(
@@ -215,28 +250,47 @@ class UsersManagerAsync(AsyncObject):
                 aiomysql.DictCursor,
                 connection.cursor(aiomysql.DictCursor),
             ) as cursor:
-                await cursor.execute(
-                    "INSERT INTO users (user_email, hashed_user_password, human_name, ai_name) VALUES (%(user_email)s, %(hashed_user_password)s, %(human_name)s, %(ai_name)s)",
-                    {
-                        "user_email": new_user_details.desired_user_email,
-                        "hashed_user_password": new_user_details.hashed_user_password,
-                        "human_name": new_user_details.desired_human_name,
-                        "ai_name": new_user_details.desired_ai_name,
-                    },
-                )
-                await connection.commit()
+                try:
+                    await connection.begin()
+                    await cursor.execute(
+                        "INSERT INTO users (user_email, hashed_user_password, human_name, ai_name, is_user_email_verified) VALUES (%(user_email)s, %(hashed_user_password)s, %(human_name)s, %(ai_name)s, %(is_user_email_verified)s)",
+                        {
+                            "user_email": new_user_details.desired_user_email,
+                            "hashed_user_password": new_user_details.hashed_user_password.get_secret_value(),
+                            "human_name": new_user_details.desired_human_name,
+                            "ai_name": new_user_details.desired_ai_name,
+                            "is_user_email_verified": 0,
+                        },
+                    )
+                except aiomysql.IntegrityError as integrity_error:
+                    await connection.rollback()
+                    if integrity_error.args[0] == 1062:
+                        # This code means we attempted to insert a row that conflicted
+                        # with another row. That only happens if the email address is already taken
+                        # https://dev.mysql.com/doc/mysql-errors/8.4/en/server-error-reference.html#error_er_dup_entry
+                        raise HTTPException(
+                            status_code=400, detail="Email already in use."
+                        )
+                except Exception:
+                    await connection.rollback()
+                    unexpected_exception_msg = (
+                        "Unexpected exception while trying to register a new user"
+                    )
+                    log.exception(
+                        unexpected_exception_msg,
+                    )
+                    raise HTTPException(
+                        status_code=500, detail=unexpected_exception_msg
+                    )
+                else:
+                    await connection.commit()
+
                 await cursor.execute(
                     "SELECT user_id, user_email, hashed_user_password, human_name, ai_name FROM users WHERE user_id=%(user_id)s",
                     {"user_id": cursor.lastrowid},
                 )
-                row = await cursor.fetchone()
-                if row:
-                    return RegisteredUser(**row)
-                else:
-                    raise HTTPException(
-                        status_code=500,
-                        detail="Failed to write and then read the new user to the DB",
-                    )
+                new_registered_user_row = await cursor.fetchone()
+                return RegisteredUser(**new_registered_user_row)
 
     # def start_user(self, user: GptHomeUser) -> None:
     #     user.start_gpt_home()
@@ -256,6 +310,44 @@ class UsersManagerAsync(AsyncObject):
         #         self.users[user_id].gpt_home = None
         #     self.users.pop(user_id)
         #     self._save_users_to_filesystem()
+
+    async def authenticate_user(
+        self, user_email: EmailStr, unhashed_user_password: SecretStr
+    ):
+        async with cast(
+            aiomysql.Connection, self.mysql_connection_pool.acquire()
+        ) as connection:
+            async with cast(
+                aiomysql.DictCursor, connection.cursor(aiomysql.DictCursor)
+            ) as cursor:
+                await cursor.execute(
+                    "SELECT hashed_user_password FROM users WHERE user_email=%(user_email)s",
+                    {"user_email": user_email},
+                )
+                row = await cursor.fetchone()
+                if row:
+                    self.verify_password(
+                        unhashed_user_password,
+                        hashed_user_password=row["hashed_user_password"],
+                    )
+                else:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Failed to authenticate user {user_email} because they are not a known user.",
+                    )
+
+    def _get_hash_of_password(self, unhashed_user_password: SecretStr) -> SecretStr:
+        return SecretStr(
+            self.pwd_context.hash(unhashed_user_password.get_secret_value())
+        )
+
+    def verify_password(
+        self, unhashed_user_password: SecretStr, hashed_user_password: SecretStr
+    ) -> bool:
+        return self.pwd_context.verify(
+            unhashed_user_password.get_secret_value(),
+            hashed_user_password.get_secret_value(),
+        )
 
     # def get_user_chat_previews(
     #     self, user_id: str, start: int, end: int

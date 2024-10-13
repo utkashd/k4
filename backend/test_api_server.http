@@ -21,9 +21,9 @@ POST http://localhost:8000/user HTTP/1.1
 content-type: application/json
 
 {
-    "desired_user_email": "utkash6@gmail.com",
-    "hashed_user_password": "cartoonsandcereal",
-    "desired_ai_name": "); SELECT * FROM users LIMIT 5;",
+    "desired_user_email": "utkash4@gmail.com",
+    "hashed_user_password": "abortionmoney",
+    "desired_ai_name": "Ava",
     "desired_human_name": "Utkash"
 }
 
