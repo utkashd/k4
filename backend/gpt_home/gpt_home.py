@@ -4,7 +4,7 @@ import sys
 import os
 import logging
 from typing import Any, Literal, Never
-from backend_commons.messages import (
+from ..gpt_home_api_server.messages import (
     GptHomeSystemMessage,
     Message,
 )

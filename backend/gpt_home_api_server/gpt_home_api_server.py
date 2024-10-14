@@ -3,7 +3,7 @@ from fastapi import FastAPI  # , Depends, HTTPException, status
 
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from user_management.user_management import (
+from user_management import (
     # ChatPreview,
     # RegisteredUser,
     RegisteredUser,
@@ -45,12 +45,6 @@ app.add_middleware(
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
 )
-
-
-def main():
-    import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)
 
 
 @app.get("/five_users")
@@ -233,3 +227,16 @@ class CreateUserRequestBody(BaseModel):
 # @app.post("/_inspect")
 # def _inspect() -> None:
 #     breakpoint()
+
+
+def main():
+    """
+    Don't ask why, but this function needs to be beneath all the endpoint definitions.
+    """
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+if __name__ == "__main__":
+    main()

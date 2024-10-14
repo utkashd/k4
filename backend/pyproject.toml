@@ -1,48 +1,42 @@
-[tool.poetry]
+[project]
 name = "gpt_home_backend"
 version = "0.0.1"
-description = ""
-authors = ["Utkash Dubey <utkashd@gmail.com>"]
+description = "I need to think of an appropriate description"
 readme = "README.md"
-packages = [
-    { include = "gpt_home" },
-    { include = "gpt_home_api_server" }
+requires-python = ">=3.12"
+dependencies = [
+    "homeassistant>=2024.10.2",
+    "homeassistant-api>=4.2.2.post1",
+    "langchain-openai==0.1.1",
+    "langchain==0.1.14",
+    "langchainhub==0.1.14",
+    "openai>=1.51.2",
+    "pydantic[email]>=2.9.2",
+    "rich>=13.9.2",
+    "torch>=2.2.0,<2.3.0",
+    "transformers[torch]>=4.31",
+    "fastapi>=0.115.2",
+    "uvicorn[standard]>=0.31.1",
+    "python-multipart>=0.0.12",
+    "types-python-jose>=3.3.4.20240106",
+    "types-passlib>=1.7.7.20240819",
+    "passlib[bcrypt]>=1.7.4",
+    "aiomysql>=0.2.0",
 ]
 
-[tool.poetry.scripts]
-gpt_home_api_server = "gpt_home_api_server.gpt_home_api_server:main" # backend/server/server.py main()
-gpt_home_websocket_api_server_proxy = "gpt_home_api_server.websocket_api_server_proxy:main"
 
-[tool.poetry.dependencies]
-python = ">=3.12,<3.13" # set this to exactly 3.12.4? because pydantic had an issue with python 3.12.4 until it was updated to 2.8.2
-# transformers = {version = ">=4.31", extras = ["torch"]}
-transformers = ">=4.31"
-torch = "==2.2.2" # technically this version doesn't work with python3.12.4, but my machine doesn't want to install 2.4.0 rn. Maybe a future version of torch will be compatible with my machine and python3.12.4
-openai = ">=1.11.1"
-pydantic = {version = ">=2.8.2", extras = ["email"]}
-rich = ">=13.7"
-langchain = "==0.1.14"
-langchain-openai = "==0.1.1"
-langchainhub = "==0.1.14"
-HomeAssistant-API = "==4.2.2.post1"
-homeassistant = ">=2024.3.3"
-fastapi = ">=0.110.1"
-uvicorn = {version = ">=0.29.0", extras = ["standard"]}
-python-multipart = "^0.0.9"
-types-python-jose = {extras = ["cryptography"], version = "^3.3.4.20240106"}
-types-passlib = {extras = ["bcrypt"], version = "^1.7.7.20240819"}
-passlib = {extras = ["bcrypt"], version = "^1.7.4"}
-aiomysql = "^0.2.0"
+# [project.scripts]
+# # hello = "example_package_app:hello"
+# gpt_home_api_server = "gpt_home_api_server.gpt_home_api_server:main"
 
-[tool.poetry.group.dev.dependencies]
-ruff = ">=0.3.0"
-mypy = ">=1.8.0"
-ipdb = ">=0.13.13"
-poetry = ">=1.8.2"
+[tool.uv]
+dev-dependencies = [
+    "ipdb>=0.13.13",
+    "mypy>=1.11.2",
+    "ruff>=0.6.9",
+]
+package = false
 
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
 
 [tool.mypy]
 strict = true

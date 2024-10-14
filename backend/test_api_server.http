@@ -21,7 +21,7 @@ POST http://localhost:8000/user HTTP/1.1
 content-type: application/json
 
 {
-    "desired_user_email": "utkash4@gmail.com",
+    "desired_user_email": "utkash2@gmail.com",
     "hashed_user_password": "abortionmoney",
     "desired_ai_name": "Ava",
     "desired_human_name": "Utkash"

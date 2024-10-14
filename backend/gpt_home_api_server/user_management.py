@@ -5,15 +5,16 @@ import aiomysql  # type: ignore[import-untyped]
 # from gpt_home.gpt_home import GptHomeDebugOptions
 # from gpt_home.gpt_home_human import GptHomeHuman
 from fastapi import HTTPException
-from gpt_home.utils.utils import AsyncObject
+from utils import AsyncObject
 from rich.logging import RichHandler
 
 # from gpt_home.utils.file_io import get_gpt_home_root_directory
 # import os
 # from pathlib import Path
 # from gpt_home import GptHome
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from jose import JWTError, jwt
+from fastapi.security import OAuth2PasswordBearer  # , OAuth2PasswordRequestForm
+
+# from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr, Field, SecretStr  # , RootModel
 from typing import cast
@@ -39,7 +40,7 @@ class RegistrationAttempt(BaseModel):
     Holds attributes corresponding to a new user attempting to register.
     """
 
-    desired_user_email: str
+    desired_user_email: EmailStr
     hashed_user_password: SecretStr
     desired_human_name: str
     desired_ai_name: str
@@ -143,7 +144,7 @@ class UsersManagerAsync(AsyncObject):
         if self.mysql_connection_pool._free:  # `.is_serving()` is not implemented
             log.info("Successfully started the users DB connection pool")
 
-        self._ensure_users_table_is_created_in_db()
+        await self._ensure_users_table_is_created_in_db()
 
         self.pwd_context = CryptContext(schemes=["bcrypt"])
         self.oauth_2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -173,7 +174,7 @@ class UsersManagerAsync(AsyncObject):
                                      hashed_user_password VARCHAR(255) NOT NULL,
                                      human_name VARCHAR(255) NOT NULL,
                                      ai_name VARCHAR(255),
-                                     is_user_email_verified BIT NOT NULL,
+                                     is_user_email_verified BOOLEAN NOT NULL,
                                      INDEX idx_user_email (user_email)
                                      )
                                      """)
@@ -259,7 +260,7 @@ class UsersManagerAsync(AsyncObject):
                             "hashed_user_password": new_user_details.hashed_user_password.get_secret_value(),
                             "human_name": new_user_details.desired_human_name,
                             "ai_name": new_user_details.desired_ai_name,
-                            "is_user_email_verified": 0,
+                            "is_user_email_verified": False,
                         },
                     )
                 except aiomysql.IntegrityError as integrity_error:
@@ -286,7 +287,7 @@ class UsersManagerAsync(AsyncObject):
                     await connection.commit()
 
                 await cursor.execute(
-                    "SELECT user_id, user_email, hashed_user_password, human_name, ai_name FROM users WHERE user_id=%(user_id)s",
+                    "SELECT user_id, user_email, hashed_user_password, human_name, ai_name, is_user_email_verified FROM users WHERE user_id=%(user_id)s",
                     {"user_id": cursor.lastrowid},
                 )
                 new_registered_user_row = await cursor.fetchone()
