@@ -6,17 +6,9 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "backend_commons",
-    # "gpt_home",
-    "homeassistant>=2024.10.2",
-    "homeassistant-api>=4.2.2.post1",
-    "langchain-openai==0.1.1",
-    "langchain==0.1.14",
-    "langchainhub==0.1.14",
-    "openai>=1.51.2",
+    "gpt_home",
     "pydantic[email]>=2.9.2",
     "rich>=13.9.2",
-    "torch>=2.2.0,<2.3.0",
-    "transformers[torch]>=4.31",
     "fastapi>=0.115.2",
     "uvicorn[standard]>=0.31.1",
     "python-multipart>=0.0.12",
@@ -28,10 +20,11 @@ dependencies = [
 
 [tool.uv.sources]
 backend_commons = { workspace = true }
+gpt_home = { workspace = true }
 
 [tool.uv.workspace]
 members = ["packages/*"]
-exclude = ["packages/gpt_home"]
+# exclude = ["packages/gpt_home"]
 
 [tool.uv]
 dev-dependencies = [

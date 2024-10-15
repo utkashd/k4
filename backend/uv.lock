@@ -9,6 +9,7 @@ resolution-markers = [
 [manifest]
 members = [
     "backend-commons",
+    "gpt-home",
     "gpt-home-backend",
 ]
 
@@ -818,6 +819,37 @@ wheels = [
 ]
 
 [[package]]
+name = "gpt-home"
+version = "0.1.0"
+source = { editable = "packages/gpt_home" }
+dependencies = [
+    { name = "homeassistant" },
+    { name = "homeassistant-api" },
+    { name = "langchain" },
+    { name = "langchain-openai" },
+    { name = "langchainhub" },
+    { name = "openai" },
+    { name = "pydantic" },
+    { name = "rich" },
+    { name = "torch" },
+    { name = "transformers", extra = ["torch"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "homeassistant", specifier = ">=2024.10.2" },
+    { name = "homeassistant-api", specifier = ">=4.2.2.post1" },
+    { name = "langchain", specifier = "==0.1.14" },
+    { name = "langchain-openai", specifier = "==0.1.1" },
+    { name = "langchainhub", specifier = "==0.1.14" },
+    { name = "openai", specifier = ">=1.51.2" },
+    { name = "pydantic", specifier = ">=2.9.2" },
+    { name = "rich", specifier = ">=13.9.2" },
+    { name = "torch", specifier = ">=2.2.0,<2.3.0" },
+    { name = "transformers", extras = ["torch"], specifier = ">=4.31" },
+]
+
+[[package]]
 name = "gpt-home-backend"
 version = "0.0.1"
 source = { virtual = "." }
@@ -825,18 +857,11 @@ dependencies = [
     { name = "aiomysql" },
     { name = "backend-commons" },
     { name = "fastapi" },
-    { name = "homeassistant" },
-    { name = "homeassistant-api" },
-    { name = "langchain" },
-    { name = "langchain-openai" },
-    { name = "langchainhub" },
-    { name = "openai" },
+    { name = "gpt-home" },
     { name = "passlib", extra = ["bcrypt"] },
     { name = "pydantic", extra = ["email"] },
     { name = "python-multipart" },
     { name = "rich" },
-    { name = "torch" },
-    { name = "transformers", extra = ["torch"] },
     { name = "types-passlib" },
     { name = "types-python-jose" },
     { name = "uvicorn", extra = ["standard"] },
@@ -854,18 +879,11 @@ requires-dist = [
     { name = "aiomysql", specifier = ">=0.2.0" },
     { name = "backend-commons", editable = "packages/backend_commons" },
     { name = "fastapi", specifier = ">=0.115.2" },
-    { name = "homeassistant", specifier = ">=2024.10.2" },
-    { name = "homeassistant-api", specifier = ">=4.2.2.post1" },
-    { name = "langchain", specifier = "==0.1.14" },
-    { name = "langchain-openai", specifier = "==0.1.1" },
-    { name = "langchainhub", specifier = "==0.1.14" },
-    { name = "openai", specifier = ">=1.51.2" },
+    { name = "gpt-home", editable = "packages/gpt_home" },
     { name = "passlib", extras = ["bcrypt"], specifier = ">=1.7.4" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.9.2" },
     { name = "python-multipart", specifier = ">=0.0.12" },
     { name = "rich", specifier = ">=13.9.2" },
-    { name = "torch", specifier = ">=2.2.0,<2.3.0" },
-    { name = "transformers", extras = ["torch"], specifier = ">=4.31" },
     { name = "types-passlib", specifier = ">=1.7.7.20240819" },
     { name = "types-python-jose", specifier = ">=3.3.4.20240106" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.31.1" },

@@ -29,6 +29,15 @@ Authentication
 -   avoid assertions in python backend
 -   first-time flow for setting system message (pronouns, "act as X character" nonsense)
 
+Things I've learned
+
+-   docker: more comfortable with command line, better understanding of containers,
+    images, etc. more comfortable with writing dockerfiles
+-   SQL: prepared statements, connection pools
+-   FastAPI + Uvicorn, async-await w python
+-   Basic React webapp
+-   python package management (with uv)
+
 # GptHome
 
 An opinionated, ChatGPT-style interface for Home Assistant.
