@@ -60,7 +60,7 @@ async def is_email_address_taken(email_address: str) -> bool:
 
 
 @app.post("/user")
-async def create_user(new_user_details: RegistrationAttempt):
+async def create_user(new_user_details: RegistrationAttempt) -> RegisteredUser:
     assert isinstance(users_manager, UsersManagerAsync)
     return await users_manager.create_user(new_user_details)
 
@@ -229,7 +229,7 @@ class CreateUserRequestBody(BaseModel):
 #     breakpoint()
 
 
-def main():
+def main() -> None:
     """
     Don't ask why, but this function needs to be beneath all the endpoint definitions.
     """

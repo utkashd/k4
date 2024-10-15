@@ -2,7 +2,7 @@ import json
 import os
 from pathlib import Path
 import uuid
-from ..gpt_home_api_server.messages import (
+from backend.packages.backend_commons.src.messages import (
     ClientMessage,
     GptHomeMessage,
     GptHomeSystemMessage,

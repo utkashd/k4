@@ -5,6 +5,8 @@ description = "I need to think of an appropriate description"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "backend_commons",
+    # "gpt_home",
     "homeassistant>=2024.10.2",
     "homeassistant-api>=4.2.2.post1",
     "langchain-openai==0.1.1",
@@ -24,10 +26,12 @@ dependencies = [
     "aiomysql>=0.2.0",
 ]
 
+[tool.uv.sources]
+backend_commons = { workspace = true }
 
-# [project.scripts]
-# # hello = "example_package_app:hello"
-# gpt_home_api_server = "gpt_home_api_server.gpt_home_api_server:main"
+[tool.uv.workspace]
+members = ["packages/*"]
+exclude = ["packages/gpt_home"]
 
 [tool.uv]
 dev-dependencies = [
@@ -36,7 +40,6 @@ dev-dependencies = [
     "ruff>=0.6.9",
 ]
 package = false
-
 
 [tool.mypy]
 strict = true

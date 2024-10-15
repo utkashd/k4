@@ -5,7 +5,6 @@ import aiomysql  # type: ignore[import-untyped]
 # from gpt_home.gpt_home import GptHomeDebugOptions
 # from gpt_home.gpt_home_human import GptHomeHuman
 from fastapi import HTTPException
-from utils import AsyncObject
 from rich.logging import RichHandler
 
 # from gpt_home.utils.file_io import get_gpt_home_root_directory
@@ -18,6 +17,9 @@ from fastapi.security import OAuth2PasswordBearer  # , OAuth2PasswordRequestForm
 from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr, Field, SecretStr  # , RootModel
 from typing import cast
+
+from backend_commons import AsyncObject
+
 
 FORMAT = "%(message)s"
 logging.basicConfig(
