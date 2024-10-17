@@ -5,7 +5,14 @@
         "njpwerner.autodocstring",
         "stkb.rewrap",
         "ms-python.mypy-type-checker",
-        "ms-python.isort"
+        "ms-python.isort",
+        "tamasfe.even-better-toml",
+        "esbenp.prettier-vscode",
+        "ms-python.vscode-pylance",
+        "ms-python.python",
+        "ms-python.debugpy",
+        "humao.rest-client",
+        "davidanson.vscode-markdownlint"
     ],
     // List of extensions recommended by VS Code that should not be recommended for users of this workspace.
     "unwantedRecommendations": []

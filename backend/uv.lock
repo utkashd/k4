@@ -823,6 +823,7 @@ name = "gpt-home"
 version = "0.1.0"
 source = { editable = "packages/gpt_home" }
 dependencies = [
+    { name = "backend-commons" },
     { name = "homeassistant" },
     { name = "homeassistant-api" },
     { name = "langchain" },
@@ -837,6 +838,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "backend-commons", editable = "packages/backend_commons" },
     { name = "homeassistant", specifier = ">=2024.10.2" },
     { name = "homeassistant-api", specifier = ">=4.2.2.post1" },
     { name = "langchain", specifier = "==0.1.14" },

@@ -9,5 +9,24 @@
     },
     "rewrap.autoWrap.enabled": true,
     "autoDocstring.docstringFormat": "numpy",
-    "autoDocstring.startOnNewLine": true
+    "autoDocstring.startOnNewLine": true,
+    "files.exclude": {
+        "**/.git": true,
+        "**/.svn": true,
+        "**/.hg": true,
+        "**/CVS": true,
+        "**/.DS_Store": true,
+        "**/Thumbs.db": true,
+        "**/.mypy_cache/**": true,
+        "**/.ruff_cache/**": true,
+        "**/__pycache__/**": true
+    },
+    "mypy-type-checker.ignorePatterns": [
+        "**/site-packages/**/*.py",
+        ".vscode/*.py",
+        "**/.mypy_cache/**",
+        "**/.ruff_cache/**",
+        "**/__pycache__/**"
+    ],
+    "python.defaultInterpreterPath": "backend/.venv/bin/python"
 }

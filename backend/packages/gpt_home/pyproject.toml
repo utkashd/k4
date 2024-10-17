@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.12"
 dependencies = [
+    "backend_commons",
     "pydantic>=2.9.2",
     "homeassistant>=2024.10.2",
     "homeassistant-api>=4.2.2.post1",
@@ -15,6 +16,9 @@ dependencies = [
     "transformers[torch]>=4.31",
     "rich>=13.9.2",
 ]
+
+[tool.uv.sources]
+backend_commons = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

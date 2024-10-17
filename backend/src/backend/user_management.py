@@ -11,12 +11,10 @@ from rich.logging import RichHandler
 # import os
 # from pathlib import Path
 # from gpt_home import GptHome
-from fastapi.security import OAuth2PasswordBearer  # , OAuth2PasswordRequestForm
 
 # from jose import JWTError, jwt
-from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr, Field, SecretStr  # , RootModel
-from typing import cast
+from typing import Literal, cast
 
 from backend_commons import AsyncObject
 
@@ -34,7 +32,7 @@ class RegisteredUser(BaseModel):
     hashed_user_password: SecretStr
     human_name: str = Field(min_length=1)
     ai_name: str = Field(min_length=1)
-    is_user_email_verified: bool  # `0 | 1` works natively https://docs.pydantic.dev/2.9/api/standard_library_types/#booleans
+    is_user_email_verified: bool
 
 
 class RegistrationAttempt(BaseModel):
@@ -148,9 +146,6 @@ class UsersManagerAsync(AsyncObject):
 
         await self._ensure_users_table_is_created_in_db()
 
-        self.pwd_context = CryptContext(schemes=["bcrypt"])
-        self.oauth_2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
     async def _ensure_users_table_is_created_in_db(self):
         log.info(
             """Creating the users table if it doesn't already exist. You may see a
@@ -189,6 +184,9 @@ class UsersManagerAsync(AsyncObject):
         await self.mysql_connection_pool.wait_closed()
 
     async def get_five_users_async(self) -> list[RegisteredUser]:
+        """
+        This method is just used for testing stuff and can be deleted eventually
+        """
         async with cast(
             aiomysql.Connection, self.mysql_connection_pool.acquire()
         ) as connection:
@@ -202,26 +200,17 @@ class UsersManagerAsync(AsyncObject):
                     five_users.append(RegisteredUser(**row))
                 return five_users
 
-    async def is_email_address_taken(self, email_address: str) -> bool:
-        async with cast(
-            aiomysql.Connection, self.mysql_connection_pool.acquire()
-        ) as connection:
-            async with cast(aiomysql.Cursor, connection.cursor()) as cursor:
-                await cursor.execute(
-                    "SELECT user_id FROM users WHERE user_email=%(email_address)s",
-                    {"email_address": email_address},
-                )
-                row = await cursor.fetchone()
-                if row:
-                    return True
-                return False
+    async def is_email_address_taken(self, email_address: EmailStr) -> bool:
+        if await self._get_user_fields_by_user_email(email_address, {"user_id"}):
+            return True
+        return False
 
     async def _are_new_user_details_valid_with_reasons(
         self, new_user_details: RegistrationAttempt
     ) -> tuple[bool, dict[str, str]]:
         """
         This function ensures that the new_user_details are valid values. It does not
-        (and should not) check that the email address is already being used
+        (and should not need to) check that the email address is already being used
         """
         are_details_valid = True
         issues: dict[str, str] = {
@@ -230,7 +219,8 @@ class UsersManagerAsync(AsyncObject):
             "desired_human_name": "no issues",
             "desired_ai_name": "no issues",
         }
-        # Skipping checking that the email address is taken
+        # Skipping checking that the email address is taken, because this happens when
+        # we try to insert the row anyways
         # if await self.is_email_address_taken(new_user_details.desired_user_email):
         #     are_details_valid = False
         #     issues["desired_user_email"] = "email address is taken"
@@ -314,9 +304,19 @@ class UsersManagerAsync(AsyncObject):
         #     self.users.pop(user_id)
         #     self._save_users_to_filesystem()
 
-    async def authenticate_user(
-        self, user_email: EmailStr, unhashed_user_password: SecretStr
-    ):
+        """
+        user_id INT AUTO_INCREMENT PRIMARY KEY,
+                                     user_email VARCHAR(255) NOT NULL UNIQUE,
+                                     hashed_user_password VARCHAR(255) NOT NULL,
+                                     human_name VARCHAR(255) NOT NULL,
+                                     ai_name VARCHAR(255),
+                                     is_user_email_verified BOOLEAN NOT NULL,
+        """
+
+    async def _get_user_by_user_email(
+        self,
+        email_address: EmailStr,
+    ) -> RegisteredUser | None:
         async with cast(
             aiomysql.Connection, self.mysql_connection_pool.acquire()
         ) as connection:
@@ -324,33 +324,71 @@ class UsersManagerAsync(AsyncObject):
                 aiomysql.DictCursor, connection.cursor(aiomysql.DictCursor)
             ) as cursor:
                 await cursor.execute(
-                    "SELECT hashed_user_password FROM users WHERE user_email=%(user_email)s",
-                    {"user_email": user_email},
+                    "SELECT * FROM users WHERE user_email=%(user_email)s",
+                    {"user_email": email_address},
                 )
                 row = await cursor.fetchone()
                 if row:
-                    self.verify_password(
-                        unhashed_user_password,
-                        hashed_user_password=row["hashed_user_password"],
-                    )
+                    return RegisteredUser(**row)
                 else:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Failed to authenticate user {user_email} because they are not a known user.",
-                    )
+                    return None
 
-    def _get_hash_of_password(self, unhashed_user_password: SecretStr) -> SecretStr:
-        return SecretStr(
-            self.pwd_context.hash(unhashed_user_password.get_secret_value())
+    async def _get_user_fields_by_user_email(
+        self,
+        email_address: EmailStr,
+        fields: set[
+            Literal[
+                "user_id",
+                "user_email",
+                "hashed_user_password",
+                "human_name",
+                "ai_name",
+                "is_user_email_verified",
+            ]
+        ],
+    ) -> dict[str, int | str | bool] | None:
+        log.warning(
+            "This function is untested and not great as-is. Use sparingly until it's fixed"
         )
+        if not fields:
+            raise HTTPException(
+                status_code=400, detail="Requested no user fields, which is invalid"
+            )
+        valid_fields = {
+            "user_id",
+            "user_email",
+            "hashed_user_password",
+            "human_name",
+            "ai_name",
+            "is_user_email_verified",
+        }
+        for field in fields:
+            if field not in valid_fields:
+                raise HTTPException(
+                    status_code=400, detail=f"Requested an invalid user field: {field}"
+                )
 
-    def verify_password(
-        self, unhashed_user_password: SecretStr, hashed_user_password: SecretStr
-    ) -> bool:
-        return self.pwd_context.verify(
-            unhashed_user_password.get_secret_value(),
-            hashed_user_password.get_secret_value(),
-        )
+        async with cast(
+            aiomysql.Connection, self.mysql_connection_pool.acquire()
+        ) as connection:
+            async with cast(
+                aiomysql.DictCursor, connection.cursor(aiomysql.DictCursor)
+            ) as cursor:
+                await cursor.execute(
+                    " ".join(
+                        (
+                            "SELECT",
+                            ", ".join(fields),
+                            "FROM users WHERE user_email=%(user_email)s",
+                        )
+                    ),
+                    {"user_email": email_address},
+                )
+                row = await cursor.fetchone()
+                if row:
+                    return row
+                else:
+                    return None
 
     # def get_user_chat_previews(
     #     self, user_id: str, start: int, end: int

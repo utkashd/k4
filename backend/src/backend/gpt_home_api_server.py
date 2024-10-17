@@ -1,8 +1,9 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI  # , Depends, HTTPException, status
+from datetime import timedelta
+from fastapi import FastAPI, HTTPException  # , Depends, HTTPException, status
 
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, SecretStr
 from user_management import (
     # ChatPreview,
     # RegisteredUser,
@@ -10,6 +11,8 @@ from user_management import (
     RegistrationAttempt,
     UsersManagerAsync,
 )
+from passlib.context import CryptContext
+from fastapi.security import OAuth2PasswordBearer  # , OAuth2PasswordRequestForm
 
 # from backend_commons.messages import (
 #     ClientMessage,
@@ -20,6 +23,47 @@ from user_management import (
 
 
 users_manager: UsersManagerAsync | None = None
+
+
+pwd_context = CryptContext(schemes=["bcrypt"])
+oauth_2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+
+async def authenticate_user(
+    user_email: EmailStr, unhashed_user_password: SecretStr
+) -> RegisteredUser | None:
+    assert isinstance(users_manager, UsersManagerAsync)
+    user = await users_manager._get_user_by_user_email(user_email)
+    if user:
+        if is_password_correct(
+            unhashed_user_password=unhashed_user_password,
+            hashed_user_password=user.hashed_user_password,
+        ):
+            return user
+        else:
+            return None
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to authenticate user {user_email} because they are not a known user.",
+        )
+
+
+def create_access_token(self, data: dict, expires_delta: timedelta | None = None):
+    pass
+
+
+def _get_hash_of_password(self, unhashed_user_password: SecretStr) -> SecretStr:
+    return SecretStr(self.pwd_context.hash(unhashed_user_password.get_secret_value()))
+
+
+def is_password_correct(
+    unhashed_user_password: SecretStr, hashed_user_password: SecretStr
+) -> bool:
+    return pwd_context.verify(
+        unhashed_user_password.get_secret_value(),
+        hashed_user_password.get_secret_value(),
+    )
 
 
 @asynccontextmanager

@@ -20,7 +20,7 @@ if (! docker stats --no-stream > /dev/null 2>&1 ); then # if docker is not runni
     open /Applications/Docker.app
     while (! docker stats --no-stream > /dev/null 2>&1 ); do # while docker isn't yet running
         echo "Waiting for Docker Desktop to start..."
-        sleep 1
+        sleep 3
     done
 fi
 
