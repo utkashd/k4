@@ -6,11 +6,11 @@ YELLOW='\033[1;33m'
 GREEN='\033[0;32m'
 END_COLOR='\033[0m' # No Color
 
-echo "1. Stopping the mysql container..."
+echo "1. Stopping the postgres container..."
 set -x
-docker container stop mysql-dev > /dev/null 2>&1
+docker container stop gpt-home-dev-postgres > /dev/null 2>&1
 { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
-printf "${GREEN}mysql container is stopped.${END_COLOR}\n"
+printf "${GREEN}postgres container is stopped.${END_COLOR}\n"
 
 echo "\n2. Quitting Docker Desktop..."
 set -x

@@ -29,24 +29,24 @@ pwd_context = CryptContext(schemes=["bcrypt"])
 oauth_2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
-async def authenticate_user(
-    user_email: EmailStr, unhashed_user_password: SecretStr
-) -> RegisteredUser | None:
-    assert isinstance(users_manager, UsersManagerAsync)
-    user = await users_manager._get_user_by_user_email(user_email)
-    if user:
-        if is_password_correct(
-            unhashed_user_password=unhashed_user_password,
-            hashed_user_password=user.hashed_user_password,
-        ):
-            return user
-        else:
-            return None
-    else:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Failed to authenticate user {user_email} because they are not a known user.",
-        )
+# async def authenticate_user(
+#     user_email: EmailStr, unhashed_user_password: SecretStr
+# ) -> RegisteredUser | None:
+#     assert isinstance(users_manager, UsersManagerAsync)
+#     user = await users_manager._get_user_by_user_email(user_email)
+#     if user:
+#         if is_password_correct(
+#             unhashed_user_password=unhashed_user_password,
+#             hashed_user_password=user.hashed_user_password,
+#         ):
+#             return user
+#         else:
+#             return None
+#     else:
+#         raise HTTPException(
+#             status_code=400,
+#             detail=f"Failed to authenticate user {user_email} because they are not a known user.",
+#         )
 
 
 def create_access_token(self, data: dict, expires_delta: timedelta | None = None):
@@ -97,10 +97,10 @@ async def get_five_users() -> list[RegisteredUser]:
     return await users_manager.get_five_users_async()
 
 
-@app.get("/is_email_address_taken")
-async def is_email_address_taken(email_address: str) -> bool:
-    assert isinstance(users_manager, UsersManagerAsync)
-    return await users_manager.is_email_address_taken(email_address)
+# @app.get("/is_email_address_taken")
+# async def is_email_address_taken(email_address: str) -> bool:
+#     assert isinstance(users_manager, UsersManagerAsync)
+#     return await users_manager.is_email_address_taken(email_address)
 
 
 @app.post("/user")
