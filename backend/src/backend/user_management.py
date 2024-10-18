@@ -132,7 +132,7 @@ class UsersManagerAsync(AsyncObject):
     async def __init__(self):
         log.info("Starting the users DB connection pool")
         # TODO error handling if connection fails
-        self.postgres_connection_pool: asyncpg.Pool = await asyncpg.create_pool(
+        self.postgres_connection_pool: asyncpg.Pool = await asyncpg.create_pool(  # type: ignore[annotation-unchecked]
             host="localhost",
             port=5432,
             user="postgres",
@@ -146,7 +146,7 @@ class UsersManagerAsync(AsyncObject):
 
         await self._ensure_users_table_is_created_in_db()
 
-    async def _ensure_users_table_is_created_in_db(self):
+    async def _ensure_users_table_is_created_in_db(self) -> None:
         log.info(
             """Creating the users table if it doesn't already exist. You may see a
             warning from aiomysql that the table already exists, this is expected and
@@ -178,7 +178,7 @@ class UsersManagerAsync(AsyncObject):
                 )
         log.info("Finished ensuring the users table is created")
 
-    async def end(self):
+    async def end(self) -> None:
         log.info("Closing the users DB connection pool")
         await self.postgres_connection_pool.close()
 
