@@ -13,7 +13,6 @@ from rich.logging import RichHandler
 # from pathlib import Path
 # from gpt_home import GptHome
 
-# from jose import JWTError, jwt
 from pydantic import BaseModel, EmailStr, Field, SecretStr  # , RootModel
 from typing import cast  # , Literal
 
@@ -45,20 +44,6 @@ class RegistrationAttempt(BaseModel):
     hashed_user_password: SecretStr
     desired_human_name: str
     desired_ai_name: str
-
-
-SECRET_KEY = "18e8e912cce442d5fe6af43a003dedd7cedd7248efc16ac926f21f8f940398a8"  # Generated with `openssl rand -hex 32`
-ALGORITHM = "HS256"
-JWT_EXPIRE_MINUTES = 30
-
-
-class Token(BaseModel):
-    jwt: str
-    token_type: str
-
-
-class TokenData(BaseModel):
-    user_email: str | None = None
 
 
 # class GptHomeUsersAttrs(RootModel):  # type: ignore[type-arg]
@@ -263,27 +248,13 @@ class UsersManagerAsync(AsyncObject):
     # def stop_user(self, user: GptHomeUser) -> None:
     #     user.stop_gpt_home()
 
-    # def get_user(self, user_id: str) -> GptHomeUser | None:
-    #     pass
-
-    def delete_user(self, user_id: str) -> None:
-        pass
-        # if self.users.get(user_id):
-        #     self.stop_user(self.users[user_id])
-        #     if self.users[user_id].gpt_home:
-        #         # ensure we free up the memory. prob not necessary tbh
-        #         self.users[user_id].gpt_home = None
-        #     self.users.pop(user_id)
-        #     self._save_users_to_filesystem()
-
-        """
-        user_id INT AUTO_INCREMENT PRIMARY KEY,
-                                     user_email VARCHAR(255) NOT NULL UNIQUE,
-                                     hashed_user_password VARCHAR(255) NOT NULL,
-                                     human_name VARCHAR(255) NOT NULL,
-                                     ai_name VARCHAR(255),
-                                     is_user_email_verified BOOLEAN NOT NULL,
-        """
+    async def get_user_by_email(self, user_email: EmailStr) -> RegisteredUser:
+        async with self.postgres_connection_pool.acquire() as connection:
+            connection = cast(asyncpg.Connection, connection)
+            row = await connection.fetchrow(
+                "SELECT * FROM users WHERE user_email=$1", user_email
+            )
+            return RegisteredUser(**row)
 
     # async def _get_user_by_user_email(
     #     self,

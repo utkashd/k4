@@ -1,6 +1,8 @@
 from contextlib import asynccontextmanager
-from datetime import timedelta
-from fastapi import FastAPI, HTTPException  # , Depends, HTTPException, status
+import datetime
+from fastapi import Depends, FastAPI, HTTPException, status
+from jose import JWTError, jwt
+
 
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, SecretStr
@@ -12,7 +14,10 @@ from user_management import (
     UsersManagerAsync,
 )
 from passlib.context import CryptContext
-from fastapi.security import OAuth2PasswordBearer  # , OAuth2PasswordRequestForm
+from fastapi.security import (
+    OAuth2PasswordBearer,
+    OAuth2PasswordRequestForm,
+)
 
 # from backend_commons.messages import (
 #     ClientMessage,
@@ -20,6 +25,17 @@ from fastapi.security import OAuth2PasswordBearer  # , OAuth2PasswordRequestForm
 # )
 # from langchain_core.messages import HumanMessage, AIMessage
 # from langchain_community.chat_message_histories.in_memory import ChatMessageHistory
+
+SECRET_KEY = "18e8e912cce442d5fe6af43a003dedd7cedd7248efc16ac926f21f8f940398a8"  # Generated with `openssl rand -hex 32`
+
+
+class Token(BaseModel):
+    jwt: str
+    token_type: str
+
+
+class TokenData(BaseModel):
+    user_email: str | None = None
 
 
 users_manager: UsersManagerAsync | None = None
@@ -29,28 +45,24 @@ pwd_context = CryptContext(schemes=["bcrypt"])
 oauth_2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
-# async def authenticate_user(
-#     user_email: EmailStr, unhashed_user_password: SecretStr
-# ) -> RegisteredUser | None:
-#     assert isinstance(users_manager, UsersManagerAsync)
-#     user = await users_manager._get_user_by_user_email(user_email)
-#     if user:
-#         if is_password_correct(
-#             unhashed_user_password=unhashed_user_password,
-#             hashed_user_password=user.hashed_user_password,
-#         ):
-#             return user
-#         else:
-#             return None
-#     else:
-#         raise HTTPException(
-#             status_code=400,
-#             detail=f"Failed to authenticate user {user_email} because they are not a known user.",
-#         )
-
-
-def create_access_token(self, data: dict, expires_delta: timedelta | None = None):
-    pass
+async def authenticate_user(
+    user_email: EmailStr, unhashed_user_password: SecretStr
+) -> RegisteredUser | None:
+    assert isinstance(users_manager, UsersManagerAsync)
+    user = await users_manager.get_user_by_email(user_email)
+    if user:
+        if is_password_correct(
+            unhashed_user_password=unhashed_user_password,
+            hashed_user_password=user.hashed_user_password,
+        ):
+            return user
+        else:
+            return None
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to authenticate user {user_email} because they are not a known user.",
+        )
 
 
 def _get_hash_of_password(self, unhashed_user_password: SecretStr) -> SecretStr:
@@ -107,6 +119,72 @@ async def get_five_users() -> list[RegisteredUser]:
 async def create_user(new_user_details: RegistrationAttempt) -> RegisteredUser:
     assert isinstance(users_manager, UsersManagerAsync)
     return await users_manager.create_user(new_user_details)
+
+
+def create_access_token(data: dict, expires_delta: datetime.timedelta | None = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.datetime.now(datetime.UTC) + expires_delta
+    else:
+        expire = datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=15)
+
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm="HS256")
+    return encoded_jwt
+
+
+@app.post("/token", response_model=Token)
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    JWT_EXPIRE_MINUTES = 30
+    user = await authenticate_user(
+        EmailStr(form_data.username), SecretStr(form_data.password)
+    )
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = datetime.timedelta(minutes=JWT_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.user_email}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
+async def get_current_user(jwt_token: str = Depends(oauth_2_scheme)):
+    credential_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(jwt_token, SECRET_KEY, algorithms=["HS256"])
+        user_email = payload.get("sub")
+        if user_email is None or type(user_email) is not str:
+            raise credential_exception
+
+        token_data = TokenData(user_email=user_email)
+    except JWTError:
+        raise credential_exception
+
+    assert isinstance(users_manager, UsersManagerAsync)
+    return await users_manager.get_user_by_email(
+        user_email=EmailStr(token_data.user_email)
+    )
+
+
+@app.get("/user/me")
+async def get_current_user_info(
+    current_user: RegisteredUser = Depends(get_current_user),
+):
+    return current_user
+
+
+@app.get("/test")
+async def get_test_user(user_email: EmailStr):
+    assert isinstance(users_manager, UsersManagerAsync)
+    return await users_manager.get_user_by_email(user_email)
 
 
 # class ClientSession(BaseModel):

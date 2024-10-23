@@ -16,6 +16,7 @@ dependencies = [
     "types-passlib>=1.7.7.20240819",
     "passlib[bcrypt]>=1.7.4",
     "asyncpg>=0.29.0",
+    "python-jose[cryptography]>=3.3.0",
 ]
 
 [tool.uv.sources]
