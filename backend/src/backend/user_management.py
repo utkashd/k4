@@ -2,19 +2,12 @@ import logging
 import asyncpg  # type: ignore[import-untyped]
 import asyncpg.cursor  # type: ignore[import-untyped]
 
-# from backend_commons.messages import Message
-# from gpt_home.gpt_home import GptHomeDebugOptions
-# from gpt_home.gpt_home_human import GptHomeHuman
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from rich.logging import RichHandler
 
-# from gpt_home.utils.file_io import get_gpt_home_root_directory
-# import os
-# from pathlib import Path
-# from gpt_home import GptHome
 
-from pydantic import BaseModel, EmailStr, Field, SecretStr  # , RootModel
-from typing import cast  # , Literal
+from pydantic import BaseModel, EmailStr, Field, SecretStr
+from typing import cast
 
 from backend_commons import AsyncObject
 
@@ -41,66 +34,9 @@ class RegistrationAttempt(BaseModel):
     """
 
     desired_user_email: EmailStr
-    hashed_user_password: SecretStr
-    desired_human_name: str
-    desired_ai_name: str
-
-
-# class GptHomeUsersAttrs(RootModel):  # type: ignore[type-arg]
-#     root: dict[str, RegisteredUser]
-
-
-# class ChatPreview(BaseModel):
-#     pass
-
-
-# class GptHomeUser:
-#     def __init__(
-#         self,
-#         ai_name: str,
-#         human_name: str,
-#         user_email: str,
-#         user_password: str,
-#     ):
-#         self.user_attributes = RegisteredUser(
-#             user_email=user_email,
-#             user_password=user_password,
-#             human_name=human_name,
-#             ai_name=ai_name,
-#         )
-#         self.gpt_home: GptHome | None = None
-
-#     # def start_gpt_home(self) -> None:
-#     #     """
-#     #     This is an expensive function. It can cost a few minutes and a chunk of RAM.
-#     #     TODO reuse devices across instances of GptHome to save (a ton) on RAM
-#     #     """
-#     #     if not self.gpt_home:
-#     #         self.gpt_home = GptHome(
-#     #             gpt_home_human=GptHomeHuman(
-#     #                 ai_name=self.user_attributes.ai_name,
-#     #                 user_id=self.user_attributes.user_id,
-#     #                 human_name=self.user_attributes.human_name,
-#     #             ),
-#     #             debug_options=GptHomeDebugOptions(log_level="warn", is_dry_run=False),
-#     #             ignore_home_assistant_ssl=True,
-#     #         )
-
-#     # def stop_gpt_home(self) -> None:
-#     #     if self.gpt_home:
-#     #         self.gpt_home.stop_chatting()
-#     #         # save ram, but the next time the user logs in, the user will have to wait?
-#     #         # idk if this is a good decision.
-#     #         # **Update** Which is why I'm commenting it out! lol
-#     #         # self.gpt_home = None
-
-#     # def ask_gpt_home(self, human_input: str) -> list[Message]:
-#     #     if self.gpt_home:
-#     #         return self.gpt_home.ask_gpt_home(human_input)
-#     #     return []
-
-#     def get_user_attributes(self) -> RegisteredUser:
-#         return self.user_attributes
+    desired_user_password: SecretStr = Field(max_length=32)
+    desired_human_name: str = Field(max_length=32)
+    desired_ai_name: str = Field(max_length=16)
 
 
 class UsersManagerAsync(AsyncObject):
@@ -116,7 +52,8 @@ class UsersManagerAsync(AsyncObject):
 
     async def __init__(self):
         log.info("Starting the users DB connection pool")
-        # TODO error handling if connection fails
+        # TODO error handling if connection fails. Though maybe don't bother because
+        # what's the point if the connection fails, lol
         self.postgres_connection_pool: asyncpg.Pool = await asyncpg.create_pool(  # type: ignore[annotation-unchecked]
             host="localhost",
             port=5432,
@@ -126,8 +63,7 @@ class UsersManagerAsync(AsyncObject):
             min_size=1,
             max_size=5,
         )
-        if self.postgres_connection_pool:  # `.is_serving()` is not implemented
-            log.info("Successfully started the users DB connection pool")
+        log.info("Successfully started the users DB connection pool")
 
         await self._ensure_users_table_is_created_in_db()
 
@@ -142,8 +78,9 @@ class UsersManagerAsync(AsyncObject):
             async with connection.transaction():
                 # If you're changing the table, you'll need to drop the existing table
                 # on your local machine first. Something like:
-                # > docker exec -it mysql-dev bash
-                # > > mysql -u root -p # the password is in <repo root>/start_dev.sh
+                # > docker exec -it gpt-home-dev-postgres bash
+                # > > psql -U postgres
+                # > > > \c postgres
                 # > > > drop table mydb.users;
                 # `exit` a couple times to return to your terminal
                 # TODO should have a script or something for modifying tables elegantly
@@ -157,7 +94,7 @@ class UsersManagerAsync(AsyncObject):
                                      ai_name VARCHAR(255),
                                      is_user_email_verified BOOLEAN NOT NULL
                                      )
-                                     """)
+                                     """)  # TODO add a field like "is_deactivated" and check it when doing auth so a user can't be deactivated but their token still works
                 await connection.execute(
                     "CREATE INDEX IF NOT EXISTS idx_user_email ON users(user_email)"
                 )
@@ -185,7 +122,11 @@ class UsersManagerAsync(AsyncObject):
     #     return False
 
     async def _are_new_user_details_valid_with_reasons(
-        self, new_user_details: RegistrationAttempt
+        self,
+        desired_user_email: EmailStr,
+        hashed_desired_user_password: SecretStr,
+        desired_human_name: str,
+        desired_ai_name: str,
     ) -> tuple[bool, dict[str, str]]:
         """
         This function ensures that the new_user_details are valid values. It does not
@@ -194,41 +135,47 @@ class UsersManagerAsync(AsyncObject):
         are_details_valid = True
         issues: dict[str, str] = {
             "desired_user_email": "no issues",
-            "hashed_user_password": "no issues",
+            "hashed_desired_user_password": "no issues",
             "desired_human_name": "no issues",
             "desired_ai_name": "no issues",
         }
         # Skipping checking that the email address is taken, because this happens when
         # we try to insert the row anyways
-        # if await self.is_email_address_taken(new_user_details.desired_user_email):
-        #     are_details_valid = False
-        #     issues["desired_user_email"] = "email address is taken"
         return are_details_valid, issues
 
     async def create_user(
-        self, new_user_details: RegistrationAttempt
+        self,
+        desired_user_email: EmailStr,
+        hashed_desired_user_password: SecretStr,
+        desired_human_name: str,
+        desired_ai_name: str,
     ) -> RegisteredUser:
         (
             are_new_user_details_valid,
             issues,
-        ) = await self._are_new_user_details_valid_with_reasons(new_user_details)
+        ) = await self._are_new_user_details_valid_with_reasons(
+            desired_user_email,
+            hashed_desired_user_password,
+            desired_human_name,
+            desired_ai_name,
+        )
         if not are_new_user_details_valid:
-            raise HTTPException(status_code=400, detail=issues)
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=issues)
 
         async with self.postgres_connection_pool.acquire() as connection:
             connection = cast(asyncpg.Connection, connection)
             try:
                 async with connection.transaction():
                     params = {
-                        "user_email": new_user_details.desired_user_email,
-                        "hashed_user_password": new_user_details.hashed_user_password.get_secret_value(),
-                        "human_name": new_user_details.desired_human_name,
-                        "ai_name": new_user_details.desired_ai_name,
+                        "user_email": desired_user_email,
+                        "hashed_user_password": hashed_desired_user_password.get_secret_value(),
+                        "human_name": desired_human_name,
+                        "ai_name": desired_ai_name,
                         "is_user_email_verified": False,
                     }
                     positional_arg_idxs = ", ".join(
                         f"${idx+1}" for idx in range(len(params))
-                    )
+                    )  # results in "$1, $2, $3, $4, $5"
                     query = f'INSERT INTO USERS ({', '.join(params)}) VALUES ({positional_arg_idxs}) RETURNING *'
                     # query = "INSERT INTO users (user_email, hashed_user_password, human_name, ai_name, is_user_email_verified) VALUES ($1, $2, $3, $4, $5) RETURNING *"
                     new_registered_user_row = await connection.fetchrow(
@@ -239,14 +186,9 @@ class UsersManagerAsync(AsyncObject):
                 # This code means we attempted to insert a row that conflicted
                 # with another row. That only happens if the email address is already taken
                 raise HTTPException(
-                    status_code=400, detail="Email address already in use."
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Email address {desired_user_email} already in use.",
                 )
-
-    # def start_user(self, user: GptHomeUser) -> None:
-    #     user.start_gpt_home()
-
-    # def stop_user(self, user: GptHomeUser) -> None:
-    #     user.stop_gpt_home()
 
     async def get_user_by_email(self, user_email: EmailStr) -> RegisteredUser:
         async with self.postgres_connection_pool.acquire() as connection:
@@ -254,88 +196,9 @@ class UsersManagerAsync(AsyncObject):
             row = await connection.fetchrow(
                 "SELECT * FROM users WHERE user_email=$1", user_email
             )
+            if not row:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"User {user_email} does not exist.",
+                )
             return RegisteredUser(**row)
-
-    # async def _get_user_by_user_email(
-    #     self,
-    #     email_address: EmailStr,
-    # ) -> RegisteredUser | None:
-    #     async with cast(
-    #         asyncpg.Connection, self.postgres_connection_pool.acquire()
-    #     ) as connection:
-    #         async with cast(
-    #             aiomysql.DictCursor, connection.cursor(aiomysql.DictCursor)
-    #         ) as cursor:
-    #             await cursor.execute(
-    #                 "SELECT * FROM users WHERE user_email=%(user_email)s",
-    #                 {"user_email": email_address},
-    #             )
-    #             row = await cursor.fetchone()
-    #             if row:
-    #                 return RegisteredUser(**row)
-    #             else:
-    #                 return None
-
-    # async def _get_user_fields_by_user_email(
-    #     self,
-    #     email_address: EmailStr,
-    #     fields: set[
-    #         Literal[
-    #             "user_id",
-    #             "user_email",
-    #             "hashed_user_password",
-    #             "human_name",
-    #             "ai_name",
-    #             "is_user_email_verified",
-    #         ]
-    #     ],
-    # ) -> dict[str, int | str | bool] | None:
-    #     log.warning(
-    #         "This function is untested and not great as-is. Use sparingly until it's fixed"
-    #     )
-    #     if not fields:
-    #         raise HTTPException(
-    #             status_code=400, detail="Requested no user fields, which is invalid"
-    #         )
-    #     valid_fields = {
-    #         "user_id",
-    #         "user_email",
-    #         "hashed_user_password",
-    #         "human_name",
-    #         "ai_name",
-    #         "is_user_email_verified",
-    #     }
-    #     for field in fields:
-    #         if field not in valid_fields:
-    #             raise HTTPException(
-    #                 status_code=400, detail=f"Requested an invalid user field: {field}"
-    #             )
-
-    #     async with cast(
-    #         asyncpg.Connection, self.postgres_connection_pool.acquire()
-    #     ) as connection:
-    #         async with cast(
-    #             aiomysql.DictCursor, connection.cursor(aiomysql.DictCursor)
-    #         ) as cursor:
-    #             await cursor.execute(
-    #                 " ".join(
-    #                     (
-    #                         "SELECT",
-    #                         ", ".join(fields),
-    #                         "FROM users WHERE user_email=%(user_email)s",
-    #                     )
-    #                 ),
-    #                 {"user_email": email_address},
-    #             )
-    #             row = await cursor.fetchone()
-    #             if row:
-    #                 return row
-    #             else:
-    #                 return None
-
-    # def get_user_chat_previews(
-    #     self, user_id: str, start: int, end: int
-    # ) -> list[ChatPreview]:
-    #     # if self.users.get(user_id):
-    #     #     pass
-    #     return []

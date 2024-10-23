@@ -2,71 +2,37 @@ from contextlib import asynccontextmanager
 import datetime
 from fastapi import Depends, FastAPI, HTTPException, status
 from jose import JWTError, jwt
-
-
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, SecretStr
 from user_management import (
-    # ChatPreview,
-    # RegisteredUser,
     RegisteredUser,
     RegistrationAttempt,
     UsersManagerAsync,
 )
-from passlib.context import CryptContext
+from passlib.context import (
+    CryptContext,
+)  # TODO remove passlib because it's not maintained anymore https://github.com/pyca/bcrypt/issues/684
 from fastapi.security import (
     OAuth2PasswordBearer,
     OAuth2PasswordRequestForm,
 )
 
-# from backend_commons.messages import (
-#     ClientMessage,
-#     Message,
-# )
-# from langchain_core.messages import HumanMessage, AIMessage
-# from langchain_community.chat_message_histories.in_memory import ChatMessageHistory
-
 SECRET_KEY = "18e8e912cce442d5fe6af43a003dedd7cedd7248efc16ac926f21f8f940398a8"  # Generated with `openssl rand -hex 32`
 
 
 class Token(BaseModel):
-    jwt: str
+    access_token: str
     token_type: str
 
 
 class TokenData(BaseModel):
-    user_email: str | None = None
-
-
-users_manager: UsersManagerAsync | None = None
+    user_email: EmailStr
 
 
 pwd_context = CryptContext(schemes=["bcrypt"])
-oauth_2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-
-async def authenticate_user(
-    user_email: EmailStr, unhashed_user_password: SecretStr
-) -> RegisteredUser | None:
-    assert isinstance(users_manager, UsersManagerAsync)
-    user = await users_manager.get_user_by_email(user_email)
-    if user:
-        if is_password_correct(
-            unhashed_user_password=unhashed_user_password,
-            hashed_user_password=user.hashed_user_password,
-        ):
-            return user
-        else:
-            return None
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to authenticate user {user_email} because they are not a known user.",
-        )
-
-
-def _get_hash_of_password(self, unhashed_user_password: SecretStr) -> SecretStr:
-    return SecretStr(self.pwd_context.hash(unhashed_user_password.get_secret_value()))
+users_manager: UsersManagerAsync | None = None
 
 
 def is_password_correct(
@@ -76,6 +42,38 @@ def is_password_correct(
         unhashed_user_password.get_secret_value(),
         hashed_user_password.get_secret_value(),
     )
+
+
+def create_access_token(
+    data: dict, minutes_after_which_access_token_expires: int
+) -> str:
+    data_to_encode = data.copy()
+    time_access_token_expires = datetime.datetime.now(
+        datetime.UTC
+    ) + datetime.timedelta(minutes=minutes_after_which_access_token_expires)
+
+    data_to_encode.update({"exp": time_access_token_expires})
+    encoded_jwt = jwt.encode(data_to_encode, SECRET_KEY, algorithm="HS256")
+    return encoded_jwt
+
+
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    credential_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+    except JWTError:
+        raise credential_exception
+
+    user_email = payload.get("user_email")
+    if not user_email or not isinstance(user_email, str):
+        raise credential_exception
+
+    assert isinstance(users_manager, UsersManagerAsync)
+    return await users_manager.get_user_by_email(user_email)
 
 
 @asynccontextmanager
@@ -109,69 +107,46 @@ async def get_five_users() -> list[RegisteredUser]:
     return await users_manager.get_five_users_async()
 
 
-# @app.get("/is_email_address_taken")
-# async def is_email_address_taken(email_address: str) -> bool:
-#     assert isinstance(users_manager, UsersManagerAsync)
-#     return await users_manager.is_email_address_taken(email_address)
-
-
 @app.post("/user")
 async def create_user(new_user_details: RegistrationAttempt) -> RegisteredUser:
     assert isinstance(users_manager, UsersManagerAsync)
-    return await users_manager.create_user(new_user_details)
+    hashed_desired_password = SecretStr(
+        pwd_context.hash(new_user_details.desired_user_password.get_secret_value())
+    )
+    return await users_manager.create_user(
+        desired_user_email=new_user_details.desired_user_email,
+        hashed_desired_user_password=hashed_desired_password,
+        desired_human_name=new_user_details.desired_human_name,
+        desired_ai_name=new_user_details.desired_ai_name,
+    )
 
 
-def create_access_token(data: dict, expires_delta: datetime.timedelta | None = None):
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.datetime.now(datetime.UTC) + expires_delta
-    else:
-        expire = datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=15)
-
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm="HS256")
-    return encoded_jwt
-
-
-@app.post("/token", response_model=Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+@app.post("/token")
+async def login_for_access_token(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+) -> Token:
     JWT_EXPIRE_MINUTES = 30
-    user = await authenticate_user(
-        EmailStr(form_data.username), SecretStr(form_data.password)
-    )
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    access_token_expires = datetime.timedelta(minutes=JWT_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.user_email}, expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
-
-
-async def get_current_user(jwt_token: str = Depends(oauth_2_scheme)):
-    credential_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(jwt_token, SECRET_KEY, algorithms=["HS256"])
-        user_email = payload.get("sub")
-        if user_email is None or type(user_email) is not str:
-            raise credential_exception
-
-        token_data = TokenData(user_email=user_email)
-    except JWTError:
-        raise credential_exception
+    user_email = form_data.username
+    unhashed_user_password = SecretStr(form_data.password)
 
     assert isinstance(users_manager, UsersManagerAsync)
-    return await users_manager.get_user_by_email(
-        user_email=EmailStr(token_data.user_email)
+    user = await users_manager.get_user_by_email(user_email)
+
+    if not is_password_correct(
+        unhashed_user_password=unhashed_user_password,
+        hashed_user_password=user.hashed_user_password,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    access_token = create_access_token(
+        data={"user_email": user.user_email},
+        minutes_after_which_access_token_expires=JWT_EXPIRE_MINUTES,
     )
+    return Token(access_token=access_token, token_type="bearer")
 
 
 @app.get("/user/me")
@@ -187,173 +162,9 @@ async def get_test_user(user_email: EmailStr):
     return await users_manager.get_user_by_email(user_email)
 
 
-# class ClientSession(BaseModel):
-#     client_session_id: str
-#     user_id: str | None
-
-
-# class RegisteredUserClientSession(ClientSession):
-#     user_id: str
-
-
-# class ClientSessionsManager:
-#     def __init__(self) -> None:
-#         self.active_client_sessions_by_client_id: dict[str, ClientSession] = {}
-#         self.users_manager = UsersManager()
-
-#     def add_new_client_session(self, client_session_id: str, user_id: str) -> bool:
-#         if client_session_id not in self.active_client_sessions_by_client_id.keys():
-#             # just gonna trust that the user_id supplied by the client is really theirs
-#             # TODO authenticate or something
-#             user = self.users_manager.get_user(user_id)
-#             if user:
-#                 self.active_client_sessions_by_client_id[client_session_id] = (
-#                     RegisteredUserClientSession(
-#                         client_session_id=client_session_id, user_id=user_id
-#                     )
-#                 )
-#                 # self.users_manager.start_user(user)
-#                 return True
-#             else:
-#                 # this shouldn't happen, right? maybe this is where we tell the client
-#                 # that the user doesn't exist (anymore?)
-#                 pass
-#         else:
-#             print(
-#                 f"uh what? duplicate client session id? {client_session_id=} {user_id=}"
-#             )
-#         return False
-
-#     def _is_user_active(self, user_id: str) -> bool:
-#         active_users = set(
-#             client_session.user_id
-#             for client_session in self.active_client_sessions_by_client_id.values()
-#         )
-#         return user_id in active_users
-
-#     def end_client_session(self, client_session_id: str) -> None:
-#         client_session = self.active_client_sessions_by_client_id.get(client_session_id)
-#         if client_session:
-#             user_id = client_session.user_id
-#             self.active_client_sessions_by_client_id.pop(client_session_id)
-#             if user_id and not self._is_user_active(user_id):
-#                 user = self.users_manager.get_user(user_id)
-#                 if user:
-#                     # self.users_manager.stop_user(user)
-#                     pass
-#         else:
-#             # TODO log something?
-#             pass
-
-#     # def _format_chat_history_as_list_of_messages(
-#     #     self, chat_history: ChatMessageHistory, client_id: str
-#     # ) -> list[Message]:
-#     #     formatted_chat_history: list[Message] = []
-#     #     for message in chat_history.messages:
-#     #         assert isinstance(message.content, str)
-#     #         if isinstance(message, AIMessage):
-#     #             formatted_chat_history.append(GptHomeMessage(text=message.content))
-#     #         elif isinstance(message, HumanMessage):
-#     #             formatted_chat_history.append(
-#     #                 ClientMessage(text=message.content, senderId=client_id)
-#     #             )
-#     #         else:
-#     #             raise Exception(
-#     #                 f"Unexpected message type: {message=}. Skipping the message."
-#     #             )
-#     #     return formatted_chat_history
-
-#     def ask_clients_gpt_home(self, client_message: ClientMessage) -> list[Message]:
-#         client_session = self.active_client_sessions_by_client_id.get(
-#             client_message.sender_id
-#         )
-#         if client_session and client_session.user_id:
-#             user = self.users_manager.get_user(client_session.user_id)
-#             if user:
-#                 return []
-#                 # return user.ask_gpt_home(client_message.text)
-#         return [
-#             GptHomeSystemMessage(text=f"invalid client id: {client_message.sender_id=}")
-#         ]
-
-
-# cm = ClientSessionsManager()
-
-
-class CreateUserRequestBody(BaseModel):
-    ai_name: str
-    human_name: str
-    user_email: str
-    user_password: str
-
-
-# @app.post("/user")
-# async def create_user(
-#     create_user_request_body: CreateUserRequestBody,
-# ) -> RegisteredUser:
-#     assert users_manager
-#     return await users_manager.create_user(
-#         user_email=create_user_request_body.user_email,
-#         user_password=create_user_request_body.user_password,
-#         human_name=create_user_request_body.human_name,
-#         ai_name=create_user_request_body.ai_name,
-#     )
-
-
-# class DeleteUserRequestBody(BaseModel):
-#     user_id: str
-
-
-# @app.delete("/user")
-# def delete_user(delete_user_request_body: DeleteUserRequestBody) -> None:
-#     users_manager.delete_user(user_id=delete_user_request_body.user_id)
-
-
-# @app.get("/chats")
-# def get_users_chats(user_id: str, start: int, end: int) -> list[ChatPreview]:
-#     if users_manager.get_user(user_id):
-#         return users_manager.get_user_chat_previews(user_id, start, end)
-#     return []
-
-
-# class CreateClientSessionResponseBody(BaseModel):
-#     ready: bool
-
-
-# @app.post("/registered_user_client_session")
-# def create_client_session(
-#     client_session_request_body: RegisteredUserClientSession,
-# ) -> CreateClientSessionResponseBody:
-#     # TODO return something sensible based on whether the user_id is valid
-#     ready = cm.add_new_client_session(
-#         client_session_id=client_session_request_body.client_session_id,
-#         user_id=client_session_request_body.user_id,
-#     )
-#     return CreateClientSessionResponseBody(ready=ready)
-
-
-# @app.post("/ask_gpt_home")
-# def ask_gpt_home(client_message: ClientMessage) -> list[Message]:
-#     return cm.ask_clients_gpt_home(client_message)
-
-
-# @app.delete("/registered_user_client_session")
-# def end_client_session(
-#     end_client_session_request_body: ClientSession,
-# ) -> None:
-#     cm.end_client_session(
-#         client_session_id=end_client_session_request_body.client_session_id
-#     )
-
-
-# @app.post("/_inspect")
-# def _inspect() -> None:
-#     breakpoint()
-
-
 def main() -> None:
     """
-    Don't ask why, but this function needs to be beneath all the endpoint definitions.
+    This function needs to be beneath all the endpoint definitions.
     """
     import uvicorn
 
