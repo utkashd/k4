@@ -81,7 +81,7 @@ class UsersManagerAsync(AsyncObject):
                 # > docker exec -it gpt-home-dev-postgres bash
                 # > > psql -U postgres
                 # > > > \c postgres
-                # > > > drop table mydb.users;
+                # > > > drop table users;
                 # `exit` a couple times to return to your terminal
                 # TODO should have a script or something for modifying tables elegantly
                 await connection.execute("""
