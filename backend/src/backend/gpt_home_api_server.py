@@ -158,6 +158,8 @@ class FirstAdminDetails(BaseModel):
 async def create_first_admin_user(first_admin_details: FirstAdminDetails):
     assert isinstance(users_manager, UsersManagerAsync)
     if await users_manager.get_five_users_async():
+        # TODO replace this check with something like:
+        # select exists (select * from users where is_user_deactivated=false limit 1) as has_data;
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="You can't try to create a user through this endpoint because the first user has already been created.",
