@@ -57,9 +57,9 @@ class RegistrationAttempt(BaseModel):
     """
 
     desired_user_email: EmailStr
-    desired_user_password: SecretStr = Field(max_length=32)
-    desired_human_name: str = Field(max_length=32)
-    desired_ai_name: str = Field(max_length=16)
+    desired_user_password: SecretStr = Field(max_length=64)
+    desired_human_name: str = Field(max_length=64)
+    desired_ai_name: str = Field(max_length=64)
 
 
 class UsersManagerAsync(AsyncObject):
@@ -223,7 +223,8 @@ class UsersManagerAsync(AsyncObject):
         hashed_desired_user_password: SecretStr,
         desired_human_name: str,
         desired_ai_name: str,
-    ) -> NonAdminUser:
+        is_user_an_admin: bool = False,
+    ) -> RegisteredUser:
         async def _are_new_user_details_valid_with_reasons(
             desired_user_email: EmailStr,
             hashed_desired_user_password: SecretStr,
@@ -261,14 +262,14 @@ class UsersManagerAsync(AsyncObject):
             connection = cast(asyncpg.Connection, connection)
             try:
                 async with connection.transaction():
-                    user = NonAdminUser(
+                    user = RegisteredUser(
                         user_id=0,
                         user_email=desired_user_email,
                         hashed_user_password=hashed_desired_user_password,
                         human_name=desired_human_name,
                         ai_name=desired_ai_name,
                         is_user_email_verified=False,
-                        is_user_an_admin=False,
+                        is_user_an_admin=is_user_an_admin,
                         is_user_deactivated=False,
                     )
                     user_row_params = user.model_dump()
@@ -285,6 +286,8 @@ class UsersManagerAsync(AsyncObject):
                     new_registered_user_row = await connection.fetchrow(
                         query, *user_row_params.values()
                     )
+                    if is_user_an_admin:
+                        return AdminUser(**new_registered_user_row)
                     return NonAdminUser(**new_registered_user_row)
             except asyncpg.exceptions.UniqueViolationError:
                 # This code means we attempted to insert a row that conflicted

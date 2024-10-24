@@ -3,7 +3,7 @@ import datetime
 from fastapi import Depends, FastAPI, HTTPException, status
 from jose import JWTError, jwt
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr, SecretStr
+from pydantic import BaseModel, EmailStr, Field, SecretStr
 from user_management import (
     AdminUser,
     NonAdminUser,
@@ -147,6 +147,49 @@ async def login_for_access_token(
         minutes_after_which_access_token_expires=JWT_EXPIRE_MINUTES,
     )
     return Token(access_token=access_token, token_type="bearer")
+
+
+class FirstAdminDetails(BaseModel):
+    desired_user_email: EmailStr
+    desired_user_password: SecretStr = Field(max_length=32)
+
+
+@app.post("/first_admin")
+async def create_first_admin_user(first_admin_details: FirstAdminDetails):
+    assert isinstance(users_manager, UsersManagerAsync)
+    if await users_manager.get_five_users_async():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You can't try to create a user through this endpoint because the first user has already been created.",
+        )
+    hashed_desired_password = SecretStr(
+        pwd_context.hash(first_admin_details.desired_user_password.get_secret_value())
+    )
+    return await users_manager.create_user(
+        desired_user_email=first_admin_details.desired_user_email,
+        hashed_desired_user_password=hashed_desired_password,
+        desired_human_name="admin",
+        desired_ai_name="U",
+        is_user_an_admin=True,
+    )
+
+
+@app.post("/admin")
+async def create_admin_user(
+    new_user_details: RegistrationAttempt,
+    current_admin_user: AdminUser = Depends(get_current_admin_user),
+) -> RegisteredUser:
+    assert isinstance(users_manager, UsersManagerAsync)
+    hashed_desired_password = SecretStr(
+        pwd_context.hash(new_user_details.desired_user_password.get_secret_value())
+    )
+    return await users_manager.create_user(
+        desired_user_email=new_user_details.desired_user_email,
+        hashed_desired_user_password=hashed_desired_password,
+        desired_human_name=new_user_details.desired_human_name,
+        desired_ai_name=new_user_details.desired_ai_name,
+        is_user_an_admin=True,
+    )
 
 
 @app.post("/user")
