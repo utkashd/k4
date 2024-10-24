@@ -5,6 +5,8 @@ from jose import JWTError, jwt
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, SecretStr
 from user_management import (
+    AdminUser,
+    NonAdminUser,
     RegisteredUser,
     RegistrationAttempt,
     UsersManagerAsync,
@@ -17,63 +19,8 @@ from fastapi.security import (
     OAuth2PasswordRequestForm,
 )
 
-SECRET_KEY = "18e8e912cce442d5fe6af43a003dedd7cedd7248efc16ac926f21f8f940398a8"  # Generated with `openssl rand -hex 32`
-
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-
-class TokenData(BaseModel):
-    user_email: EmailStr
-
-
-pwd_context = CryptContext(schemes=["bcrypt"])
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 users_manager: UsersManagerAsync | None = None
-
-
-def is_password_correct(
-    unhashed_user_password: SecretStr, hashed_user_password: SecretStr
-) -> bool:
-    return pwd_context.verify(
-        unhashed_user_password.get_secret_value(),
-        hashed_user_password.get_secret_value(),
-    )
-
-
-def create_access_token(
-    data: dict, minutes_after_which_access_token_expires: int
-) -> str:
-    data_to_encode = data.copy()
-    time_access_token_expires = datetime.datetime.now(
-        datetime.UTC
-    ) + datetime.timedelta(minutes=minutes_after_which_access_token_expires)
-
-    data_to_encode.update({"exp": time_access_token_expires})
-    encoded_jwt = jwt.encode(data_to_encode, SECRET_KEY, algorithm="HS256")
-    return encoded_jwt
-
-
-async def get_current_user(token: str = Depends(oauth2_scheme)):
-    credential_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-    except JWTError:
-        raise credential_exception
-
-    user_email = payload.get("user_email")
-    if not user_email or not isinstance(user_email, str):
-        raise credential_exception
-
-    assert isinstance(users_manager, UsersManagerAsync)
-    return await users_manager.get_user_by_email(user_email)
 
 
 @asynccontextmanager
@@ -101,14 +48,112 @@ app.add_middleware(
 )
 
 
-@app.get("/five_users")
-async def get_five_users() -> list[RegisteredUser]:
+SECRET_KEY = "18e8e912cce442d5fe6af43a003dedd7cedd7248efc16ac926f21f8f940398a8"
+# TODO generate this when we start for the first time and save it to local machine
+# Generated with `openssl rand -hex 32`
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+
+class TokenData(BaseModel):
+    user_email: EmailStr
+
+
+pwd_context = CryptContext(schemes=["bcrypt"])
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+
+async def get_current_admin_user(token: str = Depends(oauth2_scheme)) -> AdminUser:
+    current_user = await get_current_user(token)
+    if not isinstance(current_user, AdminUser):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"User {current_user.user_email} is not an administrator.",
+        )
+    return current_user
+
+
+async def get_current_user(
+    token: str = Depends(oauth2_scheme),
+) -> AdminUser | NonAdminUser:
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user_email = payload.get("user_email")
+    if not user_email or not isinstance(user_email, str):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unexpected issue encountered when attempting to validate credentials.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     assert isinstance(users_manager, UsersManagerAsync)
-    return await users_manager.get_five_users_async()
+    return await users_manager.get_user_by_email(user_email)
+
+
+@app.post("/token")
+async def login_for_access_token(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+) -> Token:
+    # TODO consider swapping for sessions: https://evertpot.com/jwt-is-a-bad-default/
+    JWT_EXPIRE_MINUTES = 30
+    user_email = form_data.username
+    unhashed_user_password = SecretStr(form_data.password)
+
+    assert isinstance(users_manager, UsersManagerAsync)
+    user = await users_manager.get_user_by_email(user_email)
+
+    def is_password_correct(
+        unhashed_user_password: SecretStr, hashed_user_password: SecretStr
+    ) -> bool:
+        return pwd_context.verify(
+            unhashed_user_password.get_secret_value(),
+            hashed_user_password.get_secret_value(),
+        )
+
+    if not is_password_correct(
+        unhashed_user_password=unhashed_user_password,
+        hashed_user_password=user.hashed_user_password,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    def create_access_token(
+        data: dict, minutes_after_which_access_token_expires: int
+    ) -> str:
+        data_to_encode = data.copy()
+        time_access_token_expires = datetime.datetime.now(
+            datetime.UTC
+        ) + datetime.timedelta(minutes=minutes_after_which_access_token_expires)
+
+        data_to_encode.update({"exp": time_access_token_expires})
+        encoded_jwt = jwt.encode(data_to_encode, SECRET_KEY, algorithm="HS256")
+        return encoded_jwt
+
+    access_token = create_access_token(
+        data={"user_email": user.user_email},
+        minutes_after_which_access_token_expires=JWT_EXPIRE_MINUTES,
+    )
+    return Token(access_token=access_token, token_type="bearer")
 
 
 @app.post("/user")
-async def create_user(new_user_details: RegistrationAttempt) -> RegisteredUser:
+async def create_user(
+    new_user_details: RegistrationAttempt,
+    current_admin_user: AdminUser = Depends(get_current_admin_user),
+) -> RegisteredUser:
     assert isinstance(users_manager, UsersManagerAsync)
     hashed_desired_password = SecretStr(
         pwd_context.hash(new_user_details.desired_user_password.get_secret_value())
@@ -121,34 +166,6 @@ async def create_user(new_user_details: RegistrationAttempt) -> RegisteredUser:
     )
 
 
-@app.post("/token")
-async def login_for_access_token(
-    form_data: OAuth2PasswordRequestForm = Depends(),
-) -> Token:
-    JWT_EXPIRE_MINUTES = 30
-    user_email = form_data.username
-    unhashed_user_password = SecretStr(form_data.password)
-
-    assert isinstance(users_manager, UsersManagerAsync)
-    user = await users_manager.get_user_by_email(user_email)
-
-    if not is_password_correct(
-        unhashed_user_password=unhashed_user_password,
-        hashed_user_password=user.hashed_user_password,
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    access_token = create_access_token(
-        data={"user_email": user.user_email},
-        minutes_after_which_access_token_expires=JWT_EXPIRE_MINUTES,
-    )
-    return Token(access_token=access_token, token_type="bearer")
-
-
 @app.get("/user/me")
 async def get_current_user_info(
     current_user: RegisteredUser = Depends(get_current_user),
@@ -156,10 +173,12 @@ async def get_current_user_info(
     return current_user
 
 
-@app.get("/test")
-async def get_test_user(user_email: EmailStr):
+@app.get("/five_users")
+async def get_five_users(
+    current_admin_user=Depends(get_current_admin_user),
+) -> list[RegisteredUser]:
     assert isinstance(users_manager, UsersManagerAsync)
-    return await users_manager.get_user_by_email(user_email)
+    return await users_manager.get_five_users_async()
 
 
 def main() -> None:
