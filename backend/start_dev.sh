@@ -37,7 +37,7 @@ if [[ ! $( docker image ls postgres | grep postgres ) ]] ; then
 elif [[ ! $( docker container ls -al | grep gpt-home-dev-postgres ) ]] ; then
     printf "\t${YELLOW}No postgres container found. Creating a container and starting it now.${END_COLOR}\n"
     set -x
-    docker run --name gpt-home-dev-postgres -e POSTGRES_PASSWORD=postgres -v postgresql-data:/var/lib/postgresql/data -p 5432:5432 -d postgres
+    docker run --name gpt-home-dev-postgres -e POSTGRES_PASSWORD=postgres -e PAGER="less -S" -v postgresql-data:/var/lib/postgresql/data -p 5432:5432 -d postgres
     { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
 elif [[ ! $( docker ps -q -f name=gpt-home-dev-postgres ) ]] ; then
     printf "\t${YELLOW}postgres docker container found, but the container is not running. Starting it now.${END_COLOR}\n"

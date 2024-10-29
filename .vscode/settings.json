@@ -7,6 +7,9 @@
     "[python]": {
         "editor.defaultFormatter": "charliermarsh.ruff"
     },
+    "[markdown]": {
+        "editor.defaultFormatter": "DavidAnson.vscode-markdownlint"
+    },
     "rewrap.autoWrap.enabled": true,
     "autoDocstring.docstringFormat": "numpy",
     "autoDocstring.startOnNewLine": true,

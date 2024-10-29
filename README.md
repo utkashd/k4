@@ -1,42 +1,53 @@
+# Why a company should like this
+
+- data privacy: deploy your own LLM (full privacy) or trust an API provider to not store
+  the API queries
+- customizable and extensible for company-specific use-cases
+- because this is self-hosted, not subject to many complex regulations that ruin the
+  experience or add a bunch of costs. internal tools can sometimes win
+- deployed in and only accessible through your private cloud; no unauthorized devices or
+  users can even see it, let alone attempt to log in
+- no contract renewal pains, no switching costs from me
+
 Authentication
 
--   [ ] Switch to refresh token + short-lived access token
--   [ ] hash user passwords
+- [ ] Switch to refresh token + short-lived access token
+- [ ] hash user passwords
 
--   [ ] documentation
-    -   [ ] setup guide (improve names of entities)
--   [ ] improve hass tool store:
-    -   [x] summary
-    -   [ ] test vacuum, climate, media controls. find other stuff worth testing
--   [x] tear out factoid stuff for now
--   display chat history
--   [ ] deployment
-    -   [ ] single docker container
-    -   [ ] docker compose
--   [x] display system messages
+- [ ] documentation
+  - [ ] setup guide (improve names of entities)
+- [ ] improve hass tool store:
+  - [x] summary
+  - [ ] test vacuum, climate, media controls. find other stuff worth testing
+- [x] tear out factoid stuff for now
+- display chat history
+- [ ] deployment
+  - [ ] single docker container
+  - [ ] docker compose
+- [x] display system messages
 
--   address all code TODOs
--   improve css/styling
--   remove the websocket proxy
--   improve tool store: include summary of tools available
--   auth for users? (use something more secure and out-of-the-box, like google?)
--   fix websocket bugs
--   avoid race conditions with file io stuff
--   option to keep gpt home running (uses more memory, less compute)
--   better device/entity descriptions (it keeps thinking that smart plugs are light
+- address all code TODOs
+- improve css/styling
+- remove the websocket proxy
+- improve tool store: include summary of tools available
+- auth for users? (use something more secure and out-of-the-box, like google?)
+- fix websocket bugs
+- avoid race conditions with file io stuff
+- option to keep gpt home running (uses more memory, less compute)
+- better device/entity descriptions (it keeps thinking that smart plugs are light
     switches)
--   make easily extensible. marketplace for additional features
--   avoid assertions in python backend
--   first-time flow for setting system message (pronouns, "act as X character" nonsense)
+- make easily extensible. marketplace for additional features
+- avoid assertions in python backend
+- first-time flow for setting system message (pronouns, "act as X character" nonsense)
 
 Things I've learned
 
--   docker: more comfortable with command line, better understanding of containers,
+- docker: more comfortable with command line, better understanding of containers,
     images, etc. more comfortable with writing dockerfiles
--   SQL: prepared statements, connection pools
--   FastAPI + Uvicorn, async-await w python
--   Basic React webapp
--   python package management (with uv)
+- SQL: prepared statements, connection pools
+- FastAPI + Uvicorn, async-await w python
+- Basic React webapp
+- python package management (with uv)
 
 # GptHome
 

@@ -1,15 +1,28 @@
+from asyncio import wait_for
 from contextlib import asynccontextmanager
 import datetime
-from fastapi import Depends, FastAPI, HTTPException, status
+import json
+import asyncpg  # type: ignore[import-untyped]
+from backend_commons.messages import ClientMessage
+from fastapi import (
+    Depends,
+    FastAPI,
+    HTTPException,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from jose import JWTError, jwt
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field, SecretStr
+from backend.src.backend.connection_management import ConnectionManager
+from backend.src.backend.message_management import MessagesManager
 from user_management import (
     AdminUser,
     NonAdminUser,
     RegisteredUser,
     RegistrationAttempt,
-    UsersManagerAsync,
+    UsersManager,
 )
 from passlib.context import (
     CryptContext,
@@ -20,7 +33,9 @@ from fastapi.security import (
 )
 
 
-users_manager: UsersManagerAsync | None = None
+users_manager = UsersManager()
+messages_manager = MessagesManager()
+connection_manager = ConnectionManager()
 
 
 @asynccontextmanager
@@ -30,12 +45,23 @@ async def lifespan(app: FastAPI):
         we do this because the `finally` clause will *always* be run, even if there's an
         error somewhere during the `yield`
         """
-        global users_manager
-        users_manager = await UsersManagerAsync()  # type: ignore[misc]
+        postgres_connection_pool: asyncpg.Pool = await asyncpg.create_pool(  # type: ignore[annotation-unchecked]
+            host="localhost",
+            port=5432,
+            user="postgres",
+            password="postgres",
+            database="postgres",
+            min_size=1,
+            max_size=5,
+        )
+        # TODO error handling if connection fails. retry?
+        await users_manager.set_connection_pool_and_start(postgres_connection_pool)
+        await messages_manager.set_connection_pool_and_start(postgres_connection_pool)
         yield  # everything above the yield is for startup, everything after is for shutdown
     finally:
-        assert isinstance(users_manager, UsersManagerAsync)
-        await users_manager.end()
+        await wait_for(
+            postgres_connection_pool.close(), 60
+        )  # wait 60 seconds for the connections to complete whatever they're doing and close
 
 
 app = FastAPI(lifespan=lifespan)
@@ -76,6 +102,18 @@ async def get_current_admin_user(token: str = Depends(oauth2_scheme)) -> AdminUs
     return current_user
 
 
+async def get_current_non_admin_user(
+    token: str = Depends(oauth2_scheme),
+) -> NonAdminUser:
+    current_user = await get_current_user(token)
+    if not isinstance(current_user, NonAdminUser):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"User {current_user.user_email} is an administrator.",
+        )
+    return current_user
+
+
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
 ) -> AdminUser | NonAdminUser:
@@ -96,7 +134,7 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    assert isinstance(users_manager, UsersManagerAsync)
+    assert isinstance(users_manager, UsersManager)
     return await users_manager.get_user_by_email(user_email)
 
 
@@ -109,7 +147,7 @@ async def login_for_access_token(
     user_email = form_data.username
     unhashed_user_password = SecretStr(form_data.password)
 
-    assert isinstance(users_manager, UsersManagerAsync)
+    assert isinstance(users_manager, UsersManager)
     user = await users_manager.get_user_by_email(user_email)
 
     def is_password_correct(
@@ -156,13 +194,11 @@ class FirstAdminDetails(BaseModel):
 
 @app.post("/first_admin")
 async def create_first_admin_user(first_admin_details: FirstAdminDetails):
-    assert isinstance(users_manager, UsersManagerAsync)
-    if await users_manager.get_five_users_async():
-        # TODO replace this check with something like:
-        # select exists (select * from users where is_user_deactivated=false limit 1) as has_data;
+    assert isinstance(users_manager, UsersManager)
+    if await users_manager.does_at_least_one_admin_user_exist():
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You can't try to create a user through this endpoint because the first user has already been created.",
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can't try to create a user through this endpoint because an admin user has already been created.",
         )
     hashed_desired_password = SecretStr(
         pwd_context.hash(first_admin_details.desired_user_password.get_secret_value())
@@ -181,7 +217,7 @@ async def create_admin_user(
     new_user_details: RegistrationAttempt,
     current_admin_user: AdminUser = Depends(get_current_admin_user),
 ) -> RegisteredUser:
-    assert isinstance(users_manager, UsersManagerAsync)
+    assert isinstance(users_manager, UsersManager)
     hashed_desired_password = SecretStr(
         pwd_context.hash(new_user_details.desired_user_password.get_secret_value())
     )
@@ -199,7 +235,7 @@ async def create_user(
     new_user_details: RegistrationAttempt,
     current_admin_user: AdminUser = Depends(get_current_admin_user),
 ) -> RegisteredUser:
-    assert isinstance(users_manager, UsersManagerAsync)
+    assert isinstance(users_manager, UsersManager)
     hashed_desired_password = SecretStr(
         pwd_context.hash(new_user_details.desired_user_password.get_secret_value())
     )
@@ -218,12 +254,29 @@ async def get_current_user_info(
     return current_user
 
 
-@app.get("/five_users")
-async def get_five_users(
-    current_admin_user=Depends(get_current_admin_user),
-) -> list[RegisteredUser]:
-    assert isinstance(users_manager, UsersManagerAsync)
-    return await users_manager.get_five_users_async()
+@app.websocket("/chat")
+async def websocket_endpoint(
+    client_websocket: WebSocket,
+    current_user: NonAdminUser = Depends(get_current_non_admin_user),
+) -> None:
+    user_id = current_user.user_id
+    # Accept the connection from the client
+    session_id = await connection_manager.connect(client_websocket, user_id)
+    try:
+        # immediately tell them their client id
+        await connection_manager.send_custom_message_to_user(
+            user_id=user_id, json={"session_id": session_id}
+        )
+        while True:
+            # Receive the message from the client
+            data = json.loads(await client_websocket.receive_text())
+            client_message = ClientMessage(**data)
+            await connection_manager.acknowledge_and_reply_to_client_message(
+                user_id, client_message
+            )
+    except WebSocketDisconnect:
+        # This means the user disconnected, e.g., closed the browser tab
+        await connection_manager.disconnect(user_id, session_id)
 
 
 def main() -> None:
