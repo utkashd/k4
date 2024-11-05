@@ -15,8 +15,8 @@ from fastapi import (
 from jose import JWTError, jwt
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field, SecretStr
-from backend.src.backend.connection_management import ConnectionManager
-from backend.src.backend.message_management import MessagesManager
+from connection_management import ConnectionManager
+from message_management import MessagesManager
 from user_management import (
     AdminUser,
     NonAdminUser,
@@ -31,7 +31,6 @@ from fastapi.security import (
     OAuth2PasswordBearer,
     OAuth2PasswordRequestForm,
 )
-
 
 users_manager = UsersManager()
 messages_manager = MessagesManager()
@@ -217,7 +216,6 @@ async def create_admin_user(
     new_user_details: RegistrationAttempt,
     current_admin_user: AdminUser = Depends(get_current_admin_user),
 ) -> RegisteredUser:
-    assert isinstance(users_manager, UsersManager)
     hashed_desired_password = SecretStr(
         pwd_context.hash(new_user_details.desired_user_password.get_secret_value())
     )
@@ -254,6 +252,14 @@ async def get_current_user_info(
     return current_user
 
 
+@app.get("/chat")
+async def get_chat_by_chat_id(
+    chat_id: int, current_user: NonAdminUser = Depends(get_current_non_admin_user)
+):
+    # TODO reverse-paginate
+    return await messages_manager.get_messages_of_chat(chat_id)
+
+
 @app.websocket("/chat")
 async def websocket_endpoint(
     client_websocket: WebSocket,
@@ -271,7 +277,7 @@ async def websocket_endpoint(
             # Receive the message from the client
             data = json.loads(await client_websocket.receive_text())
             client_message = ClientMessage(**data)
-            await connection_manager.acknowledge_and_reply_to_client_message(
+            await connection_manager.save_and_acknowledge_and_reply_to_client_message(
                 user_id, client_message
             )
     except WebSocketDisconnect:

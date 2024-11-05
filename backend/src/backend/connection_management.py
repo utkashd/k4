@@ -4,6 +4,7 @@ from rich.logging import RichHandler
 from typing import Any
 from backend_commons.messages import (
     ClientMessage,
+    GptHomeConfirmingReceiptOfClientMessage,
     GptHomeMessage,
     Message,
 )
@@ -11,7 +12,7 @@ import uuid
 from dataclasses import dataclass
 from fastapi import WebSocket
 
-from backend.src.backend.message_management import MessagesManager
+from message_management import MessagesManager
 
 
 @dataclass
@@ -37,7 +38,7 @@ class ConnectionManager:
         self.active_connections_by_user_id: dict[
             int, set[GptHomeServerClientConnection]
         ] = defaultdict(set)
-        self.messages_manager: MessagesManager = MessagesManager("messages")
+        self.messages_manager: MessagesManager = MessagesManager()
 
     async def connect(self, new_client_websocket: WebSocket, user_id: int) -> uuid.UUID:
         # Accept the connection
@@ -76,13 +77,26 @@ class ConnectionManager:
         for connection in connections:
             await connection.session_websocket.send_json(message.model_dump_json())
 
-    async def acknowledge_and_reply_to_client_message(
+    async def save_and_acknowledge_and_reply_to_client_message(
         self, user_id: int, client_message: ClientMessage
     ) -> None:
         # tell the client that we received their message by sending it back to them
         # forward the message to gpt_home
+        await self.messages_manager.save_client_message_to_db(
+            chat_id=client_message.chat_id, user_id=user_id, text=client_message.text
+        )
 
-        await self.send_message_to_user(user_id, message=client_message)
+        async def acknowledge_message_receipt(
+            user_id: int, client_message: ClientMessage
+        ):
+            acknowledge_message = GptHomeConfirmingReceiptOfClientMessage(
+                client_generated_uuid=client_message.client_generated_uuid
+            )
+            await self.send_custom_message_to_user(
+                user_id, json=acknowledge_message.model_dump()
+            )
+
+        await acknowledge_message_receipt(user_id, client_message)
         await self.send_message_to_user(
             user_id, message=GptHomeMessage(text="sup homie")
         )

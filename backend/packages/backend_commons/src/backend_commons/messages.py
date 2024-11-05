@@ -1,11 +1,11 @@
-from datetime import datetime
 from pydantic import BaseModel, Field, RootModel
+from uuid import UUID
 
 
 class Message(BaseModel):
     text: str
     sender_id: str
-    time_message_was_sent: float = datetime.now().timestamp()
+    chat_id: int = 1
 
 
 class Messages(RootModel):  # type: ignore[type-arg]
@@ -17,7 +17,11 @@ class ClientMessage(Message):
     A message from a client
     """
 
-    pass
+    client_generated_uuid: UUID
+
+
+class GptHomeConfirmingReceiptOfClientMessage(BaseModel):
+    client_generated_uuid: UUID
 
 
 class GptHomeMessage(Message):

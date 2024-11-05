@@ -17,14 +17,14 @@ declare global {
  * In the browser console, I `await _inspectBackend()` and then move to the
  * terminal for the api server.
  */
-var _inspectBackend = async () => {
-    try {
-        await axios.post("http://localhost:8000/_inspect");
-    } catch (error) {
-        console.log(error);
-    }
-};
-globalThis._inspectBackend = _inspectBackend;
+// var _inspectBackend = async () => {
+//     try {
+//         await axios.post("http://localhost:8000/_inspect");
+//     } catch (error) {
+//         console.log(error);
+//     }
+// };
+// globalThis._inspectBackend = _inspectBackend;
 
 function App() {
     const [cookies, setCookie, _removeCookie] = useCookies(["myUser"]);

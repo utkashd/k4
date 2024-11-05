@@ -30,9 +30,7 @@ class RegisteredUser(BaseModel):
     """
 
     user_id: int
-    user_email: EmailStr = Field(
-        description="idx unique"
-    )  # Hack: I'm using the description to annotate this field and say that I want an index created for it in the DB
+    user_email: EmailStr  # index, unique
     hashed_user_password: SecretStr
     human_name: str = Field(min_length=1, max_length=64)
     ai_name: str = Field(min_length=1, max_length=64)
@@ -72,15 +70,28 @@ class UsersManager(PostgresTableManager):
     ```
     """
 
-    def _get_table_name(self) -> str:
-        return "users"
+    @property
+    def create_table_query(self) -> str:
+        # TODO replace the varchar(x) with text datatype and CHECK clauses
+        return """
+        CREATE TABLE IF NOT EXISTS users (
+            user_id SERIAL PRIMARY KEY,
+            user_email VARCHAR(255) NOT NULL UNIQUE,
+            hashed_user_password VARCHAR(255) NOT NULL,
+            human_name VARCHAR(64) NOT NULL,
+            ai_name VARCHAR(64),
+            is_user_email_verified BOOLEAN NOT NULL,
+            is_user_deactivated BOOLEAN NOT NULL,
+            is_user_an_admin BOOLEAN NOT NULL
+        )
+        """
 
-    def _get_pydantic_schema(self) -> type[BaseModel]:
-        return RegisteredUser
+    @property
+    def create_indexes_queries(self):
+        return ("CREATE INDEX IF NOT EXISTS idx_user_email ON users(user_email)",)
 
     async def does_at_least_one_admin_user_exist(self) -> bool:
-        async with self.get_connection_pool().acquire() as connection:
-            connection = cast(asyncpg.Connection, connection)
+        async with self.get_connection() as connection:
             admin_user_or_none = await connection.fetchrow(
                 "SELECT * FROM users WHERE is_user_deactivated=false AND is_user_an_admin=true LIMIT 1"
             )
@@ -129,38 +140,36 @@ class UsersManager(PostgresTableManager):
         if not are_new_user_details_valid:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=issues)
 
-        async with self.get_connection_pool().acquire() as connection:
-            connection = cast(asyncpg.Connection, connection)
+        async with self.get_transaction_connection() as connection:
             try:
-                async with connection.transaction():
-                    user = RegisteredUser(
-                        user_id=0,
-                        user_email=desired_user_email,
-                        hashed_user_password=hashed_desired_user_password,
-                        human_name=desired_human_name,
-                        ai_name=desired_ai_name,
-                        is_user_email_verified=False,
-                        is_user_an_admin=is_user_an_admin,
-                        is_user_deactivated=False,
-                    )
-                    user_row_params = user.model_dump()
-                    user_row_params.pop("user_id")  # Let the DB assign a user_id
-                    for key, value in user_row_params.items():
-                        if isinstance(value, SecretStr):
-                            user_row_params[key] = value.get_secret_value()
-                    positional_arg_idxs = ", ".join(
-                        f"${idx+1}" for idx in range(len(user_row_params))
-                    )  # results in "$1, $2, $3, $4, $5"
-                    query = f'INSERT INTO USERS ({', '.join(user_row_params)}) VALUES ({positional_arg_idxs}) RETURNING *'
-                    # query = "INSERT INTO users (user_email, hashed_user_password,
-                    # human_name, ai_name, is_user_email_verified) VALUES ($1, $2, $3,
-                    # $4, $5) RETURNING *"
-                    new_registered_user_row = await connection.fetchrow(
-                        query, *user_row_params.values()
-                    )
-                    if is_user_an_admin:
-                        return AdminUser(**new_registered_user_row)
-                    return NonAdminUser(**new_registered_user_row)
+                user = RegisteredUser(
+                    user_id=0,
+                    user_email=desired_user_email,
+                    hashed_user_password=hashed_desired_user_password,
+                    human_name=desired_human_name,
+                    ai_name=desired_ai_name,
+                    is_user_email_verified=False,
+                    is_user_an_admin=is_user_an_admin,
+                    is_user_deactivated=False,
+                )
+                user_row_params = user.model_dump()
+                user_row_params.pop("user_id")  # Let the DB assign a user_id
+                for key, value in user_row_params.items():
+                    if isinstance(value, SecretStr):
+                        user_row_params[key] = value.get_secret_value()
+                positional_arg_idxs = ", ".join(
+                    f"${idx+1}" for idx in range(len(user_row_params))
+                )  # results in "$1, $2, $3, $4, $5"
+                query = f'INSERT INTO USERS ({', '.join(user_row_params)}) VALUES ({positional_arg_idxs}) RETURNING *'
+                # query = "INSERT INTO users (user_email, hashed_user_password,
+                # human_name, ai_name, is_user_email_verified) VALUES ($1, $2, $3,
+                # $4, $5) RETURNING *"
+                new_registered_user_row = await connection.fetchrow(
+                    query, *user_row_params.values()
+                )
+                if is_user_an_admin:
+                    return AdminUser(**new_registered_user_row)
+                return NonAdminUser(**new_registered_user_row)
             except asyncpg.exceptions.UniqueViolationError as e:
                 # This code means we attempted to insert a row that conflicted
                 # with another row. That only happens if the email address is already taken
@@ -171,7 +180,7 @@ class UsersManager(PostgresTableManager):
                 )
 
     async def get_user_by_email(self, user_email: EmailStr) -> AdminUser | NonAdminUser:
-        async with self.get_connection_pool().acquire() as connection:
+        async with self._get_connection_pool().acquire() as connection:
             connection = cast(asyncpg.Connection, connection)
             row = await connection.fetchrow(
                 "SELECT * FROM users WHERE user_email=$1", user_email
