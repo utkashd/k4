@@ -12,7 +12,7 @@
 Authentication
 
 - [ ] Switch to refresh token + short-lived access token
-- [ ] hash user passwords
+- [x] hash user passwords
 
 - [ ] documentation
   - [ ] setup guide (improve names of entities)

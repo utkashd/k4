@@ -4,12 +4,12 @@ import axios from "axios";
 
 function UsersListItem({
     user,
-    refreshUsers,
+    // refreshUsers,
     myUser,
     setMyUser,
 }: {
     user: User;
-    refreshUsers: () => void;
+    // refreshUsers: () => void;
     myUser: User | null;
     setMyUser: (user: User | null) => void;
 }) {
@@ -36,7 +36,7 @@ function UsersListItem({
                 },
                 data: { user_id: userToDelete.user_id },
             });
-            refreshUsers();
+            // refreshUsers();
         } catch (error) {
             console.log("failed to delete a user", userToDelete, error);
         }
@@ -71,7 +71,6 @@ function UsersListItem({
 
 function UsersList({
     users,
-    refreshUsers,
     myUser,
     setMyUser,
 }: {
@@ -89,7 +88,7 @@ function UsersList({
                         <div key={user_id}>
                             <UsersListItem
                                 user={user}
-                                refreshUsers={refreshUsers}
+                                // refreshUsers={refreshUsers}
                                 myUser={myUser}
                                 setMyUser={setMyUser}
                             />

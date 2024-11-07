@@ -141,8 +141,10 @@ async def get_current_user(
 async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> Token:
-    # TODO consider swapping for sessions: https://evertpot.com/jwt-is-a-bad-default/
-    JWT_EXPIRE_MINUTES = 30
+    # TODO switch to sessions: https://evertpot.com/jwt-is-a-bad-default/
+    JWT_EXPIRE_MINUTES = (
+        120  # long only because I plan to remove this in favor of sessions
+    )
     user_email = form_data.username
     unhashed_user_password = SecretStr(form_data.password)
 
@@ -191,6 +193,11 @@ class FirstAdminDetails(BaseModel):
     desired_user_password: SecretStr = Field(max_length=32)
 
 
+@app.get("/is_setup_required")
+async def has_initial_setup_been_completed() -> bool:
+    return await users_manager.does_at_least_one_admin_user_exist()
+
+
 @app.post("/first_admin")
 async def create_first_admin_user(first_admin_details: FirstAdminDetails):
     assert isinstance(users_manager, UsersManager)
@@ -199,16 +206,19 @@ async def create_first_admin_user(first_admin_details: FirstAdminDetails):
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can't try to create a user through this endpoint because an admin user has already been created.",
         )
-    hashed_desired_password = SecretStr(
-        pwd_context.hash(first_admin_details.desired_user_password.get_secret_value())
-    )
-    return await users_manager.create_user(
-        desired_user_email=first_admin_details.desired_user_email,
-        hashed_desired_user_password=hashed_desired_password,
-        desired_human_name="admin",
-        desired_ai_name="U",
-        is_user_an_admin=True,
-    )
+    else:
+        hashed_desired_password = SecretStr(
+            pwd_context.hash(
+                first_admin_details.desired_user_password.get_secret_value()
+            )
+        )
+        return await users_manager.create_user(
+            desired_user_email=first_admin_details.desired_user_email,
+            hashed_desired_user_password=hashed_desired_password,
+            desired_human_name="admin",
+            desired_ai_name="U",
+            is_user_an_admin=True,
+        )
 
 
 @app.post("/admin")
