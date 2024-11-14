@@ -61,12 +61,15 @@ async def lifespan(app: FastAPI):
         await wait_for(
             postgres_connection_pool.close(), 60
         )  # wait 60 seconds for the connections to complete whatever they're doing and close
+        # TODO I think I actually want to wait for requests to finish. do that instead
 
 
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:5173"
+    ],  # (protocol, domain, port) defines an origin
     allow_credentials=True,
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
