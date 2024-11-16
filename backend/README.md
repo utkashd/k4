@@ -1,6 +1,6 @@
 ```bash
 # cd backend
-mkvirtualenv -p python3.12 gpt_home_backend
+mkvirtualenv -p python3.12 cyris_backend
 python -m pip install poetry
 poetry install
 ```
@@ -10,22 +10,22 @@ this project has made me despise langchain
 required env vars:
 
 ```bash
-export GPT_HOME_HA_BASE_URL="https://homeassistant.local:8123"
-export GPT_HOME_HA_TOKEN="long-lived api token here"
-export GPT_HOME_OPENAI_API_KEY="openai api key here"
+export CYRIS_HA_BASE_URL="https://homeassistant.local:8123"
+export CYRIS_HA_TOKEN="long-lived api token here"
+export CYRIS_OPENAI_API_KEY="openai api key here"
 ```
 
 to develop
 
 ```bash
-mkvirtualenv -p python3.12 gpt_home
+mkvirtualenv -p python3.12 cyris
 python -m pip install -e ".[dev]"
 ```
 
 optional env vars:
 
 ```bash
-export GPT_HOME_HA_IGNORE_SSL="1" # we only check for truthy values
+export CYRIS_HA_IGNORE_SSL="1" # we only check for truthy values
 ```
 
 <!-- install my project in editable mode w dev dependencies, so changes are live -->

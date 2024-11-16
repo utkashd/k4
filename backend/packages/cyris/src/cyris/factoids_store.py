@@ -1,8 +1,8 @@
 from functools import cached_property
 from pathlib import Path
 from typing import Any, Literal
-from gpt_home.openai_model import OpenAIModel
-from gpt_home.vector_store import VectorStore, VectorStoreItem, VectorStoreItemNotInDb
+from cyris.openai_model import OpenAIModel
+from cyris.vector_store import VectorStore, VectorStoreItem, VectorStoreItemNotInDb
 from rich import print as rich_print
 from langchain_core.messages import SystemMessage, AIMessage
 from langchain_community.chat_message_histories.in_memory import ChatMessageHistory
@@ -30,7 +30,7 @@ class FactoidsStore:
     def factoids_chain(self) -> RunnableSerializable[dict[Any, Any], Any]:
         factoids_llm = ChatOpenAI(
             model=OpenAIModel.GPT_4_TURBO_PREVIEW,
-            api_key=SecretStr(os.environ["GPT_HOME_OPENAI_API_KEY"]),
+            api_key=SecretStr(os.environ["CYRIS_OPENAI_API_KEY"]),
             temperature=0,
         )
         factoids_prompt_template = PromptTemplate.from_template(
@@ -76,7 +76,7 @@ class FactoidsStore:
     ) -> RunnableSerializable[dict[Any, Any], Any]:
         factoids_check_duplicates_llm = ChatOpenAI(
             model=OpenAIModel.GPT_4_TURBO_PREVIEW,
-            api_key=SecretStr(os.environ["GPT_HOME_OPENAI_API_KEY"]),
+            api_key=SecretStr(os.environ["CYRIS_OPENAI_API_KEY"]),
             temperature=0,
         )
         factoids_check_duplicates_prompt_template = PromptTemplate.from_template(

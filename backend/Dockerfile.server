@@ -7,7 +7,7 @@ ENV POETRY_NO_INTERACTION=1 \
     POETRY_VIRTUALENVS_CREATE=1 \
     POETRY_CACHE_DIR=/tmp/poetry_cache
 
-WORKDIR /gpt_home_backend_server
+WORKDIR /cyris_backend_server
 
 # at first, only install external dependencies (so these layers get cached)
 COPY pyproject.toml poetry.lock ./
@@ -17,28 +17,28 @@ RUN poetry install --without dev --no-root && rm -rf $POETRY_CACHE_DIR
 
 EXPOSE 8000
 
-ARG GPT_HOME_HA_IGNORE_SSL
-ENV GPT_HOME_HA_IGNORE_SSL=$GPT_HOME_HA_IGNORE_SSL
+ARG CYRIS_HA_IGNORE_SSL
+ENV CYRIS_HA_IGNORE_SSL=$CYRIS_HA_IGNORE_SSL
 
-ARG GPT_HOME_HA_TOKEN
-ENV GPT_HOME_HA_TOKEN=$GPT_HOME_HA_TOKEN
+ARG CYRIS_HA_TOKEN
+ENV CYRIS_HA_TOKEN=$CYRIS_HA_TOKEN
 
-ARG GPT_HOME_HUMAN_NAME
-ENV GPT_HOME_HUMAN_NAME=$GPT_HOME_HUMAN_NAME
+ARG CYRIS_HUMAN_NAME
+ENV CYRIS_HUMAN_NAME=$CYRIS_HUMAN_NAME
 
-ARG GPT_HOME_AI_NAME
-ENV GPT_HOME_AI_NAME=$GPT_HOME_AI_NAME
+ARG CYRIS_AI_NAME
+ENV CYRIS_AI_NAME=$CYRIS_AI_NAME
 
-ARG GPT_HOME_HA_BASE_URL
-ENV GPT_HOME_HA_BASE_URL=$GPT_HOME_HA_BASE_URL
+ARG CYRIS_HA_BASE_URL
+ENV CYRIS_HA_BASE_URL=$CYRIS_HA_BASE_URL
 
-ARG GPT_HOME_OPENAI_API_KEY
-ENV GPT_HOME_OPENAI_API_KEY=$GPT_HOME_OPENAI_API_KEY
+ARG CYRIS_OPENAI_API_KEY
+ENV CYRIS_OPENAI_API_KEY=$CYRIS_OPENAI_API_KEY
 
 # Now copy the backend code, which has probably changed since the last `docker build ...`
-COPY gpt_home ./gpt_home
+COPY cyris ./cyris
 COPY server ./server
 
 RUN poetry install --without dev
 
-ENTRYPOINT ["poetry", "run", "gpt_home_backend_server"]
+ENTRYPOINT ["poetry", "run", "cyris_backend_server"]

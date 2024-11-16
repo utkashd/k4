@@ -13,7 +13,7 @@ FORMAT = "%(message)s"
 logging.basicConfig(
     level="INFO", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
 )
-log = logging.getLogger("gpt_home")
+log = logging.getLogger("cyris")
 
 
 class MessageInDb(BaseModel):
@@ -54,12 +54,12 @@ class MessagesManager(PostgresTableManager):
             )
             return MessageInDb(**new_message)
 
-    async def save_gpt_home_message_to_db(self, chat_id: int, text: str) -> MessageInDb:
+    async def save_cyris_message_to_db(self, chat_id: int, text: str) -> MessageInDb:
         async with self.get_transaction_connection() as connection:
             new_message = await connection.fetchrow(
                 "INSERT INTO messages (chat_id, user_id, text) VALUES ($1, $2, $3) RETURNING *",
                 chat_id,
-                0,  # 0 signifies gpt_home? prob a bad pattern
+                0,  # 0 signifies cyris? prob a bad pattern
                 text,
             )
             return MessageInDb(**new_message)

@@ -7,7 +7,7 @@ from pydantic import BaseModel, RootModel
 import json
 import logging
 
-log = logging.getLogger("gpt_home")
+log = logging.getLogger("cyris")
 
 
 class VectorStoreItemNotInDb(BaseModel):
@@ -117,7 +117,7 @@ class VectorStore:
         if items_filename.exists():
             # TODO ensure we don't get conflicts with writing/reading at the same time.
             # need some sort of lock mechanism here (and ideally one that doesn't
-            # require manual fixing if gpthome is killed mid-write)
+            # require manual fixing if cyris is killed mid-write)
             with open(items_filename, "r") as items_file:
                 return VectorStoreItems(json.load(items_file)).root
         else:

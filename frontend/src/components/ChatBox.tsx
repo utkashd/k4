@@ -86,7 +86,7 @@ function ChatBox({ user }: { user: User | null }) {
             });
             try {
                 const response = await axios.post(
-                    "http://localhost:8000/ask_gpt_home",
+                    "http://localhost:8000/ask_cyris",
                     humanMessage,
                     {
                         headers: {
@@ -120,17 +120,15 @@ function ChatBox({ user }: { user: User | null }) {
 
     return (
         <>
-            <div className="gpt-home-chatbox">
-                <div className="gpt-home-chatbox-padded">
+            <div className="cyris-chatbox">
+                <div className="cyris-chatbox-padded">
                     {messages.map((message: Message, index) => {
-                        if (
-                            ["gpt_home", clientId].includes(message.sender_id)
-                        ) {
+                        if (["cyris", clientId].includes(message.sender_id)) {
                             return (
                                 <div
                                     key={index}
                                     className={
-                                        message.sender_id === "gpt_home"
+                                        message.sender_id === "cyris"
                                             ? "msg received"
                                             : "msg sent"
                                     }
@@ -139,7 +137,7 @@ function ChatBox({ user }: { user: User | null }) {
                                 </div>
                             );
                         }
-                        // else, it's a system message (gpt_home_system)
+                        // else, it's a system message (cyris_system)
                         return (
                             <div key={index} className="system-message">
                                 <a
@@ -160,7 +158,7 @@ function ChatBox({ user }: { user: User | null }) {
                         <p>Please wait...</p>
                     </div>
                 </div>
-                <div className="gpt-home-chatbox-message-sender">
+                <div className="cyris-chatbox-message-sender">
                     <textarea
                         className="chat-input chat-input-textarea"
                         placeholder="Your query here"

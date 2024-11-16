@@ -1,21 +1,21 @@
 import os
-from gpt_home import GptHome
-from gpt_home.gpt_home import GptHomeDebugOptions
-from gpt_home.gpt_home_human import GptHomeHuman
+from cyris import Cyris
+from cyris.cyris import CyrisDebugOptions
+from cyris.cyris_human import CyrisHuman
 
 if __name__ == "__main__":
-    gpt_home = GptHome(
-        gpt_home_human=GptHomeHuman(
-            ai_name=os.environ.get("GPT_HOME_AI_NAME") or "GPT_HOME",
-            human_name=os.environ.get("GPT_HOME_HUMAN_NAME") or "Human",
+    cyris = Cyris(
+        cyris_human=CyrisHuman(
+            ai_name=os.environ.get("CYRIS_AI_NAME") or "CYRIS",
+            human_name=os.environ.get("CYRIS_HUMAN_NAME") or "Human",
         ),
-        debug_options=GptHomeDebugOptions(
+        debug_options=CyrisDebugOptions(
             is_dry_run=True,
             log_level="warn",
             should_save_requests=True,
             opt_in_to_factoids=False,
             should_save_chat_history=True,
         ),
-        ignore_home_assistant_ssl=os.environ.get("GPT_HOME_HA_IGNORE_SSL") or False,
+        ignore_home_assistant_ssl=os.environ.get("CYRIS_HA_IGNORE_SSL") or False,
     )
-    gpt_home.start()
+    cyris.start()

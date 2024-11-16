@@ -5,19 +5,19 @@ import os
 import logging
 from typing import Any, Literal, Never
 from backend_commons.messages import (
-    GptHomeSystemMessage,
+    CyrisSystemMessage,
     Message,
 )
-from gpt_home.chat_history import ChatHistory
-from gpt_home.gpt_home_human import GptHomeHuman
-from gpt_home.utils.file_io import get_a_users_directory
+from cyris.chat_history import ChatHistory
+from cyris.cyris_human import CyrisHuman
+from cyris.utils.file_io import get_a_users_directory
 import openai
 from pydantic import BaseModel
-from gpt_home.home_assistant_tool_store import HomeAssistantToolStore
-from gpt_home.mutable_tools_agent_executor import MutableToolsAgentExecutor
-from gpt_home.mutable_tools_openai_tools_agent import MutableToolsOpenAiToolsAgent
-from gpt_home.openai_model import OpenAIModel
-from gpt_home.utils.save_llm_prompt import save_chat_create_inputs_as_dict
+from cyris.home_assistant_tool_store import HomeAssistantToolStore
+from cyris.mutable_tools_agent_executor import MutableToolsAgentExecutor
+from cyris.mutable_tools_openai_tools_agent import MutableToolsOpenAiToolsAgent
+from cyris.openai_model import OpenAIModel
+from cyris.utils.save_llm_prompt import save_chat_create_inputs_as_dict
 from langchain_core.pydantic_v1 import SecretStr
 from langchain_core.messages import SystemMessage
 from langchain_core.prompts import (
@@ -36,10 +36,10 @@ FORMAT = "%(message)s"
 logging.basicConfig(
     level="INFO", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
 )
-log = logging.getLogger("gpt_home")
+log = logging.getLogger("cyris")
 
 
-class GptHomeDebugOptions(BaseModel):
+class CyrisDebugOptions(BaseModel):
     log_level: Literal["debug", "info", "warn", "error"] = "info"
     is_dry_run: bool = False
     """
@@ -68,11 +68,11 @@ class GptHomeDebugOptions(BaseModel):
     should_save_chat_history: bool = True
 
 
-class GptHome:
+class Cyris:
     def __init__(
         self,
-        gpt_home_human: GptHomeHuman = GptHomeHuman(),
-        debug_options: GptHomeDebugOptions = GptHomeDebugOptions(),
+        cyris_human: CyrisHuman = CyrisHuman(),
+        debug_options: CyrisDebugOptions = CyrisDebugOptions(),
         ignore_home_assistant_ssl: str | bool = False,
     ):
         """
@@ -81,7 +81,7 @@ class GptHome:
         Parameters
         ----------
         ai_name : str, optional
-            Set your assistant's name, by default "GptHome"
+            Set your assistant's name, by default "Cyris"
         human_name : str, optional
             Your name, or how you'd like to be addressed by the assistant. The assistant
             might search for Home Assistant entities using your name. e.g., if you ask
@@ -96,15 +96,15 @@ class GptHome:
         """
         self.debug_options = debug_options
         self._setup_development_tools()
-        self.gpt_home_human = gpt_home_human
+        self.cyris_human = cyris_human
         directory_to_load_from_and_save_to = get_a_users_directory(
-            self.gpt_home_human.user_id
+            self.cyris_human.user_id
         )
         log.info("Creating chat_history...")
-        self.chat_history = ChatHistory(gpt_home_user=gpt_home_human)
+        self.chat_history = ChatHistory(cyris_user=cyris_human)
         self.home_assistant_tool_store = HomeAssistantToolStore(
             directory_to_load_from_and_save_to=directory_to_load_from_and_save_to,
-            base_url=os.environ["GPT_HOME_HA_BASE_URL"],
+            base_url=os.environ["CYRIS_HA_BASE_URL"],
             chat_history=self.chat_history,
             dry_run=self.debug_options.is_dry_run,
             verify_home_assistant_ssl=not ignore_home_assistant_ssl,
@@ -113,8 +113,8 @@ class GptHome:
         self.tool_calling_prompt_template = ChatPromptTemplate.from_messages(
             [
                 SystemMessage(
-                    content=f"You are a personal AI assistant for {self.gpt_home_human.human_name}. "
-                    f"Your name is {self.gpt_home_human.ai_name}. Respond concisely, and "
+                    content=f"You are a personal AI assistant for {self.cyris_human.human_name}. "
+                    f"Your name is {self.cyris_human.ai_name}. Respond concisely, and "
                     " ask for clarification when necessary."
                     # "When opportune, ask simple questions "
                     # f"to learn more about {self.human_name}'s preferences."
@@ -135,7 +135,7 @@ class GptHome:
         self.tool_calling_llm = ChatOpenAI(
             model=OpenAIModel.GPT_4_1106_PREVIEW,
             # model=OpenAIModel.GPT_3_5_TURBO_0613,  # this mostly works, but sometimes is a little stupid
-            api_key=SecretStr(os.environ["GPT_HOME_OPENAI_API_KEY"]),
+            api_key=SecretStr(os.environ["CYRIS_OPENAI_API_KEY"]),
             temperature=0,  # sean paul disapproves
         )
         # this order is important; the agent and agent executor will need to be able to
@@ -169,9 +169,9 @@ class GptHome:
         # one vector store for factoids/conclusions about the master
         # one vector store for tools (APIs)
 
-        self.system_messages_queue: list[GptHomeSystemMessage] = []
+        self.system_messages_queue: list[CyrisSystemMessage] = []
 
-        log.info("GptHome is initialized.")
+        log.info("Cyris is initialized.")
 
     @cached_property
     def is_verbose(self) -> bool:
@@ -199,25 +199,25 @@ class GptHome:
     def _intro(self) -> None: ...
 
     def _add_system_message(self, message: str) -> None:
-        self.system_messages_queue.append(GptHomeSystemMessage(text=message))
+        self.system_messages_queue.append(CyrisSystemMessage(text=message))
 
     def get_potentially_relevant_tools(self, human_input: str) -> list[BaseTool]:
         k = 6
         relevant_wrapped_tools = (
             self.home_assistant_tool_store.get_k_relevant_home_assistant_tools(
-                f"{self.gpt_home_human.human_name} {human_input}", k=k
+                f"{self.cyris_human.human_name} {human_input}", k=k
             )
         )
         potentially_relevant_tools = [
             relevant_wrapped_tool.hass_tool
             for relevant_wrapped_tool in relevant_wrapped_tools
         ]
-        self.chat_history.add_gpt_home_system_message(
+        self.chat_history.add_cyris_system_message(
             f"Starting with {len(potentially_relevant_tools)} tools:\n{'\n'.join(potentially_relevant_tool.name for potentially_relevant_tool in potentially_relevant_tools)}"
         )
         return potentially_relevant_tools
 
-    def ask_gpt_home(self, human_input: str, chat_id: str = "") -> list[Message]:
+    def ask_cyris(self, human_input: str, chat_id: str = "") -> list[Message]:
         self.chat_history.add_human_message(human_input)
 
         potentially_relevant_tools = self.get_potentially_relevant_tools(human_input)
@@ -244,7 +244,7 @@ class GptHome:
         except Exception as e:
             response = {"output": f"Failed due to an unforeseen issue: {str(e)}"}
 
-        self.chat_history.add_gpt_home_message(response["output"])
+        self.chat_history.add_cyris_message(response["output"])
 
         # TODO be smarter about resetting tools?
         self.agent_executor.reset_tools(self.tools)
@@ -273,16 +273,16 @@ class GptHome:
         rich_print("Type '/quit' to quit and '/help' for all options.")
 
         ai_intro_message = "What can I do for you?"
-        rich_print(f"\n'{self.gpt_home_human.ai_name}': {ai_intro_message}")
-        self.chat_history.add_gpt_home_message(ai_intro_message)
+        rich_print(f"\n'{self.cyris_human.ai_name}': {ai_intro_message}")
+        self.chat_history.add_cyris_message(ai_intro_message)
 
         while True:
-            human_input = input(f"\n{self.gpt_home_human.human_name}: ")
+            human_input = input(f"\n{self.cyris_human.human_name}: ")
 
             if human_input.lower() in ["/quit", "/exit", "quit"]:
                 log.info("Shutting down gracefully.")
                 self.stop_chatting()
-                rich_print(f"\n'{self.gpt_home_human.ai_name}': Goodbye.")
+                rich_print(f"\n'{self.cyris_human.ai_name}': Goodbye.")
                 sys.exit(0)
             elif human_input.lower() in ["/help"]:
                 rich_print("'/quit' to quit")  # the rest is just for developing
@@ -293,11 +293,11 @@ class GptHome:
                 self.chat_history.clear()
                 rich_print("Chat history cleared.")
             else:
-                gpt_home_responses = self.ask_gpt_home(human_input)
-                for msg in gpt_home_responses:
-                    if isinstance(msg, GptHomeSystemMessage):
+                cyris_responses = self.ask_cyris(human_input)
+                for msg in cyris_responses:
+                    if isinstance(msg, CyrisSystemMessage):
                         pass  # ignore them because instead we just print them in realtime. See chat_history.py
                     else:
                         rich_print(
-                            f"\n[green]{self.gpt_home_human.ai_name}[/green]: {msg.text}"
+                            f"\n[green]{self.cyris_human.ai_name}[/green]: {msg.text}"
                         )

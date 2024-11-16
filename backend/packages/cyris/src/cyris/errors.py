@@ -1,2 +1,2 @@
-class GptHomeError(Exception):
+class CyrisError(Exception):
     """Base class for custom errors"""

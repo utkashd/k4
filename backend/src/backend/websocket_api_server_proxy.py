@@ -17,13 +17,13 @@ import aiohttp
 import uvicorn
 from backend_commons.messages import (
     ClientMessage,
-    GptHomeMessages,
+    CyrisMessages,
     Message,
 )
 
 
 @dataclass
-class GptHomeServerClientConnection:
+class CyrisServerClientConnection:
     client_id: str
     client_websocket: WebSocket
     user_id: str | None = None
@@ -31,13 +31,13 @@ class GptHomeServerClientConnection:
 
 class ConnectionManager:
     def __init__(self) -> None:
-        self.active_connections: dict[str, GptHomeServerClientConnection] = {}
+        self.active_connections: dict[str, CyrisServerClientConnection] = {}
 
     async def connect(self, new_client_websocket: WebSocket) -> str:
         # Accept the connection
         # Generate and assign the client an ID
         new_client_id = f"client-session-{str(uuid.uuid4())}"
-        self.active_connections[new_client_id] = GptHomeServerClientConnection(
+        self.active_connections[new_client_id] = CyrisServerClientConnection(
             client_id=new_client_id,
             client_websocket=new_client_websocket,
         )
@@ -79,10 +79,10 @@ class ConnectionManager:
         self.active_connections.pop(disconnected_client_id)
         return disconnected_client_id
 
-    def get_clients(self) -> dict[str, GptHomeServerClientConnection]:
+    def get_clients(self) -> dict[str, CyrisServerClientConnection]:
         return self.active_connections
 
-    def get_client_by_id(self, client_id: str) -> GptHomeServerClientConnection | None:
+    def get_client_by_id(self, client_id: str) -> CyrisServerClientConnection | None:
         return self.active_connections.get(client_id)
 
     def get_client_id_by_websocket(self, client_websocket: WebSocket) -> str:
@@ -148,22 +148,20 @@ class ConnectionManager:
         else:
             # tell the client that we received their message by sending it back to them
             # await self.send_message_to(client_id, client_message)
-            # forward the message to gpt_home
+            # forward the message to cyris
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    "http://localhost:8000/ask_gpt_home",
+                    "http://localhost:8000/ask_cyris",
                     json=ClientMessage(
                         text=client_message.text, sender_id=client_id
                     ).model_dump(),
                 ) as response:
-                    gpt_home_messages_from_response = GptHomeMessages(
-                        await response.json()
-                    )
-                    for gpt_home_message in gpt_home_messages_from_response.root:
+                    cyris_messages_from_response = CyrisMessages(await response.json())
+                    for cyris_message in cyris_messages_from_response.root:
                         # there's only one message, so this loop is ok. later I'll have to ensure
                         # that they get sent in the correct order (or that the order is encoded in
                         # the messages somehow, e.g. timestamps)
-                        await self.send_message_to(client_id, gpt_home_message)
+                        await self.send_message_to(client_id, cyris_message)
 
 
 app = FastAPI()

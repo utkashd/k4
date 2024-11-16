@@ -1,10 +1,10 @@
-div.gpt-home-chatbox {
+div.cyris-chatbox {
     height: 100%;
     /* width: 100%; */
     /* overflow-y: scroll; */
 }
 
-div.gpt-home-chatbox-padded {
+div.cyris-chatbox-padded {
     --rad: 20px;
     --rad-sm: 3px;
     font: 16px/1.5 sans-serif;
@@ -19,7 +19,7 @@ div.gpt-home-chatbox-padded {
     box-sizing: border-box;
 }
 
-div.gpt-home-chatbox-message-sender {
+div.cyris-chatbox-message-sender {
     height: 10%;
     padding: 3px;
     /* border: 3px solid gray; */

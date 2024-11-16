@@ -14,14 +14,14 @@ FORMAT = "%(message)s"
 logging.basicConfig(
     level="INFO", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
 )
-log = logging.getLogger("gpt_home")
+log = logging.getLogger("cyris")
 
 
 class RegisteredUser(BaseModel):
     """
     If you're changing the table, you'll need to drop the existing table
     on your local machine first. Something like:
-    > `$ docker exec -it gpt-home-dev-postgres bash`
+    > `$ docker exec -it cyris-dev-postgres bash`
     > > `$ psql -U postgres`
     > > > `$ \c postgres`
     > > > `$ drop table users;`

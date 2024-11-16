@@ -4,12 +4,12 @@ from pathlib import Path
 import uuid
 from backend_commons.messages import (
     ClientMessage,
-    GptHomeMessage,
-    GptHomeSystemMessage,
+    CyrisMessage,
+    CyrisSystemMessage,
     Message,
 )
-from gpt_home.gpt_home_human import GptHomeHuman
-from gpt_home.utils.file_io import (
+from cyris.cyris_human import CyrisHuman
+from cyris.utils.file_io import (
     get_chat_history_directory_and_chat_history_preview_directory_for_timestamp,
 )
 from langchain_community.chat_message_histories.in_memory import ChatMessageHistory
@@ -23,11 +23,11 @@ class ChatHistory:
     A langchain-compatible chat history that has some extra features (e.g., system messages)
     """
 
-    def __init__(self, gpt_home_user: GptHomeHuman):
+    def __init__(self, cyris_user: CyrisHuman):
         self.langchain_chat_message_history_no_system_messages = ChatMessageHistory()
         self.all_messages_including_system_messages: list[Message] = []
         self.starting_index_of_latest_response = 0
-        self.gpt_home_user = gpt_home_user
+        self.cyris_user = cyris_user
         self.chat_id = str(uuid.uuid4())
 
     def _get_chat_history_filename(self) -> str:
@@ -53,7 +53,7 @@ class ChatHistory:
         """
         if self.all_messages_including_system_messages:
             chat_history_directories = get_chat_history_directory_and_chat_history_preview_directory_for_timestamp(
-                self.gpt_home_user.user_id,
+                self.cyris_user.user_id,
                 self.all_messages_including_system_messages[0].time_message_was_sent,
             )
 
@@ -106,28 +106,28 @@ class ChatHistory:
 
     def add_human_message(self, human_message: str) -> None:
         self.langchain_chat_message_history_no_system_messages.add_user_message(
-            HumanMessage(name=self.gpt_home_user.human_name, content=human_message)
+            HumanMessage(name=self.cyris_user.human_name, content=human_message)
         )
         self.all_messages_including_system_messages.append(
-            ClientMessage(text=human_message, sender_id=self.gpt_home_user.user_id)
+            ClientMessage(text=human_message, sender_id=self.cyris_user.user_id)
         )
         self.starting_index_of_latest_response = len(
             self.all_messages_including_system_messages
         )  # it's now everything after this human message
 
-    def add_gpt_home_message(self, gpt_home_message: str) -> None:
+    def add_cyris_message(self, cyris_message: str) -> None:
         self.langchain_chat_message_history_no_system_messages.add_ai_message(
-            AIMessage(name=self.gpt_home_user.ai_name, content=gpt_home_message)
+            AIMessage(name=self.cyris_user.ai_name, content=cyris_message)
         )
         self.all_messages_including_system_messages.append(
-            GptHomeMessage(text=gpt_home_message)
+            CyrisMessage(text=cyris_message)
         )
 
-    def add_gpt_home_system_message(self, gpt_home_system_message: str) -> None:
+    def add_cyris_system_message(self, cyris_system_message: str) -> None:
         self.all_messages_including_system_messages.append(
-            GptHomeSystemMessage(text=gpt_home_system_message)
+            CyrisSystemMessage(text=cyris_system_message)
         )
-        rich_print(f"\n[italic blue]{gpt_home_system_message}[/italic blue]")
+        rich_print(f"\n[italic blue]{cyris_system_message}[/italic blue]")
 
     def get_latest_response(self) -> list[Message]:
         latest_response = self.all_messages_including_system_messages[

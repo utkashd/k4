@@ -11,18 +11,12 @@
 
 Authentication
 
-- [ ] Switch to refresh token + short-lived access token
 - [x] hash user passwords
+- [ ] Switch to sessions instead of JWT. Use keydb to cache sessions
 
 - [ ] documentation
   - [ ] setup guide (improve names of entities)
-- [ ] improve hass tool store:
-  - [x] summary
-  - [ ] test vacuum, climate, media controls. find other stuff worth testing
-- [x] tear out factoid stuff for now
-- display chat history
 - [ ] deployment
-  - [ ] single docker container
   - [ ] docker compose
 - [x] display system messages
 
@@ -33,7 +27,7 @@ Authentication
 - auth for users? (use something more secure and out-of-the-box, like google?)
 - fix websocket bugs
 - avoid race conditions with file io stuff
-- option to keep gpt home running (uses more memory, less compute)
+- option to keep cyris running (uses more memory, less compute)
 - better device/entity descriptions (it keeps thinking that smart plugs are light
     switches)
 - make easily extensible. marketplace for additional features
@@ -48,7 +42,8 @@ Things I've learned
 - FastAPI + Uvicorn, async-await w python
 - Basic React webapp
 - python package management (with uv)
+- basics of auth, jwts vs sessions, how to implement at scale
 
-# GptHome
+# Cyris
 
 An opinionated, ChatGPT-style interface for Home Assistant.

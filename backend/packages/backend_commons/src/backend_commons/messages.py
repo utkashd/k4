@@ -20,25 +20,25 @@ class ClientMessage(Message):
     client_generated_uuid: UUID
 
 
-class GptHomeConfirmingReceiptOfClientMessage(BaseModel):
+class CyrisConfirmingReceiptOfClientMessage(BaseModel):
     client_generated_uuid: UUID
 
 
-class GptHomeMessage(Message):
+class CyrisMessage(Message):
     """
-    A message from GptHome
-    """
-
-    sender_id: str = Field(default="gpt_home")
-
-
-class GptHomeSystemMessage(GptHomeMessage):
-    """
-    A system message from GptHome (not to be confused with a system message for an LLM)
+    A message from Cyris
     """
 
-    sender_id: str = Field(default="gpt_home_system")
+    sender_id: str = Field(default="cyris")
 
 
-class GptHomeMessages(RootModel):  # type: ignore[type-arg]
-    root: list[GptHomeSystemMessage | GptHomeMessage]
+class CyrisSystemMessage(CyrisMessage):
+    """
+    A system message from Cyris (not to be confused with a system message for an LLM)
+    """
+
+    sender_id: str = Field(default="cyris_system")
+
+
+class CyrisMessages(RootModel):  # type: ignore[type-arg]
+    root: list[CyrisSystemMessage | CyrisMessage]

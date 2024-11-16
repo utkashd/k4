@@ -9,7 +9,7 @@ FORMAT = "%(message)s"
 logging.basicConfig(
     level="INFO", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
 )
-log = logging.getLogger("gpt_home")
+log = logging.getLogger("cyris")
 
 
 class PostgresTableManager:

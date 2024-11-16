@@ -4,8 +4,8 @@ from rich.logging import RichHandler
 from typing import Any
 from backend_commons.messages import (
     ClientMessage,
-    GptHomeConfirmingReceiptOfClientMessage,
-    GptHomeMessage,
+    CyrisConfirmingReceiptOfClientMessage,
+    CyrisMessage,
     Message,
 )
 import uuid
@@ -16,7 +16,7 @@ from message_management import MessagesManager
 
 
 @dataclass
-class GptHomeServerClientConnection:
+class CyrisServerClientConnection:
     session_id: uuid.UUID
     session_websocket: WebSocket
 
@@ -25,7 +25,7 @@ FORMAT = "%(message)s"
 logging.basicConfig(
     level="INFO", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
 )
-log = logging.getLogger("gpt_home")
+log = logging.getLogger("cyris")
 
 
 class ConnectionManager:
@@ -36,7 +36,7 @@ class ConnectionManager:
 
     def __init__(self) -> None:
         self.active_connections_by_user_id: dict[
-            int, set[GptHomeServerClientConnection]
+            int, set[CyrisServerClientConnection]
         ] = defaultdict(set)
         self.messages_manager: MessagesManager = MessagesManager()
 
@@ -45,7 +45,7 @@ class ConnectionManager:
         # Generate and assign the client an ID
         session_id = uuid.uuid4()
         self.active_connections_by_user_id[user_id].add(
-            GptHomeServerClientConnection(
+            CyrisServerClientConnection(
                 session_id=session_id, session_websocket=new_client_websocket
             )
         )
@@ -81,7 +81,7 @@ class ConnectionManager:
         self, user_id: int, client_message: ClientMessage
     ) -> None:
         # tell the client that we received their message by sending it back to them
-        # forward the message to gpt_home
+        # forward the message to cyris
         await self.messages_manager.save_client_message_to_db(
             chat_id=client_message.chat_id, user_id=user_id, text=client_message.text
         )
@@ -89,7 +89,7 @@ class ConnectionManager:
         async def acknowledge_message_receipt(
             user_id: int, client_message: ClientMessage
         ):
-            acknowledge_message = GptHomeConfirmingReceiptOfClientMessage(
+            acknowledge_message = CyrisConfirmingReceiptOfClientMessage(
                 client_generated_uuid=client_message.client_generated_uuid
             )
             await self.send_custom_message_to_user(
@@ -97,6 +97,4 @@ class ConnectionManager:
             )
 
         await acknowledge_message_receipt(user_id, client_message)
-        await self.send_message_to_user(
-            user_id, message=GptHomeMessage(text="sup homie")
-        )
+        await self.send_message_to_user(user_id, message=CyrisMessage(text="sup homie"))

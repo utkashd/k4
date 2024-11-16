@@ -6,20 +6,20 @@ from datetime import datetime
 from pydantic import BaseModel
 
 
-def get_gpt_home_root_directory() -> Path:
-    gpt_home_directory = Path(os.path.expanduser("~/.gpt_home/"))
+def get_cyris_root_directory() -> Path:
+    cyris_directory = Path(os.path.expanduser("~/.cyris/"))
 
-    if not gpt_home_directory.exists():
-        os.mkdir(gpt_home_directory)
+    if not cyris_directory.exists():
+        os.mkdir(cyris_directory)
 
-    return gpt_home_directory
+    return cyris_directory
 
 
 def get_the_users_directory() -> Path:
     # TODO rename this function so it's less confusing
-    gpt_home_directory = get_gpt_home_root_directory()
+    cyris_directory = get_cyris_root_directory()
 
-    users_directory = Path(os.path.join(gpt_home_directory, "users/"))
+    users_directory = Path(os.path.join(cyris_directory, "users/"))
 
     if not users_directory.exists():
         os.mkdir(users_directory)
@@ -31,12 +31,12 @@ def get_a_users_directory(user_id: str) -> Path:
     # TODO rename this function so it's less confusing
     users_directory = get_the_users_directory()
 
-    users_gpt_home_directory = Path(os.path.join(users_directory, user_id))
+    users_cyris_directory = Path(os.path.join(users_directory, user_id))
 
-    if not users_gpt_home_directory.exists():
-        os.mkdir(users_gpt_home_directory)
+    if not users_cyris_directory.exists():
+        os.mkdir(users_cyris_directory)
 
-    return users_gpt_home_directory
+    return users_cyris_directory
 
 
 def get_a_users_chat_history_preview_directory(user_id: str) -> Path:

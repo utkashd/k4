@@ -8,7 +8,7 @@ END_COLOR='\033[0m' # No Color
 
 echo "1. Stopping the postgres container..."
 set -x
-docker container stop gpt-home-dev-postgres > /dev/null 2>&1
+docker container stop cyris-dev-postgres > /dev/null 2>&1
 { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
 printf "${GREEN}postgres container is stopped.${END_COLOR}\n"
 

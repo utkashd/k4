@@ -7,17 +7,17 @@ In my ~/.ipython/profile_default/ipython_config.py file, I have:
 c.InteractiveShellApp.extensions = ["rich"]
 ```
 
-And then in my ~/.ipython/profile_default/startup/ipython_gpt_home_startup.py file, I have:
+And then in my ~/.ipython/profile_default/startup/ipython_cyris_startup.py file, I have:
 ```python
 import os
 from pathlib import Path
 
 current_working_directory = Path(os.getcwd())
 
-gpt_home_working_directory = os.path.expanduser("~/src/gpt_home")
+cyris_working_directory = os.path.expanduser("~/src/cyris")
 
-if current_working_directory.samefile(gpt_home_working_directory):
-    from gpt_home.utils.ipython_utils import hass  # noqa: F401
+if current_working_directory.samefile(cyris_working_directory):
+    from cyris.utils.ipython_utils import hass  # noqa: F401
 ```
 """
 
@@ -27,15 +27,15 @@ from urllib.parse import urljoin
 from homeassistant_api import Client
 import urllib3
 
-log = logging.getLogger("gpt_home")
+log = logging.getLogger("cyris")
 
 
 def create_hass_client() -> Client:
     """
     Creates a quick Home Assistant client, which is useful for quick testing in ipython
     """
-    api_url = urljoin(os.environ["GPT_HOME_HA_BASE_URL"], "/api")
-    hass_token = os.environ["GPT_HOME_HA_TOKEN"]
+    api_url = urljoin(os.environ["CYRIS_HA_BASE_URL"], "/api")
+    hass_token = os.environ["CYRIS_HA_TOKEN"]
     urllib3.disable_warnings(
         category=urllib3.connectionpool.InsecureRequestWarning  # type: ignore[attr-defined]
     )

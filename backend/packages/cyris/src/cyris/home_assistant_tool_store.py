@@ -4,7 +4,7 @@ import logging
 import os
 from pathlib import Path
 from types import UnionType
-from gpt_home.chat_history import ChatHistory
+from cyris.chat_history import ChatHistory
 import homeassistant_api
 import requests
 import urllib3
@@ -16,12 +16,12 @@ from langchain.tools import BaseTool
 from langchain.pydantic_v1 import BaseModel, Field
 from pydantic import RootModel, constr
 from pydantic import create_model as create_v2_model
-from gpt_home.errors import GptHomeError
-from gpt_home.mutable_tools_agent_executor import MutableToolsAgentExecutor
-from gpt_home.vector_store import VectorStore, VectorStoreItem, VectorStoreItemNotInDb
+from cyris.errors import CyrisError
+from cyris.mutable_tools_agent_executor import MutableToolsAgentExecutor
+from cyris.vector_store import VectorStore, VectorStoreItem, VectorStoreItemNotInDb
 from homeassistant.components.media_player import MediaPlayerEntityFeature  # type: ignore[import-untyped]
 
-log = logging.getLogger("gpt_home")
+log = logging.getLogger("cyris")
 
 # SUPPORTED_DOMAINS = {"switch", "media_player", "vacuum", "sensor", "binary_sensor"}
 # SUPPORTED_DOMAINS = {"*"}
@@ -181,7 +181,7 @@ class HomeAssistantToolStore:
                 return self.name
 
             def _run(_s, query: str, k: int = 5) -> str:
-                self.chat_history.add_gpt_home_system_message(
+                self.chat_history.add_cyris_system_message(
                     f"\nSearching for {k=} Home Assistant tools with {query=}."
                 )
                 wrapped_tools = self.get_k_relevant_home_assistant_tools(query, k)
@@ -189,7 +189,7 @@ class HomeAssistantToolStore:
                     wrapped_tool.hass_tool for wrapped_tool in wrapped_tools
                 ]
                 agent_executor.add_tools(unwrapped_tools)
-                self.chat_history.add_gpt_home_system_message(
+                self.chat_history.add_cyris_system_message(
                     f"\nFound these tools: {[(wrapped_tool.service_id or 'get state', wrapped_tool.entity_id) for wrapped_tool in wrapped_tools]}"
                 )
                 return f"Retrieved {len(unwrapped_tools)} tools: {[unwrapped_tool.name for unwrapped_tool in unwrapped_tools]}"
@@ -207,7 +207,7 @@ class HomeAssistantToolStore:
             log.warn(
                 "Intentially ignoring Home Assistant's (potentially invalid) SSL "
                 "certificate. This may leave you vulnerable to a cyberattack. If "
-                f"{base_url} is not a local server, I strongly suggest you 'quit' GptHome,"
+                f"{base_url} is not a local server, I strongly suggest you 'quit' Cyris,"
                 " enable SSL verification, and try again. Proceed at your own risk."
             )
             urllib3.disable_warnings(
@@ -222,11 +222,11 @@ class HomeAssistantToolStore:
         try:
             client.get_config()  # if the client
         except requests.exceptions.SSLError as ssl_error:
-            error = GptHomeError(
+            error = CyrisError(
                 "Failed to create a Home Assistant API client due to SSL certificate "
                 "issues. If you don't have a valid SSL certificate for your Home "
                 "Assistant instance, you can skip verifying the SSL certificate by "
-                'setting the environment variable `GPT_HOME_HA_IGNORE_SSL="true"`'
+                'setting the environment variable `CYRIS_HA_IGNORE_SSL="true"`'
             )
             log.exception(error)
             log.debug(f"{base_url=}, {api_url=}, {verify_home_assistant_ssl=}")
@@ -235,10 +235,10 @@ class HomeAssistantToolStore:
 
     def _get_hass_token(self, hass_token: str) -> str:
         if hass_token == "":
-            hass_environment_variable_value = os.environ.get("GPT_HOME_HA_TOKEN")
+            hass_environment_variable_value = os.environ.get("CYRIS_HA_TOKEN")
             if not hass_environment_variable_value:
-                raise GptHomeError(
-                    "No Home Assistant API token was provided and there is no environment variable. Please provide one or set the environment variable `GPT_HOME_HA_TOKEN`."
+                raise CyrisError(
+                    "No Home Assistant API token was provided and there is no environment variable. Please provide one or set the environment variable `CYRIS_HA_TOKEN`."
                 )
             else:
                 hass_token = hass_environment_variable_value
@@ -273,19 +273,19 @@ class HomeAssistantToolStore:
             def _run(_s) -> str:
                 # Since we're only reading an entity's state, we'll always get the
                 # entity state and ignore whether this is a dry-run.
-                self.chat_history.add_gpt_home_system_message(
+                self.chat_history.add_cyris_system_message(
                     f"\nGetting the state of {entity.entity_id}..."
                 )
                 latest_entity_info = self.hass_client.get_entity(
                     entity_id=entity.entity_id
                 )
                 if latest_entity_info is None:
-                    raise GptHomeError(f"Failed to get the state of {entity=}")
+                    raise CyrisError(f"Failed to get the state of {entity=}")
 
                 formatted_entity_state = self._format_entity_state(
                     latest_entity_info.state
                 )
-                self.chat_history.add_gpt_home_system_message(
+                self.chat_history.add_cyris_system_message(
                     f"```json\n{formatted_entity_state}\n```"
                 )
                 return formatted_entity_state
@@ -470,7 +470,7 @@ class HomeAssistantToolStore:
 
             def _run(_s, **service_data: dict[str, Any]) -> str:
                 if not dry_run:
-                    self.chat_history.add_gpt_home_system_message(
+                    self.chat_history.add_cyris_system_message(
                         f"\nCalling {domain.domain_id}.{service.service_id} on {entity.entity_id} with {service_data}.",
                     )
                     try:
@@ -488,7 +488,7 @@ class HomeAssistantToolStore:
                         )
                         return failure_message
                 else:
-                    self.chat_history.add_gpt_home_system_message(
+                    self.chat_history.add_cyris_system_message(
                         f"Dry run: would have called {domain.domain_id}.{service.service_id} on {entity.entity_id} with {service_data}."
                     )
                 return f"Successfully called service {domain.domain_id}.{service.service_id} on {entity_friendly_name} with {service_data}."
@@ -525,7 +525,7 @@ class HomeAssistantToolStore:
 
             def _run(_s) -> str:
                 if not dry_run:
-                    self.chat_history.add_gpt_home_system_message(
+                    self.chat_history.add_cyris_system_message(
                         f"\nCalling {domain.domain_id}.{service.service_id} on {entity.entity_id}.",
                     )
                     try:
@@ -542,7 +542,7 @@ class HomeAssistantToolStore:
                         )
                         return failure_message
                 else:
-                    self.chat_history.add_gpt_home_system_message(
+                    self.chat_history.add_cyris_system_message(
                         f"Dry run: would have called {domain.domain_id}.{service.service_id} on {entity.entity_id}."
                     )
                 return f"Successfully called service {domain.domain_id}.{service.service_id} on {entity_friendly_name}."

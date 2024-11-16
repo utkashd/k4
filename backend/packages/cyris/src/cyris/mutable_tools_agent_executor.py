@@ -7,9 +7,9 @@ from langchain_core.utils.input import get_color_mapping
 from langchain.agents import AgentExecutor
 from langchain.tools import BaseTool
 
-from gpt_home.mutable_tools_openai_tools_agent import MutableToolsOpenAiToolsAgent
+from cyris.mutable_tools_openai_tools_agent import MutableToolsOpenAiToolsAgent
 
-log = logging.getLogger("gpt_home")
+log = logging.getLogger("cyris")
 
 
 class MutableToolsAgentExecutor(AgentExecutor):
