@@ -34,6 +34,7 @@ if [[ ! $( docker image ls postgres | grep postgres ) ]] ; then
     docker pull postgres:latest # TODO pin the postgres container version?
     docker run --name cyris-dev-postgres -e POSTGRES_PASSWORD=postgres -v postgresql-data:/var/lib/postgresql/data -p 5432:5432 -d postgres
     { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
+    # TODO create the volume if it doesn't already exist
 elif [[ ! $( docker container ls -al | grep cyris-dev-postgres ) ]] ; then
     printf "\t${YELLOW}No postgres container found. Creating a container and starting it now.${END_COLOR}\n"
     set -x
