@@ -197,8 +197,8 @@ class FirstAdminDetails(BaseModel):
 
 
 @app.get("/is_setup_required")
-async def has_initial_setup_been_completed() -> bool:
-    return await users_manager.does_at_least_one_admin_user_exist()
+async def does_initial_setup_need_to_be_completed() -> bool:
+    return not await users_manager.does_at_least_one_admin_user_exist()
 
 
 @app.post("/first_admin")

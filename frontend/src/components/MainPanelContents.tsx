@@ -71,12 +71,28 @@ const LoginForm = ({
     const [usernameInput, setUsernameInput] = useState("");
     const [passwordInput, setPasswordInput] = useState("");
 
-    const submitLogin = (usernameInput: string, passwordInput: string) => {
+    const submitLogin = async (
+        usernameInput: string,
+        passwordInput: string
+    ) => {
         try {
-            alert(usernameInput);
-            // axios.post("");
+            const response = await axios.post(
+                "http://0.0.0.0:8000/token",
+                new URLSearchParams({
+                    grant_type: "password",
+                    username: usernameInput,
+                    password: passwordInput,
+                }),
+                {
+                    headers: {
+                        accept: "application/json, text/plain, */*",
+                        authorization: "Basic Og==",
+                    },
+                }
+            );
         } catch (error) {
-            alert(error);
+            console.log(error);
+            console.log("TODO deal w dis unhandled error 874512");
         }
     };
 
