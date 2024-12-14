@@ -1,13 +1,9 @@
 import logging
 import asyncpg  # type: ignore[import-untyped]
-
 from backend_commons import PostgresTableManager
 from fastapi import HTTPException, status
 from rich.logging import RichHandler
-
-
 from pydantic import BaseModel, EmailStr, Field, SecretStr
-from typing import cast
 
 
 FORMAT = "%(message)s"
@@ -23,7 +19,8 @@ class RegisteredUser(BaseModel):
     on your local machine first. Something like:
     > `$ docker exec -it cyris-dev-postgres bash`
     > > `$ psql -U postgres`
-    > > > `$ \c postgres`
+    > > > `$ \c postgres` # connect to the DB named "postgres"
+    > > > `$ \d` # show the tables
     > > > `$ drop table users;`
 
     `exit` a couple times to return to your terminal
@@ -180,8 +177,7 @@ class UsersManager(PostgresTableManager):
                 )
 
     async def get_user_by_email(self, user_email: EmailStr) -> AdminUser | NonAdminUser:
-        async with self._get_connection_pool().acquire() as connection:
-            connection = cast(asyncpg.Connection, connection)
+        async with self.get_connection() as connection:
             row = await connection.fetchrow(
                 "SELECT * FROM users WHERE user_email=$1", user_email
             )
@@ -201,3 +197,25 @@ class UsersManager(PostgresTableManager):
                 return AdminUser(**user.model_dump())
             else:
                 return NonAdminUser(**user.model_dump())
+
+    async def get_users(self) -> list[RegisteredUser]:
+        """
+        Meant only for admins, so we're just returning all users indiscriminantely
+        """
+        # TODO paginate
+        users: list[RegisteredUser] = []
+        async with self.get_connection() as connection:
+            rows = await connection.fetch("SELECT * from USERS limit 50")
+            for row in rows:
+                users.append(RegisteredUser(**row))
+            return users
+
+    async def deactivate_user(self, user_to_deactivate: RegisteredUser):
+        """
+        Meant only for admins
+        """
+        async with self.get_transaction_connection() as connection:
+            await connection.execute(
+                "UPDATE users SET is_user_deactivated=true WHERE user_id=$1",
+                user_to_deactivate.user_id,
+            )

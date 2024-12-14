@@ -2,6 +2,7 @@ import { useState } from "react";
 import "./App.css";
 import { useCookies } from "react-cookie";
 import MainPanelContents from "./components/MainPanelContents";
+import CurrentUserAndLogoutButton from "./components/RightSidePanelContents";
 
 function App() {
     const [cookies, setCookie, _removeCookie] = useCookies([
@@ -39,7 +40,13 @@ function App() {
                         setCurrentUserAndCookie={setCurrentUserAndCookie}
                     />
                 </div>
-                <div className="right-side-panel">right side panel here</div>
+                <div className="right-side-panel">
+                    <CurrentUserAndLogoutButton
+                        currentUser={currentUser}
+                        serverUrl={serverUrl}
+                        setCurrentUserAndCookie={setCurrentUserAndCookie}
+                    />
+                </div>
             </div>
         </>
     );

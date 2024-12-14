@@ -8,10 +8,12 @@ from fastapi import (
     Depends,
     FastAPI,
     HTTPException,
+    Request,
     WebSocket,
     WebSocketDisconnect,
     status,
 )
+from fastapi.responses import JSONResponse
 from jose import JWTError, jwt
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field, SecretStr
@@ -31,6 +33,14 @@ from fastapi.security import (
     OAuth2PasswordBearer,
     OAuth2PasswordRequestForm,
 )
+import logging
+from rich.logging import RichHandler
+
+FORMAT = "%(message)s"
+logging.basicConfig(
+    level="INFO", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
+)
+log = logging.getLogger("cyris")
 
 users_manager = UsersManager()
 messages_manager = MessagesManager()
@@ -81,11 +91,6 @@ SECRET_KEY = "18e8e912cce442d5fe6af43a003dedd7cedd7248efc16ac926f21f8f940398a8"
 # Generated with `openssl rand -hex 32`
 
 
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-
 class TokenData(BaseModel):
     user_email: EmailStr
 
@@ -94,8 +99,8 @@ pwd_context = CryptContext(schemes=["bcrypt"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
-async def get_current_admin_user(token: str = Depends(oauth2_scheme)) -> AdminUser:
-    current_user = await get_current_user(token)
+async def get_current_admin_user(request: Request) -> AdminUser:
+    current_user = await get_current_user(request)
     if not isinstance(current_user, AdminUser):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -104,10 +109,8 @@ async def get_current_admin_user(token: str = Depends(oauth2_scheme)) -> AdminUs
     return current_user
 
 
-async def get_current_non_admin_user(
-    token: str = Depends(oauth2_scheme),
-) -> NonAdminUser:
-    current_user = await get_current_user(token)
+async def get_current_non_admin_user(request: Request) -> NonAdminUser:
+    current_user = await get_current_user(request)
     if not isinstance(current_user, NonAdminUser):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -116,9 +119,14 @@ async def get_current_non_admin_user(
     return current_user
 
 
-async def get_current_user(
-    token: str = Depends(oauth2_scheme),
-) -> AdminUser | NonAdminUser:
+async def get_current_user(request: Request) -> AdminUser | NonAdminUser:
+    token = request.cookies.get("authToken")
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
     except JWTError:
@@ -136,22 +144,20 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    assert isinstance(users_manager, UsersManager)
     return await users_manager.get_user_by_email(user_email)
 
 
 @app.post("/token")
 async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
-) -> Token:
-    # TODO switch to sessions: https://evertpot.com/jwt-is-a-bad-default/
+) -> JSONResponse:
+    # TODO switch to sessions? https://evertpot.com/jwt-is-a-bad-default/
     JWT_EXPIRE_MINUTES = (
-        120  # long only because I plan to remove this in favor of sessions
+        240  # long only because I plan to remove this in favor of sessions
     )
     user_email = form_data.username
     unhashed_user_password = SecretStr(form_data.password)
 
-    assert isinstance(users_manager, UsersManager)
     user = await users_manager.get_user_by_email(user_email)
 
     def is_password_correct(
@@ -188,7 +194,31 @@ async def login_for_access_token(
         data={"user_email": user.user_email},
         minutes_after_which_access_token_expires=JWT_EXPIRE_MINUTES,
     )
-    return Token(access_token=access_token, token_type="bearer")
+    response = JSONResponse({"msg": "Login successful"})
+    response.set_cookie(
+        key="authToken",
+        value=access_token,
+        httponly=True,
+        secure=False,  # TODO change this to true after setting up HTTPS
+        samesite="strict",
+        max_age=JWT_EXPIRE_MINUTES * 60,
+    )
+    return response
+
+
+@app.post("/logout")
+async def logout() -> JSONResponse:
+    response = JSONResponse(content={"msg": "Logout succcessful"})
+    # Overwrite the client's existing `authToken` cookie with an empty/expired one
+    response.set_cookie(
+        key="authToken",
+        value="",
+        httponly=True,
+        secure=False,
+        expires=0,  # expire the httponly cookie immediately
+        max_age=0,
+    )
+    return response
 
 
 class FirstAdminDetails(BaseModel):
@@ -203,7 +233,6 @@ async def does_initial_setup_need_to_be_completed() -> bool:
 
 @app.post("/first_admin")
 async def create_first_admin_user(first_admin_details: FirstAdminDetails):
-    assert isinstance(users_manager, UsersManager)
     if await users_manager.does_at_least_one_admin_user_exist():
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -246,7 +275,6 @@ async def create_user(
     new_user_details: RegistrationAttempt,
     current_admin_user: AdminUser = Depends(get_current_admin_user),
 ) -> RegisteredUser:
-    assert isinstance(users_manager, UsersManager)
     hashed_desired_password = SecretStr(
         pwd_context.hash(new_user_details.desired_user_password.get_secret_value())
     )
@@ -256,6 +284,30 @@ async def create_user(
         desired_human_name=new_user_details.desired_human_name,
         desired_ai_name=new_user_details.desired_ai_name,
     )
+
+
+@app.delete("/user")
+async def deactivate_user(
+    user_to_delete: RegisteredUser,
+    current_admin_user: AdminUser = Depends(get_current_admin_user),
+):
+    if current_admin_user.user_id == user_to_delete.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="An admin cannot deactivate their own account. A different admin must do so.",
+        )
+    await users_manager.deactivate_user(user_to_delete)
+
+
+# @app.put('/user')
+# async def modify_user(user_id_to_modify: int, updated_user_details: RegisteredUser):
+
+
+@app.get("/user")
+async def get_users(
+    current_admin_user: AdminUser = Depends(get_current_admin_user),
+) -> list[RegisteredUser]:
+    return await users_manager.get_users()
 
 
 @app.get("/user/me")

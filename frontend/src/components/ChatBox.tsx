@@ -9,7 +9,7 @@ interface Message {
     sender_id: string;
 }
 
-function ChatBox({ user }: { user: User | null }) {
+function ChatBox({ user }: { user: User }) {
     const [messages, setMessages] = useState([] as Message[]);
     const [clientId, setClientId] = useState(null as string | null);
     const [isInputDisabled, setIsInputDisabled] = useState(true);

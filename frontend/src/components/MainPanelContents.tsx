@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./SetServerForm.css";
 import axios from "axios";
+import ChatBox from "./ChatBox";
+import AdminPanel from "./AdminPanel";
 
 function SetServerForm({
     setServerUrlAndCookie,
@@ -56,6 +58,62 @@ function SetServerForm({
     );
 }
 
+const CreateFirstAdminForm = ({ serverUrl }: { serverUrl: URL }) => {
+    const [firstAdminUsernameInput, setFirstAdminUsernameInput] = useState("");
+    const [firstAdminPasswordInput, setFirstAdminPasswordInput] = useState("");
+
+    const submitLogin = async () => {
+        try {
+            const response = await axios.post(
+                new URL("/first_admin", serverUrl).toString(),
+                {
+                    desired_user_email: firstAdminUsernameInput,
+                    desired_user_password: firstAdminPasswordInput,
+                }
+            );
+            console.log(response);
+        } catch (error) {
+            console.log(error);
+            console.log("TODO deal w dis unhandled error 78465132");
+        }
+    };
+    return (
+        <>
+            Create the first admin account. After this, an admin account will be
+            required to create any users.
+            <div className="inputs">
+                <input
+                    type="text"
+                    placeholder="username"
+                    value={firstAdminUsernameInput}
+                    onChange={(event) => {
+                        setFirstAdminUsernameInput(event.target.value);
+                    }}
+                ></input>
+                <br />
+                <input
+                    type="password"
+                    placeholder="password"
+                    value={firstAdminPasswordInput}
+                    onChange={(event) => {
+                        setFirstAdminPasswordInput(event.target.value);
+                    }}
+                ></input>
+            </div>
+            <br />
+            <div className="submitLogin">
+                <button
+                    onClick={(_event) => {
+                        submitLogin();
+                    }}
+                >
+                    Create Admin
+                </button>
+            </div>
+        </>
+    );
+};
+
 const LoginForm = ({
     serverUrl,
     setServerUrlAndCookie,
@@ -71,25 +129,21 @@ const LoginForm = ({
     const [usernameInput, setUsernameInput] = useState("");
     const [passwordInput, setPasswordInput] = useState("");
 
-    const submitLogin = async (
-        usernameInput: string,
-        passwordInput: string
-    ) => {
+    const submitLogin = async () => {
         try {
-            const response = await axios.post(
-                "http://0.0.0.0:8000/token",
+            await axios.post(
+                new URL("/token", serverUrl).toString(),
                 new URLSearchParams({
-                    grant_type: "password",
                     username: usernameInput,
                     password: passwordInput,
                 }),
-                {
-                    headers: {
-                        accept: "application/json, text/plain, */*",
-                        authorization: "Basic Og==",
-                    },
-                }
+                { withCredentials: true }
             );
+            const currentUserRequestResponse = await axios.get(
+                new URL("/user/me", serverUrl).toString(),
+                { withCredentials: true }
+            );
+            setCurrentUserAndCookie(currentUserRequestResponse.data);
         } catch (error) {
             console.log(error);
             console.log("TODO deal w dis unhandled error 874512");
@@ -121,7 +175,7 @@ const LoginForm = ({
             <div className="submitLogin">
                 <button
                     onClick={(_event) => {
-                        submitLogin(usernameInput, passwordInput);
+                        submitLogin();
                     }}
                 >
                     Login to {serverUrl.toString()}
@@ -147,8 +201,26 @@ const MainPanelContents = ({
     currentUser: User | null;
     setCurrentUserAndCookie: (user: User | null) => void;
 }) => {
+    const [isInitialSetupRequired, setIsInitialSetupRequired] = useState(true);
+
+    useEffect(() => {
+        async function learnWhetherInitialSetupIsRequired(serverUrl: URL) {
+            const response = await axios.get(
+                new URL("/is_setup_required", serverUrl).toString()
+            );
+            setIsInitialSetupRequired(response.data === true);
+        }
+        if (serverUrl) {
+            learnWhetherInitialSetupIsRequired(serverUrl);
+        }
+    }, [serverUrl]);
+
     if (!serverUrl) {
         return <SetServerForm setServerUrlAndCookie={setServerUrlAndCookie} />;
+    }
+
+    if (isInitialSetupRequired) {
+        return <CreateFirstAdminForm serverUrl={serverUrl} />;
     }
 
     if (!currentUser) {
@@ -161,7 +233,13 @@ const MainPanelContents = ({
         );
     }
 
-    return <>{serverUrl ? serverUrl.toString() : "hi"}</>;
+    if (currentUser.is_user_an_admin) {
+        return (
+            <AdminPanel currentAdminUser={currentUser} serverUrl={serverUrl} />
+        );
+    }
+
+    return <ChatBox user={currentUser} />;
 };
 
 export default MainPanelContents;
