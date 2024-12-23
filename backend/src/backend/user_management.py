@@ -87,7 +87,7 @@ class UsersManager(PostgresTableManager):
     def create_indexes_queries(self):
         return ("CREATE INDEX IF NOT EXISTS idx_user_email ON users(user_email)",)
 
-    async def does_at_least_one_admin_user_exist(self) -> bool:
+    async def does_at_least_one_active_admin_user_exist(self) -> bool:
         async with self.get_connection() as connection:
             admin_user_or_none = await connection.fetchrow(
                 "SELECT * FROM users WHERE is_user_deactivated=false AND is_user_an_admin=true LIMIT 1"
@@ -176,7 +176,37 @@ class UsersManager(PostgresTableManager):
                     detail=f"Email address {desired_user_email} already in use.",
                 )
 
-    async def get_user_by_email(self, user_email: EmailStr) -> AdminUser | NonAdminUser:
+    async def get_user_by_user_id(self, user_id: int) -> AdminUser | NonAdminUser:
+        async with self.get_connection() as connection:
+            row = await connection.fetchrow(
+                "SELECT * FROM users WHERE user_id=$1", user_id
+            )
+            if not row:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"User with {user_id=} does not exist.",
+                )
+            user = RegisteredUser(**row)
+            if user.is_user_an_admin:
+                return AdminUser(**user.model_dump())
+            else:
+                return NonAdminUser(**user.model_dump())
+
+    async def get_active_user_by_email(
+        self, user_email: EmailStr
+    ) -> AdminUser | NonAdminUser:
+        user = await self.get_active_or_inactive_user_by_email(user_email)
+        if user.is_user_deactivated:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"User {user.user_email} is a deactivated user.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return user
+
+    async def get_active_or_inactive_user_by_email(
+        self, user_email: EmailStr
+    ) -> AdminUser | NonAdminUser:
         async with self.get_connection() as connection:
             row = await connection.fetchrow(
                 "SELECT * FROM users WHERE user_email=$1", user_email
@@ -187,12 +217,6 @@ class UsersManager(PostgresTableManager):
                     detail=f"User {user_email} does not exist.",
                 )
             user = RegisteredUser(**row)
-            if user.is_user_deactivated:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail=f"User {user.user_email} is a deactivated user.",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
             if user.is_user_an_admin:
                 return AdminUser(**user.model_dump())
             else:
@@ -218,4 +242,14 @@ class UsersManager(PostgresTableManager):
             await connection.execute(
                 "UPDATE users SET is_user_deactivated=true WHERE user_id=$1",
                 user_to_deactivate.user_id,
+            )
+
+    async def reactivate_user(self, user_to_reactivate: RegisteredUser):
+        """
+        Meant only for admins
+        """
+        async with self.get_transaction_connection() as connection:
+            await connection.execute(
+                "UPDATE users SET is_user_deactivated=false WHERE user_id=$1",
+                user_to_reactivate.user_id,
             )

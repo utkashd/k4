@@ -1,26 +1,39 @@
 import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import DataTable from "react-data-table-component";
-import { BsFillTrash3Fill } from "react-icons/bs";
+import { FaTrash, FaTrashRestore } from "react-icons/fa";
 
 function ManageUsers({
-    users,
     serverUrl,
     currentAdminUser,
 }: {
-    users: User[];
     serverUrl: URL;
     currentAdminUser: User;
 }) {
-    const [selectedRows, setSelectedRows] = useState([] as User[]);
+    const [users, setUsers] = useState<User[]>([]);
+    const refreshUsers = async () => {
+        const response = await axios.get(
+            new URL("/user", serverUrl).toString(),
+            { withCredentials: true }
+        );
+        setUsers(response.data);
+    };
+    useEffect(() => {
+        refreshUsers();
+    }, []);
+    const [selectedUsers, setSelectedUsers] = useState([] as User[]);
     const [toggleCleared, setToggleCleared] = useState(false);
+    const clearSelection = () => {
+        setToggleCleared(!toggleCleared);
+        setSelectedUsers([]);
+    };
     const handleRowSelected = useCallback(
         (selected: {
             allSelected: boolean;
             selectedCount: number;
             selectedRows: User[];
         }) => {
-            setSelectedRows(selected.selectedRows);
+            setSelectedUsers(selected.selectedRows);
         },
         []
     );
@@ -32,65 +45,117 @@ function ManageUsers({
                 toggleCleared={toggleCleared}
                 currentAdminUser={currentAdminUser}
             />
-            <DeactivateUsersBar
+            <UserManagementActionsBar
+                refreshUsers={refreshUsers}
                 serverUrl={serverUrl}
-                selectedRows={selectedRows}
-                toggleCleared={toggleCleared}
-                setToggleCleared={setToggleCleared}
+                selectedUsers={selectedUsers}
+                clearSelection={clearSelection}
             />
         </>
     );
 }
 
-function DeactivateUsersBar({
-    selectedRows: selectedUsers,
+function UserManagementActionsBar({
+    refreshUsers,
+    selectedUsers,
     serverUrl,
-    toggleCleared,
-    setToggleCleared,
+    clearSelection,
 }: {
-    selectedRows: User[];
+    refreshUsers: () => Promise<void>;
+    selectedUsers: User[];
     serverUrl: URL;
-    toggleCleared: boolean;
-    setToggleCleared: React.Dispatch<React.SetStateAction<boolean>>;
+    clearSelection: () => void;
 }) {
     if (!selectedUsers.length) {
         return <></>;
     }
-
-    const emails = selectedUsers.map((user: User) => {
-        return user.user_email;
+    const areAllSelectedUsersActive = selectedUsers.every((user: User) => {
+        return !user.is_user_deactivated;
     });
-    const confirmDeactivateUsers = async () => {
-        const doesAdminWantToDeactivateSelectedUsers = confirm(
-            `Deactivate the following users? ${emails.join(" ")}`
-        );
-        if (doesAdminWantToDeactivateSelectedUsers) {
-            for (const user of selectedUsers) {
-                await axios.delete(new URL("/user", serverUrl).toString(), {
-                    withCredentials: true,
-                    data: user,
-                });
-                setToggleCleared(!toggleCleared);
+    if (areAllSelectedUsersActive) {
+        const confirmAndDeactivateUsers = async () => {
+            const emails = selectedUsers.map((user: User) => {
+                return user.user_email;
+            });
+            const doesAdminWantToDeactivateSelectedUsers = confirm(
+                `Deactivate the following users? ${emails.join(" ")}`
+            );
+            if (doesAdminWantToDeactivateSelectedUsers) {
+                for (const user of selectedUsers) {
+                    await axios.delete(new URL("/user", serverUrl).toString(), {
+                        withCredentials: true,
+                        data: user,
+                    });
+                }
+                clearSelection();
+                refreshUsers();
             }
-        }
-    };
-    return (
-        <>
-            <a
-                href=""
-                onClick={(event) => {
-                    event.preventDefault();
-                }}
-            >
-                <BsFillTrash3Fill
+        };
+        return (
+            <>
+                <a
+                    href=""
                     onClick={(event) => {
                         event.preventDefault();
-                        confirmDeactivateUsers();
                     }}
-                />
-            </a>
-        </>
-    );
+                >
+                    <FaTrash
+                        onClick={(event) => {
+                            event.preventDefault();
+                            confirmAndDeactivateUsers();
+                        }}
+                    />
+                </a>
+            </>
+        );
+    }
+    const areAllSelectedUsersInactive = selectedUsers.every((user: User) => {
+        return user.is_user_deactivated;
+    });
+    if (areAllSelectedUsersInactive) {
+        const confirmAndReactivateUsers = async () => {
+            const emails = selectedUsers.map((user: User) => {
+                return user.user_email;
+            });
+            const doesAdminWantToDeactivateSelectedUsers = confirm(
+                `Reactivate the following users? ${emails.join(" ")}`
+            );
+            if (doesAdminWantToDeactivateSelectedUsers) {
+                const response = await axios.get(
+                    new URL("/user", serverUrl).toString(),
+                    { withCredentials: true }
+                );
+                console.log(response);
+                for (const user of selectedUsers) {
+                    await axios.put(
+                        new URL("/user", serverUrl).toString(),
+                        user,
+                        { withCredentials: true }
+                    );
+                }
+                clearSelection();
+                refreshUsers();
+            }
+        };
+        return (
+            <>
+                <a
+                    href=""
+                    onClick={(event) => {
+                        event.preventDefault();
+                    }}
+                >
+                    <FaTrashRestore
+                        onClick={(event) => {
+                            event.preventDefault();
+                            confirmAndReactivateUsers();
+                        }}
+                    />
+                </a>
+            </>
+        );
+    }
+    return <></>;
 }
 
 function UsersList({
@@ -174,18 +239,6 @@ const AdminPanel = ({
     currentAdminUser: User;
     serverUrl: URL;
 }) => {
-    const [users, setUsers] = useState<User[]>([]);
-    useEffect(() => {
-        const getUsers = async () => {
-            const response = await axios.get(
-                new URL("/user", serverUrl).toString(),
-                { withCredentials: true }
-            );
-            setUsers(response.data);
-        };
-        getUsers();
-    }, []);
-
     return (
         <>
             Welcome Admin {currentAdminUser.user_email}. Here you may create and
@@ -193,7 +246,6 @@ const AdminPanel = ({
             <br />
             <br />
             <ManageUsers
-                users={users}
                 serverUrl={serverUrl}
                 currentAdminUser={currentAdminUser}
             />

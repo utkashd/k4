@@ -81,7 +81,7 @@ app.add_middleware(
         "http://localhost:5173"
     ],  # (protocol, domain, port) defines an origin
     allow_credentials=True,
-    allow_methods=["GET", "POST", "DELETE"],
+    allow_methods=["GET", "POST", "DELETE", "PUT"],
     allow_headers=["*"],
 )
 
@@ -99,8 +99,8 @@ pwd_context = CryptContext(schemes=["bcrypt"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
-async def get_current_admin_user(request: Request) -> AdminUser:
-    current_user = await get_current_user(request)
+async def get_current_active_admin_user(request: Request) -> AdminUser:
+    current_user = await get_current_active_user(request)
     if not isinstance(current_user, AdminUser):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -109,8 +109,8 @@ async def get_current_admin_user(request: Request) -> AdminUser:
     return current_user
 
 
-async def get_current_non_admin_user(request: Request) -> NonAdminUser:
-    current_user = await get_current_user(request)
+async def get_current_active_non_admin_user(request: Request) -> NonAdminUser:
+    current_user = await get_current_active_user(request)
     if not isinstance(current_user, NonAdminUser):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -119,12 +119,12 @@ async def get_current_non_admin_user(request: Request) -> NonAdminUser:
     return current_user
 
 
-async def get_current_user(request: Request) -> AdminUser | NonAdminUser:
+async def get_current_active_user(request: Request) -> AdminUser | NonAdminUser:
     token = request.cookies.get("authToken")
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials.",
+            detail="Could not validate credentials: authToken not provided.",
             headers={"WWW-Authenticate": "Bearer"},
         )
     try:
@@ -144,7 +144,9 @@ async def get_current_user(request: Request) -> AdminUser | NonAdminUser:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    return await users_manager.get_user_by_email(user_email)
+    user = await users_manager.get_active_user_by_email(user_email)
+
+    return user
 
 
 @app.post("/token")
@@ -158,7 +160,13 @@ async def login_for_access_token(
     user_email = form_data.username
     unhashed_user_password = SecretStr(form_data.password)
 
-    user = await users_manager.get_user_by_email(user_email)
+    user = await users_manager.get_active_user_by_email(user_email)
+    if user.is_user_deactivated:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"User {user.user_email} is a deactivated user.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     def is_password_correct(
         unhashed_user_password: SecretStr, hashed_user_password: SecretStr
@@ -228,12 +236,12 @@ class FirstAdminDetails(BaseModel):
 
 @app.get("/is_setup_required")
 async def does_initial_setup_need_to_be_completed() -> bool:
-    return not await users_manager.does_at_least_one_admin_user_exist()
+    return not await users_manager.does_at_least_one_active_admin_user_exist()
 
 
 @app.post("/first_admin")
 async def create_first_admin_user(first_admin_details: FirstAdminDetails):
-    if await users_manager.does_at_least_one_admin_user_exist():
+    if await users_manager.does_at_least_one_active_admin_user_exist():
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can't try to create a user through this endpoint because an admin user has already been created.",
@@ -256,7 +264,7 @@ async def create_first_admin_user(first_admin_details: FirstAdminDetails):
 @app.post("/admin")
 async def create_admin_user(
     new_user_details: RegistrationAttempt,
-    current_admin_user: AdminUser = Depends(get_current_admin_user),
+    current_admin_user: AdminUser = Depends(get_current_active_admin_user),
 ) -> RegisteredUser:
     hashed_desired_password = SecretStr(
         pwd_context.hash(new_user_details.desired_user_password.get_secret_value())
@@ -273,7 +281,7 @@ async def create_admin_user(
 @app.post("/user")
 async def create_user(
     new_user_details: RegistrationAttempt,
-    current_admin_user: AdminUser = Depends(get_current_admin_user),
+    current_admin_user: AdminUser = Depends(get_current_active_admin_user),
 ) -> RegisteredUser:
     hashed_desired_password = SecretStr(
         pwd_context.hash(new_user_details.desired_user_password.get_secret_value())
@@ -288,38 +296,43 @@ async def create_user(
 
 @app.delete("/user")
 async def deactivate_user(
-    user_to_delete: RegisteredUser,
-    current_admin_user: AdminUser = Depends(get_current_admin_user),
+    user_to_deactivate: RegisteredUser,
+    current_admin_user: AdminUser = Depends(get_current_active_admin_user),
 ):
-    if current_admin_user.user_id == user_to_delete.user_id:
+    if current_admin_user.user_id == user_to_deactivate.user_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="An admin cannot deactivate their own account. A different admin must do so.",
         )
-    await users_manager.deactivate_user(user_to_delete)
+    await users_manager.deactivate_user(user_to_deactivate)
 
 
-# @app.put('/user')
-# async def modify_user(user_id_to_modify: int, updated_user_details: RegisteredUser):
+@app.put("/user")
+async def reactivate_user(
+    user_to_reactivate: RegisteredUser,
+    current_admin_user: AdminUser = Depends(get_current_active_admin_user),
+):
+    await users_manager.reactivate_user(user_to_reactivate)
 
 
 @app.get("/user")
 async def get_users(
-    current_admin_user: AdminUser = Depends(get_current_admin_user),
+    current_admin_user: AdminUser = Depends(get_current_active_admin_user),
 ) -> list[RegisteredUser]:
     return await users_manager.get_users()
 
 
 @app.get("/user/me")
 async def get_current_user_info(
-    current_user: RegisteredUser = Depends(get_current_user),
+    current_user: RegisteredUser = Depends(get_current_active_user),
 ):
     return current_user
 
 
 @app.get("/chat")
 async def get_chat_by_chat_id(
-    chat_id: int, current_user: NonAdminUser = Depends(get_current_non_admin_user)
+    chat_id: int,
+    current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
 ):
     # TODO reverse-paginate
     return await messages_manager.get_messages_of_chat(chat_id)
@@ -328,7 +341,7 @@ async def get_chat_by_chat_id(
 @app.websocket("/chat")
 async def websocket_endpoint(
     client_websocket: WebSocket,
-    current_user: NonAdminUser = Depends(get_current_non_admin_user),
+    current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
 ) -> None:
     user_id = current_user.user_id
     # Accept the connection from the client
