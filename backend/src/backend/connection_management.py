@@ -15,7 +15,7 @@ from fastapi import WebSocket
 from message_management import MessagesManager
 
 
-@dataclass
+@dataclass(frozen=True)  # frozen=True lets us hash instances of this class
 class CyrisServerClientConnection:
     session_id: uuid.UUID
     session_websocket: WebSocket
@@ -53,7 +53,7 @@ class ConnectionManager:
         # not using self.send_message_to(...) here
         await new_client_websocket.accept()
         await new_client_websocket.send_json(
-            {"connection_status": "connection_successful", "id": session_id},
+            {"connection_status": "connection_successful", "id": str(session_id)},
         )
         # chat_history = Messages(response.json())
         # for message in chat_history.root:

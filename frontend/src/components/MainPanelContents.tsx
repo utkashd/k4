@@ -64,14 +64,10 @@ const CreateFirstAdminForm = ({ serverUrl }: { serverUrl: URL }) => {
 
     const submitLogin = async () => {
         try {
-            const response = await axios.post(
-                new URL("/first_admin", serverUrl).toString(),
-                {
-                    desired_user_email: firstAdminUsernameInput,
-                    desired_user_password: firstAdminPasswordInput,
-                }
-            );
-            console.log(response);
+            await axios.post(new URL("/first_admin", serverUrl).toString(), {
+                desired_user_email: firstAdminUsernameInput,
+                desired_user_password: firstAdminPasswordInput,
+            });
         } catch (error) {
             console.log(error);
             console.log("TODO deal w dis unhandled error 78465132");
@@ -239,7 +235,13 @@ const MainPanelContents = ({
         );
     }
 
-    return <ChatBox user={currentUser} />;
+    const chatEndpointBaseUrl = new URL(serverUrl);
+    chatEndpointBaseUrl.protocol = chatEndpointBaseUrl.protocol.replace(
+        "http",
+        "ws"
+    );
+    const chatEndpoint = new URL("/chat", chatEndpointBaseUrl);
+    return <ChatBox user={currentUser} chatWsEndpoint={chatEndpoint} />;
 };
 
 export default MainPanelContents;

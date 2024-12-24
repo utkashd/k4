@@ -2,9 +2,11 @@ from asyncio import wait_for
 from contextlib import asynccontextmanager
 import datetime
 import json
+import aioconsole  # type: ignore[import-untyped]
 import asyncpg  # type: ignore[import-untyped]
 from backend_commons.messages import ClientMessage
 from fastapi import (
+    Cookie,
     Depends,
     FastAPI,
     HTTPException,
@@ -100,7 +102,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
 async def get_current_active_admin_user(request: Request) -> AdminUser:
-    current_user = await get_current_active_user(request)
+    current_user = await get_current_active_user(request.cookies.get("authToken"))
     if not isinstance(current_user, AdminUser):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -110,7 +112,7 @@ async def get_current_active_admin_user(request: Request) -> AdminUser:
 
 
 async def get_current_active_non_admin_user(request: Request) -> NonAdminUser:
-    current_user = await get_current_active_user(request)
+    current_user = await get_current_active_user(request.cookies.get("authToken"))
     if not isinstance(current_user, NonAdminUser):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -119,8 +121,21 @@ async def get_current_active_non_admin_user(request: Request) -> NonAdminUser:
     return current_user
 
 
-async def get_current_active_user(request: Request) -> AdminUser | NonAdminUser:
-    token = request.cookies.get("authToken")
+async def get_current_active_non_admin_user_ws(websocket: WebSocket) -> NonAdminUser:
+    current_user = await get_current_active_user(websocket.cookies.get("authToken"))
+    if not isinstance(current_user, NonAdminUser):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"User {current_user.user_email} is an administrator.",
+        )
+    return current_user
+
+
+async def get_current_active_user(
+    authToken: str | None = Cookie(default=None),
+) -> AdminUser | NonAdminUser:
+    # token = request.cookies.get("authToken")
+    token = authToken
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -218,7 +233,7 @@ async def login_for_access_token(
 async def logout() -> JSONResponse:
     response = JSONResponse(content={"msg": "Logout succcessful"})
     # Overwrite the client's existing `authToken` cookie with an empty/expired one
-    response.set_cookie(
+    response.set_cookie(  # TODO replace with delete cookie
         key="authToken",
         value="",
         httponly=True,
@@ -341,23 +356,25 @@ async def get_chat_by_chat_id(
 @app.websocket("/chat")
 async def websocket_endpoint(
     client_websocket: WebSocket,
-    current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
+    current_user: NonAdminUser = Depends(get_current_active_non_admin_user_ws),
 ) -> None:
     user_id = current_user.user_id
     # Accept the connection from the client
     session_id = await connection_manager.connect(client_websocket, user_id)
     try:
         # immediately tell them their client id
-        await connection_manager.send_custom_message_to_user(
-            user_id=user_id, json={"session_id": session_id}
-        )
+        # await connection_manager.send_custom_message_to_user(
+        #     user_id=user_id, json={"session_id": str(session_id)}
+        # )
         while True:
+            s = await aioconsole.ainput("send them something ")  # noqa: F821
+            await client_websocket.send_text(s)
             # Receive the message from the client
-            data = json.loads(await client_websocket.receive_text())
-            client_message = ClientMessage(**data)
-            await connection_manager.save_and_acknowledge_and_reply_to_client_message(
-                user_id, client_message
-            )
+            # data = json.loads(await client_websocket.receive_text())
+            # client_message = ClientMessage(**data)
+            # await connection_manager.save_and_acknowledge_and_reply_to_client_message(
+            #     user_id, client_message
+            # )
     except WebSocketDisconnect:
         # This means the user disconnected, e.g., closed the browser tab
         await connection_manager.disconnect(user_id, session_id)

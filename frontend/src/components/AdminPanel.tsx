@@ -121,11 +121,6 @@ function UserManagementActionsBar({
                 `Reactivate the following users? ${emails.join(" ")}`
             );
             if (doesAdminWantToDeactivateSelectedUsers) {
-                const response = await axios.get(
-                    new URL("/user", serverUrl).toString(),
-                    { withCredentials: true }
-                );
-                console.log(response);
                 for (const user of selectedUsers) {
                     await axios.put(
                         new URL("/user", serverUrl).toString(),

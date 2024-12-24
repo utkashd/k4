@@ -9,7 +9,13 @@ interface Message {
     sender_id: string;
 }
 
-function ChatBox({ user }: { user: User }) {
+function ChatBox({
+    user,
+    chatWsEndpoint,
+}: {
+    user: User;
+    chatWsEndpoint: URL;
+}) {
     const [messages, setMessages] = useState([] as Message[]);
     const [clientId, setClientId] = useState(null as string | null);
     const [isInputDisabled, setIsInputDisabled] = useState(true);
@@ -20,52 +26,73 @@ function ChatBox({ user }: { user: User }) {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
 
-    let socket: WebSocket | null = null;
+    // let socket: WebSocket | null = null;
+    const ws = useRef(null as WebSocket | null);
+
+    // useEffect(() => {
+
+    // // console.log(chatWsEndpoint);
+    // ws.current = new WebSocket(chatWsEndpoint);
+
+    // ws.current.onopen = () => {
+    //     console.log("open!");
+    // };
+
+    // ws.current.onmessage = (event) => {
+    //     const receivedMessage = JSON.parse(event.data);
+    //     // if (typeof receivedMessage.client_id === "string") {
+    //     //     setClientId(receivedMessage.client_id);
+    //     //     ws.current!.send(
+    //     //         JSON.stringify({
+    //     //             sender_id: receivedMessage.client_id + "_system",
+    //     //             text: "start_chat " + user.user_id,
+    //     //         })
+    //     //     );
+    //     // } else if (receivedMessage.ready === true) {
+    //     //     setIsInputDisabled(false);
+    //     // } else if (typeof receivedMessage.connection_status !== "string") {
+    //     //     setMessages((currentMessages) => {
+    //     //         return [...currentMessages, receivedMessage];
+    //     //     });
+    //     // }
+    //     console.log(receivedMessage);
+    // };
+
+    // ws.current.onerror = (error) => {
+    //     if (ws.current) {
+    //         // TODO tell them to refresh or something
+    //         console.log(error);
+    //         ws.current.close();
+    //     }
+    // };
+
+    // ws.current.onclose = (event) => {
+    //     console.log(event);
+    // };
+
+    // return () => {
+    //     // component unmounted, so we should close the websocket and reset messages
+    //     if (ws.current) {
+    //         // TODO read this and fix: https://stackoverflow.com/questions/12487828/what-does-websocket-is-closed-before-the-connection-is-established-mean
+    //         console.log("hiiiiii");
+    //         ws.current.close();
+    //     }
+    //     setMessages([]);
+    // };
+    // }, [user]);
 
     useEffect(() => {
-        if (!user) return;
-        setMessages([]);
-        socket = new WebSocket("ws://localhost:8001/chat");
-
-        socket.onopen = () => {};
+        const socket = new WebSocket(chatWsEndpoint);
 
         socket.onmessage = (event) => {
-            const receivedMessage = JSON.parse(event.data);
-            if (typeof receivedMessage.client_id === "string") {
-                setClientId(receivedMessage.client_id);
-                socket!.send(
-                    JSON.stringify({
-                        sender_id: receivedMessage.client_id + "_system",
-                        text: "start_chat " + user.user_id,
-                    })
-                );
-            } else if (receivedMessage.ready === true) {
-                setIsInputDisabled(false);
-            } else if (typeof receivedMessage.connection_status !== "string") {
-                setMessages((currentMessages) => {
-                    return [...currentMessages, receivedMessage];
-                });
-            }
+            console.log(event.data);
         };
-
-        socket.onerror = () => {
-            if (socket) {
-                // TODO tell them to refresh or something
-                socket.close();
-            }
-        };
-
-        socket.onclose = () => {};
 
         return () => {
-            // component unmounted, so we should close the websocket and reset messages
-            if (socket) {
-                // TODO read this and fix: https://stackoverflow.com/questions/12487828/what-does-websocket-is-closed-before-the-connection-is-established-mean
-                socket.close();
-            }
-            setMessages([]);
+            // <-- This is important
+            socket.close();
         };
-    }, [user]);
+    }, []);
 
     useEffect(() => {
         scrollToBottom();
