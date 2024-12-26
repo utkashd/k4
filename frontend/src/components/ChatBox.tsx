@@ -3,6 +3,7 @@ import "./ChatBox.css";
 import axios from "axios";
 import Markdown from "react-markdown";
 import Collapsible from "react-collapsible";
+import { v4 as uuidv4 } from "uuid";
 
 interface Message {
     text: string;
@@ -29,70 +30,74 @@ function ChatBox({
     // let socket: WebSocket | null = null;
     const ws = useRef(null as WebSocket | null);
 
-    // useEffect(() => {
-
-    // // console.log(chatWsEndpoint);
-    // ws.current = new WebSocket(chatWsEndpoint);
-
-    // ws.current.onopen = () => {
-    //     console.log("open!");
-    // };
-
-    // ws.current.onmessage = (event) => {
-    //     const receivedMessage = JSON.parse(event.data);
-    //     // if (typeof receivedMessage.client_id === "string") {
-    //     //     setClientId(receivedMessage.client_id);
-    //     //     ws.current!.send(
-    //     //         JSON.stringify({
-    //     //             sender_id: receivedMessage.client_id + "_system",
-    //     //             text: "start_chat " + user.user_id,
-    //     //         })
-    //     //     );
-    //     // } else if (receivedMessage.ready === true) {
-    //     //     setIsInputDisabled(false);
-    //     // } else if (typeof receivedMessage.connection_status !== "string") {
-    //     //     setMessages((currentMessages) => {
-    //     //         return [...currentMessages, receivedMessage];
-    //     //     });
-    //     // }
-    //     console.log(receivedMessage);
-    // };
-
-    // ws.current.onerror = (error) => {
-    //     if (ws.current) {
-    //         // TODO tell them to refresh or something
-    //         console.log(error);
-    //         ws.current.close();
-    //     }
-    // };
-
-    // ws.current.onclose = (event) => {
-    //     console.log(event);
-    // };
-
-    // return () => {
-    //     // component unmounted, so we should close the websocket and reset messages
-    //     if (ws.current) {
-    //         // TODO read this and fix: https://stackoverflow.com/questions/12487828/what-does-websocket-is-closed-before-the-connection-is-established-mean
-    //         console.log("hiiiiii");
-    //         ws.current.close();
-    //     }
-    //     setMessages([]);
-    // };
-    // }, [user]);
-
     useEffect(() => {
-        const socket = new WebSocket(chatWsEndpoint);
+        ws.current = new WebSocket(chatWsEndpoint);
+        // ws.current.onopen = () => {};
+        ws.current.onmessage = (event) => {
+            const receivedMessage = JSON.parse(event.data);
+            console.log(receivedMessage);
+            if (receivedMessage["session_id"]) {
+                setClientId(receivedMessage.session_id);
+                ws.current?.send(
+                    JSON.stringify({
+                        client_generated_message_uuid: uuidv4().toString(),
+                        text: "sup??",
+                        sender_id: user.user_id,
+                        chat_id: 1,
+                    })
+                );
+            }
 
-        socket.onmessage = (event) => {
-            console.log(event.data);
+            // if (typeof receivedMessage.client_id === "string") {
+            //     setClientId(receivedMessage.client_id);
+            //     ws.current!.send(
+            //         JSON.stringify({
+            //             sender_id: receivedMessage.client_id + "_system",
+            //             text: "start_chat " + user.user_id,
+            //         })
+            //     );
+            // } else if (receivedMessage.ready === true) {
+            //     setIsInputDisabled(false);
+            // } else if (typeof receivedMessage.connection_status !== "string") {
+            //     setMessages((currentMessages) => {
+            //         return [...currentMessages, receivedMessage];
+            //     });
+            // }
         };
 
-        return () => {
-            // <-- This is important
-            socket.close();
+        const cleanup = () => {
+            ws.current?.close();
+            ws.current = null;
+            setMessages([]);
+            // If you're getting a warning that leads you here, it's because in
+            // development, React strict mode causes some wonkiness. You can ignore the warning.
+            // https://stackoverflow.com/questions/12487828/what-does-websocket-is-closed-before-the-connection-is-established-mean
+
+            // TODO tell them to refresh or something
         };
-    }, []);
+        const logAndCleanup = (event: Event) => {
+            console.log(event);
+            cleanup();
+        };
+
+        ws.current.onerror = logAndCleanup;
+
+        ws.current.onclose = logAndCleanup;
+
+        return cleanup;
+    }, [user]);
+
+    // useEffect(() => {
+    //     const socket = new WebSocket(chatWsEndpoint);
+
+    //     socket.onmessage = (event) => {
+    //         console.log(event.data);
+    //     };
+
+    //     return () => {
+    //         socket.close();
+    //     };
+    // }, []);
 
     useEffect(() => {
         scrollToBottom();

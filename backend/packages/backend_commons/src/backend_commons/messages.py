@@ -4,7 +4,7 @@ from uuid import UUID
 
 class Message(BaseModel):
     text: str
-    sender_id: str
+    sender_id: int
     chat_id: int = 1
 
 
@@ -17,11 +17,11 @@ class ClientMessage(Message):
     A message from a client
     """
 
-    client_generated_uuid: UUID
+    client_generated_message_uuid: UUID
 
 
 class CyrisConfirmingReceiptOfClientMessage(BaseModel):
-    client_generated_uuid: UUID
+    client_generated_message_uuid: UUID
 
 
 class CyrisMessage(Message):
@@ -29,7 +29,7 @@ class CyrisMessage(Message):
     A message from Cyris
     """
 
-    sender_id: str = Field(default="cyris")
+    sender_id: int = Field(default=0)
 
 
 class CyrisSystemMessage(CyrisMessage):
@@ -37,7 +37,7 @@ class CyrisSystemMessage(CyrisMessage):
     A system message from Cyris (not to be confused with a system message for an LLM)
     """
 
-    sender_id: str = Field(default="cyris_system")
+    sender_id: int = Field(default=-1)
 
 
 class CyrisMessages(RootModel):  # type: ignore[type-arg]

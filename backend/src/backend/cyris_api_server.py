@@ -2,7 +2,7 @@ from asyncio import wait_for
 from contextlib import asynccontextmanager
 import datetime
 import json
-import aioconsole  # type: ignore[import-untyped]
+from uuid import UUID
 import asyncpg  # type: ignore[import-untyped]
 from backend_commons.messages import ClientMessage
 from fastapi import (
@@ -47,6 +47,7 @@ log = logging.getLogger("cyris")
 users_manager = UsersManager()
 messages_manager = MessagesManager()
 connection_manager = ConnectionManager()
+accepted_first = False
 
 
 @asynccontextmanager
@@ -359,25 +360,21 @@ async def websocket_endpoint(
     current_user: NonAdminUser = Depends(get_current_active_non_admin_user_ws),
 ) -> None:
     user_id = current_user.user_id
-    # Accept the connection from the client
-    session_id = await connection_manager.connect(client_websocket, user_id)
+    session_id: UUID | None = None
     try:
-        # immediately tell them their client id
-        # await connection_manager.send_custom_message_to_user(
-        #     user_id=user_id, json={"session_id": str(session_id)}
-        # )
+        # Accept the connection from the client
+        session_id = await connection_manager.connect(client_websocket, user_id)
         while True:
-            s = await aioconsole.ainput("send them something ")  # noqa: F821
-            await client_websocket.send_text(s)
             # Receive the message from the client
-            # data = json.loads(await client_websocket.receive_text())
-            # client_message = ClientMessage(**data)
-            # await connection_manager.save_and_acknowledge_and_reply_to_client_message(
-            #     user_id, client_message
-            # )
+            data = json.loads(await client_websocket.receive_text())
+            client_message = ClientMessage(**data)
+            await connection_manager.save_and_acknowledge_and_reply_to_client_message(
+                user_id, client_message
+            )
     except WebSocketDisconnect:
         # This means the user disconnected, e.g., closed the browser tab
-        await connection_manager.disconnect(user_id, session_id)
+        if session_id:
+            await connection_manager.disconnect(user_id, session_id)
 
 
 def main() -> None:

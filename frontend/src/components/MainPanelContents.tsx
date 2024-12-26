@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { StrictMode, useEffect, useState } from "react";
 import "./SetServerForm.css";
 import axios from "axios";
 import ChatBox from "./ChatBox";
@@ -212,26 +212,41 @@ const MainPanelContents = ({
     }, [serverUrl]);
 
     if (!serverUrl) {
-        return <SetServerForm setServerUrlAndCookie={setServerUrlAndCookie} />;
+        return (
+            <StrictMode>
+                <SetServerForm setServerUrlAndCookie={setServerUrlAndCookie} />
+            </StrictMode>
+        );
     }
 
     if (isInitialSetupRequired) {
-        return <CreateFirstAdminForm serverUrl={serverUrl} />;
+        return (
+            <StrictMode>
+                <CreateFirstAdminForm serverUrl={serverUrl} />
+            </StrictMode>
+        );
     }
 
     if (!currentUser) {
         return (
-            <LoginForm
-                serverUrl={serverUrl}
-                setServerUrlAndCookie={setServerUrlAndCookie}
-                setCurrentUserAndCookie={setCurrentUserAndCookie}
-            />
+            <StrictMode>
+                <LoginForm
+                    serverUrl={serverUrl}
+                    setServerUrlAndCookie={setServerUrlAndCookie}
+                    setCurrentUserAndCookie={setCurrentUserAndCookie}
+                />
+            </StrictMode>
         );
     }
 
     if (currentUser.is_user_an_admin) {
         return (
-            <AdminPanel currentAdminUser={currentUser} serverUrl={serverUrl} />
+            <StrictMode>
+                <AdminPanel
+                    currentAdminUser={currentUser}
+                    serverUrl={serverUrl}
+                />
+            </StrictMode>
         );
     }
 
@@ -241,6 +256,7 @@ const MainPanelContents = ({
         "ws"
     );
     const chatEndpoint = new URL("/chat", chatEndpointBaseUrl);
+    // IMPORTANT: Do not wrap this in strict mode. https://github.com/facebook/create-react-app/issues/10387
     return <ChatBox user={currentUser} chatWsEndpoint={chatEndpoint} />;
 };
 
