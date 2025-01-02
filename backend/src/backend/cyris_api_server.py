@@ -345,13 +345,48 @@ async def get_current_user_info(
     return current_user
 
 
+class ChatPreviewsRequestParams(BaseModel):
+    after_timestamp: datetime.datetime = datetime.datetime.now()
+    num_chats: int = 10
+
+
 @app.get("/chat")
 async def get_chat_by_chat_id(
     chat_id: int,
     current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
 ):
-    # TODO reverse-paginate
     return await messages_manager.get_messages_of_chat(chat_id)
+
+
+@app.get("/chats")
+async def get_chat_previews(
+    current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
+):
+    return await messages_manager.get_user_chat_previews(current_user.user_id, 4)
+
+
+@app.post("/chat")
+async def create_new_chat_with_message(
+    message: str,
+    current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
+):
+    chat_in_db = await messages_manager.create_new_chat(
+        user_id=current_user.user_id, title="cartoons"
+    )
+    return await messages_manager.save_message_to_db(
+        chat_id=chat_in_db.chat_id, user_id=current_user.user_id, text=message
+    )
+
+
+@app.post("/message")
+async def send_message_to_cyris(
+    chat_id: int,
+    message: str,
+    current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
+):
+    return await messages_manager.save_message_to_db(
+        chat_id=chat_id, user_id=current_user.user_id, text=message
+    )
 
 
 @app.websocket("/chat")

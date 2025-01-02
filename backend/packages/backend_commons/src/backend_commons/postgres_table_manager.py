@@ -34,7 +34,7 @@ class PostgresTableManager:
         self.postgres_connection_pool: asyncpg.Pool | None = None
 
     @property
-    def create_table_query(self) -> str:
+    def create_table_queries(self) -> Iterable[str]:
         raise NotImplementedError("You need to define the table creation query")
 
     @property
@@ -60,7 +60,8 @@ class PostgresTableManager:
         )
         async with self.get_transaction_connection() as connection:
             # TODO should have a script or something for modifying tables elegantly
-            await connection.execute(self.create_table_query)
+            for create_table_query in self.create_table_queries:
+                await connection.execute(create_table_query)
             for create_index_query in self.create_indexes_queries:
                 await connection.execute(create_index_query)
         log.info(f"Finished ensuring the {self.__class__.__name__} table is created")

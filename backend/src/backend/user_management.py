@@ -68,9 +68,10 @@ class UsersManager(PostgresTableManager):
     """
 
     @property
-    def create_table_query(self) -> str:
+    def create_table_queries(self) -> list[str]:
         # TODO replace the varchar(x) with text datatype and CHECK clauses
-        return """
+        return [
+            """
         CREATE TABLE IF NOT EXISTS users (
             user_id SERIAL PRIMARY KEY,
             user_email VARCHAR(255) NOT NULL UNIQUE,
@@ -82,6 +83,7 @@ class UsersManager(PostgresTableManager):
             is_user_an_admin BOOLEAN NOT NULL
         )
         """
+        ]
 
     @property
     def create_indexes_queries(self):
