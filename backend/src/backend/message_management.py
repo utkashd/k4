@@ -93,7 +93,7 @@ class MessagesManager(PostgresTableManager):
             )
             return ChatInDb(**new_chat)
 
-    async def save_message_to_db(
+    async def _save_message_to_db(
         self, chat_id: int, user_id: int | None, text: str
     ) -> MessageInDb:
         """
@@ -117,8 +117,13 @@ class MessagesManager(PostgresTableManager):
             )
             return new_message_in_db
 
+    async def save_client_message_to_db(self, chat_id: int, user_id: int, text: str):
+        return await self._save_message_to_db(
+            chat_id=chat_id, user_id=user_id, text=text
+        )
+
     async def save_cyris_message_to_db(self, chat_id: int, text: str) -> MessageInDb:
-        return await self.save_message_to_db(chat_id=chat_id, user_id=None, text=text)
+        return await self._save_message_to_db(chat_id=chat_id, user_id=None, text=text)
 
     async def get_user_chat_previews(
         self,
@@ -147,10 +152,17 @@ class MessagesManager(PostgresTableManager):
                 )
             return chat_previews
 
-    async def get_messages_of_chat(self, chat_id: int) -> Iterable[MessageInDb]:
+    async def does_user_own_this_chat(self, user_id: int, chat_id: int) -> bool:
+        async with self.get_connection() as connection:
+            return user_id == await connection.fetchval(
+                "SELECT user_id FROM chats WHERE chat_id=$1", chat_id
+            )
+
+    async def get_messages_of_chat(self, chat_id: int) -> list[MessageInDb]:
         # TODO reverse-paginate
         async with self.get_connection() as connection:
             records = await connection.fetch(
-                "SELECT * FROM messages WHERE chat_id=$1", chat_id
+                "SELECT * FROM messages WHERE chat_id=$1 ORDER BY inserted_at ASC",
+                chat_id,
             )
             return [MessageInDb(**record) for record in records]

@@ -2,7 +2,8 @@ import { useState } from "react";
 import "./App.css";
 import { useCookies } from "react-cookie";
 import MainPanelContents from "./components/MainPanelContents";
-import CurrentUserAndLogoutButton from "./components/RightSidePanelContents";
+import LeftSidePanelContents from "./components/LeftSidePanelContents";
+import RightSidePanelContents from "./components/RightSidePanelContents";
 
 function App() {
     const [cookies, setCookie, _removeCookie] = useCookies([
@@ -15,22 +16,31 @@ function App() {
     const [currentUser, setCurrentUser] = useState(
         cookies["currentUser"] as User | null
     );
-
     function setServerUrlAndCookie(url: URL | null) {
         setCookie("serverUrl", url);
         setServerUrl(url);
     }
-
     function setCurrentUserAndCookie(user: User | null) {
         setCookie("currentUser", user);
         setCurrentUser(user);
     }
+    const [selectedChat, setSelectedChat] = useState(
+        null as ChatListItem | null
+    );
+    const [chats, setChats] = useState([] as ChatListItem[]);
 
     return (
         <>
             <div className="app-container">
                 <div className="left-side-panel">
-                    <img src="./gh.png" className="logo-test" alt="logo"></img>
+                    <LeftSidePanelContents
+                        user={currentUser}
+                        serverUrl={serverUrl}
+                        selectedChat={selectedChat}
+                        setSelectedChat={setSelectedChat}
+                        chats={chats}
+                        setChats={setChats}
+                    />
                 </div>
                 <div className="main-panel">
                     <MainPanelContents
@@ -38,10 +48,13 @@ function App() {
                         setServerUrlAndCookie={setServerUrlAndCookie}
                         currentUser={currentUser}
                         setCurrentUserAndCookie={setCurrentUserAndCookie}
+                        selectedChat={selectedChat}
+                        setSelectedChat={setSelectedChat}
+                        setChats={setChats}
                     />
                 </div>
                 <div className="right-side-panel">
-                    <CurrentUserAndLogoutButton
+                    <RightSidePanelContents
                         currentUser={currentUser}
                         serverUrl={serverUrl}
                         setCurrentUserAndCookie={setCurrentUserAndCookie}

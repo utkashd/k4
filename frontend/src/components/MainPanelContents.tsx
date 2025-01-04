@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import "./SetServerForm.css";
 import axios from "axios";
 import ChatBox from "./ChatBox";
@@ -191,11 +191,17 @@ const MainPanelContents = ({
     setServerUrlAndCookie,
     currentUser,
     setCurrentUserAndCookie,
+    selectedChat,
+    setSelectedChat,
+    setChats,
 }: {
     serverUrl: URL | null;
     setServerUrlAndCookie: (url: URL | null) => void;
     currentUser: User | null;
     setCurrentUserAndCookie: (user: User | null) => void;
+    selectedChat: ChatListItem | null;
+    setSelectedChat: React.Dispatch<React.SetStateAction<ChatListItem | null>>;
+    setChats: React.Dispatch<React.SetStateAction<ChatListItem[]>>;
 }) => {
     const [isInitialSetupRequired, setIsInitialSetupRequired] = useState(true);
 
@@ -212,41 +218,26 @@ const MainPanelContents = ({
     }, [serverUrl]);
 
     if (!serverUrl) {
-        return (
-            <StrictMode>
-                <SetServerForm setServerUrlAndCookie={setServerUrlAndCookie} />
-            </StrictMode>
-        );
+        return <SetServerForm setServerUrlAndCookie={setServerUrlAndCookie} />;
     }
 
     if (isInitialSetupRequired) {
-        return (
-            <StrictMode>
-                <CreateFirstAdminForm serverUrl={serverUrl} />
-            </StrictMode>
-        );
+        return <CreateFirstAdminForm serverUrl={serverUrl} />;
     }
 
     if (!currentUser) {
         return (
-            <StrictMode>
-                <LoginForm
-                    serverUrl={serverUrl}
-                    setServerUrlAndCookie={setServerUrlAndCookie}
-                    setCurrentUserAndCookie={setCurrentUserAndCookie}
-                />
-            </StrictMode>
+            <LoginForm
+                serverUrl={serverUrl}
+                setServerUrlAndCookie={setServerUrlAndCookie}
+                setCurrentUserAndCookie={setCurrentUserAndCookie}
+            />
         );
     }
 
     if (currentUser.is_user_an_admin) {
         return (
-            <StrictMode>
-                <AdminPanel
-                    currentAdminUser={currentUser}
-                    serverUrl={serverUrl}
-                />
-            </StrictMode>
+            <AdminPanel currentAdminUser={currentUser} serverUrl={serverUrl} />
         );
     }
 
@@ -255,9 +246,15 @@ const MainPanelContents = ({
         "http",
         "ws"
     );
-    const chatEndpoint = new URL("/chat", chatEndpointBaseUrl);
-    // IMPORTANT: Do not wrap this in strict mode. https://github.com/facebook/create-react-app/issues/10387
-    return <ChatBox user={currentUser} chatWsEndpoint={chatEndpoint} />;
+    return (
+        <ChatBox
+            user={currentUser}
+            serverUrl={serverUrl}
+            selectedChat={selectedChat}
+            setSelectedChat={setSelectedChat}
+            setChats={setChats}
+        />
+    );
 };
 
 export default MainPanelContents;

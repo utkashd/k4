@@ -27,4 +27,22 @@ const CurrentUserAndLogoutButton = ({
     );
 };
 
-export default CurrentUserAndLogoutButton;
+const RightSidePanelContents = ({
+    currentUser,
+    serverUrl,
+    setCurrentUserAndCookie,
+}: {
+    currentUser: User | null;
+    serverUrl: URL | null;
+    setCurrentUserAndCookie: (user: User | null) => void;
+}) => {
+    return (
+        <CurrentUserAndLogoutButton
+            currentUser={currentUser}
+            serverUrl={serverUrl}
+            setCurrentUserAndCookie={setCurrentUserAndCookie}
+        />
+    );
+};
+
+export default RightSidePanelContents;

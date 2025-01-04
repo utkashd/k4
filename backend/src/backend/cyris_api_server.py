@@ -20,7 +20,7 @@ from jose import JWTError, jwt
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field, SecretStr
 from connection_management import ConnectionManager
-from message_management import MessagesManager
+from message_management import ChatPreview, MessageInDb, MessagesManager
 from user_management import (
     AdminUser,
     NonAdminUser,
@@ -355,38 +355,61 @@ async def get_chat_by_chat_id(
     chat_id: int,
     current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
 ):
+    if not await messages_manager.does_user_own_this_chat(
+        user_id=current_user.user_id, chat_id=chat_id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can't access a different user's chats.",
+        )
     return await messages_manager.get_messages_of_chat(chat_id)
 
 
 @app.get("/chats")
 async def get_chat_previews(
     current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
-):
-    return await messages_manager.get_user_chat_previews(current_user.user_id, 4)
+) -> list[ChatPreview]:
+    return await messages_manager.get_user_chat_previews(current_user.user_id, 20)
+
+
+class CreateNewChatRequestBody(BaseModel):
+    message: str
 
 
 @app.post("/chat")
 async def create_new_chat_with_message(
-    message: str,
+    msg: CreateNewChatRequestBody,
     current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
-):
+) -> list[MessageInDb]:
     chat_in_db = await messages_manager.create_new_chat(
-        user_id=current_user.user_id, title="cartoons"
+        user_id=current_user.user_id, title=""
     )
-    return await messages_manager.save_message_to_db(
-        chat_id=chat_in_db.chat_id, user_id=current_user.user_id, text=message
+    user_message = await messages_manager.save_client_message_to_db(
+        chat_id=chat_in_db.chat_id, user_id=current_user.user_id, text=msg.message
     )
+    cyris_response_message = await messages_manager.save_cyris_message_to_db(
+        chat_id=chat_in_db.chat_id, text="first message, you fancy huh"
+    )
+    return [user_message, cyris_response_message]
+
+
+class SendMessageRequestBody(BaseModel):
+    chat_id: int
+    message: str
 
 
 @app.post("/message")
 async def send_message_to_cyris(
-    chat_id: int,
-    message: str,
+    msg: SendMessageRequestBody,
     current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
-):
-    return await messages_manager.save_message_to_db(
-        chat_id=chat_id, user_id=current_user.user_id, text=message
+) -> list[MessageInDb]:
+    user_message = await messages_manager.save_client_message_to_db(
+        chat_id=msg.chat_id, user_id=current_user.user_id, text=msg.message
     )
+    cyris_response_message = await messages_manager.save_cyris_message_to_db(
+        chat_id=msg.chat_id, text=f"you sent me: {msg.message} 😎"
+    )
+    return [user_message, cyris_response_message]
 
 
 @app.websocket("/chat")
