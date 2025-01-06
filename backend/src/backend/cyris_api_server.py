@@ -393,6 +393,22 @@ async def create_new_chat_with_message(
     return [user_message, cyris_response_message]
 
 
+@app.delete("/chat")
+async def delete_chat(
+    chat_id: int,
+    current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
+):
+    if not messages_manager.does_user_own_this_chat(
+        user_id=current_user.user_id, chat_id=chat_id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can't delete someone else's chat.",
+        )
+    else:
+        await messages_manager.delete_chat(chat_id=chat_id)
+
+
 class SendMessageRequestBody(BaseModel):
     chat_id: int
     message: str

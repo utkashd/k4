@@ -1,4 +1,4 @@
-import "./SignedInAs.css";
+import "../assets/SignedInAs.css";
 
 function SignedInAs({
     myUser,

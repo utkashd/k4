@@ -1,3 +1,8 @@
+div.chats-list {
+    display: flex;
+    flex-direction: column;
+}
+
 div.chat-preview,
 div.chat-preview-selected {
     text-align: left;
@@ -6,16 +11,18 @@ div.chat-preview-selected {
     padding-top: 8px;
     border-top: 1px solid black;
     border-bottom: 1px solid black;
-    width: 80%;
-    margin-left: 5%;
 }
 
 div.chat-preview {
     background-color: rgb(49, 49, 49);
+    width: 80%;
+    margin-right: 20%;
 }
 
 div.chat-preview-selected {
     background-color: rgb(59, 59, 59);
+    width: 80%;
+    padding-right: 20%;
 }
 
 span.chat-preview-sender {
@@ -26,6 +33,10 @@ span.chat-preview-sender {
 span.chat-preview-message {
     font-size: medium;
     color: mediumslateblue;
+}
+
+button.delete-chat-button {
+    width: 18%;
 }
 
 button.new-chat-button {

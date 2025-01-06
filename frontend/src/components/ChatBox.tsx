@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import "./ChatBox.css";
+import "../assets/ChatBox.css";
 import axios from "axios";
 import Markdown from "react-markdown";
 

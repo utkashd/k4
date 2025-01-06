@@ -1,5 +1,5 @@
 import { useState } from "react";
-import "./App.css";
+import "./assets/App.css";
 import { useCookies } from "react-cookie";
 import MainPanelContents from "./components/MainPanelContents";
 import LeftSidePanelContents from "./components/LeftSidePanelContents";

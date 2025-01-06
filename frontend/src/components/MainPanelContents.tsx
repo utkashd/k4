@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import "./SetServerForm.css";
+import "../assets/SetServerForm.css";
 import axios from "axios";
 import ChatBox from "./ChatBox";
 import AdminPanel from "./AdminPanel";
@@ -241,11 +241,6 @@ const MainPanelContents = ({
         );
     }
 
-    const chatEndpointBaseUrl = new URL(serverUrl);
-    chatEndpointBaseUrl.protocol = chatEndpointBaseUrl.protocol.replace(
-        "http",
-        "ws"
-    );
     return (
         <ChatBox
             user={currentUser}

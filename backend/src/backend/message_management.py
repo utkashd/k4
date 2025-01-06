@@ -93,6 +93,11 @@ class MessagesManager(PostgresTableManager):
             )
             return ChatInDb(**new_chat)
 
+    async def delete_chat(self, chat_id: int):
+        async with self.get_transaction_connection() as connection:
+            await connection.execute("DELETE FROM messages WHERE chat_id=$1", chat_id)
+            await connection.execute("DELETE FROM chats WHERE chat_id=$1", chat_id)
+
     async def _save_message_to_db(
         self, chat_id: int, user_id: int | None, text: str
     ) -> MessageInDb:
