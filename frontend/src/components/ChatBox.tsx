@@ -97,12 +97,8 @@ function ChatBox({
             } else {
                 const response = await axios.post(
                     new URL("/chat", serverUrl).toString(),
-                    {
-                        message: humanInputSaved,
-                    },
-                    {
-                        withCredentials: true,
-                    }
+                    { message: humanInputSaved },
+                    { withCredentials: true }
                 );
                 const receivedMessages: MessageInDb[] = response.data;
                 const newChatListItem: ChatListItem = {
@@ -126,33 +122,40 @@ function ChatBox({
     };
 
     if (!user) {
-        return (
-            <>
-                <p>Select your user to get started.</p>
-            </>
-        );
+        return <p>Select your user to get started.</p>;
     }
 
     return (
         <>
             <div className="cyris-chatbox">
                 <div className="cyris-chatbox-padded">
-                    {messages.map((message: MessageInDb, index) => {
-                        if (message.user_id === user.user_id) {
-                            return (
-                                <div key={index} className={"msg sent"}>
-                                    <Markdown>{message.text}</Markdown>
-                                </div>
-                            );
-                        } else {
-                            return (
-                                <div key={index} className={"msg received"}>
-                                    <Markdown>{message.text}</Markdown>
-                                </div>
-                            );
-                        }
-                    })}
-                    <div ref={messagesEndRef}></div>
+                    {selectedChat ? (
+                        messages.map((message: MessageInDb, index) => {
+                            if (message.user_id === user.user_id) {
+                                return (
+                                    <div key={index} className={"msg sent"}>
+                                        <Markdown>{message.text}</Markdown>
+                                    </div>
+                                );
+                            } else {
+                                return (
+                                    <div key={index} className={"msg received"}>
+                                        <Markdown>{message.text}</Markdown>
+                                    </div>
+                                );
+                            }
+                        })
+                    ) : (
+                        <div
+                            style={{
+                                // verticalAlign: "bottom",
+                                height: "100%",
+                            }}
+                        >
+                            "Start a new chat..."
+                        </div>
+                    )}
+                    <div ref={messagesEndRef} style={{ height: "0%" }}></div>
                     <div hidden={!isInputDisabled}>
                         <p>Please wait...</p>
                     </div>

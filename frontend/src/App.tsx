@@ -26,7 +26,7 @@ function App() {
     }
     const [selectedChat, setSelectedChat] = useState(
         null as ChatListItem | null
-    );
+    ); // `selectedChat === null` means "create a new chat"
     const [chats, setChats] = useState([] as ChatListItem[]);
 
     return (
