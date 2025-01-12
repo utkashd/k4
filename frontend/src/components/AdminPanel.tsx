@@ -39,6 +39,7 @@ function ManageUsers({
     );
     return (
         <>
+            <CreateUsers serverUrl={serverUrl} refreshUsers={refreshUsers} />
             <UsersList
                 users={users}
                 handleRowSelected={handleRowSelected}
@@ -51,6 +52,96 @@ function ManageUsers({
                 selectedUsers={selectedUsers}
                 clearSelection={clearSelection}
             />
+        </>
+    );
+}
+
+function CreateUsers({
+    serverUrl,
+    refreshUsers,
+}: {
+    serverUrl: URL;
+    refreshUsers: () => void;
+}) {
+    const [usernameInput, setUsernameInput] = useState("");
+    const [passwordInput, setPasswordInput] = useState("");
+    const [humanNameInput, setHumanNameInput] = useState("");
+    const [aiNameInput, setAiNameInput] = useState("");
+
+    const createUser = (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const openAiNameRegex = /^[a-zA-Z0-9_-]+$/;
+
+        if (!openAiNameRegex.test(humanNameInput)) {
+            alert("username must match ^[a-zA-Z0-9_-]+$");
+            return;
+        }
+
+        if (!openAiNameRegex.test(aiNameInput)) {
+            alert("username must match ^[a-zA-Z0-9_-]+$");
+            return;
+        }
+
+        axios.post(
+            new URL("/user", serverUrl).toString(),
+            {
+                desired_user_email: usernameInput,
+                desired_user_password: passwordInput,
+                desired_human_name: humanNameInput,
+                desired_ai_name: aiNameInput,
+            },
+            { withCredentials: true }
+        );
+        setUsernameInput("");
+        setPasswordInput("");
+        setHumanNameInput("");
+        setAiNameInput("");
+        refreshUsers();
+    };
+    return (
+        <>
+            <h2>Create a User</h2>
+            <form onSubmit={createUser}>
+                <div className="inputs">
+                    <input
+                        type="text"
+                        placeholder="user email address"
+                        value={usernameInput}
+                        onChange={(event) => {
+                            setUsernameInput(event.target.value);
+                        }}
+                    ></input>
+                    <br />
+                    <input
+                        type="password"
+                        placeholder="password"
+                        value={passwordInput}
+                        onChange={(event) => {
+                            setPasswordInput(event.target.value);
+                        }}
+                    ></input>
+                    <br />
+                    <input
+                        type="text"
+                        placeholder="human name"
+                        value={humanNameInput}
+                        onChange={(event) => {
+                            setHumanNameInput(event.target.value);
+                        }}
+                    ></input>
+                    <br />
+                    <input
+                        type="text"
+                        placeholder="AI name"
+                        value={aiNameInput}
+                        onChange={(event) => {
+                            setAiNameInput(event.target.value);
+                        }}
+                    ></input>
+                </div>
+                <button type="submit">Create User</button>
+            </form>
         </>
     );
 }

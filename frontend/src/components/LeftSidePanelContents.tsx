@@ -9,6 +9,7 @@ const CyrisLogo = () => {
 
 const ChatsList = ({
     user,
+    setCurrentUserAndCookie,
     serverUrl,
     selectedChat,
     setSelectedChat,
@@ -16,6 +17,7 @@ const ChatsList = ({
     setChats,
 }: {
     user: User | null;
+    setCurrentUserAndCookie: (user: User | null) => void;
     serverUrl: URL | null;
     selectedChat: ChatListItem | null;
     setSelectedChat: React.Dispatch<React.SetStateAction<ChatListItem | null>>;
@@ -24,13 +26,21 @@ const ChatsList = ({
 }) => {
     const getUsersChats = async () => {
         if (serverUrl) {
-            const response = await axios.get(
-                new URL("/chats", serverUrl).toString(),
-                {
-                    withCredentials: true,
+            try {
+                const response = await axios.get(
+                    new URL("/chats", serverUrl).toString(),
+                    { withCredentials: true }
+                );
+                setChats(response.data);
+            } catch (error: unknown) {
+                if (axios.isAxiosError(error)) {
+                    if (error.response?.status === 401) {
+                        setCurrentUserAndCookie(null);
+                    } else {
+                        console.error(error);
+                    }
                 }
-            );
-            setChats(response.data);
+            }
         }
     };
 
@@ -151,6 +161,7 @@ const ChatPreview = ({
 
 const LeftSidePanelContents = ({
     user,
+    setCurrentUserAndCookie,
     serverUrl,
     selectedChat,
     setSelectedChat,
@@ -158,6 +169,7 @@ const LeftSidePanelContents = ({
     setChats,
 }: {
     user: User | null;
+    setCurrentUserAndCookie: (user: User | null) => void;
     serverUrl: URL | null;
     selectedChat: ChatListItem | null;
     setSelectedChat: React.Dispatch<React.SetStateAction<ChatListItem | null>>;
@@ -169,6 +181,7 @@ const LeftSidePanelContents = ({
             <CyrisLogo />
             <ChatsList
                 user={user}
+                setCurrentUserAndCookie={setCurrentUserAndCookie}
                 serverUrl={serverUrl}
                 selectedChat={selectedChat}
                 setSelectedChat={setSelectedChat}

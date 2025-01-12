@@ -125,7 +125,9 @@ const LoginForm = ({
     const [usernameInput, setUsernameInput] = useState("");
     const [passwordInput, setPasswordInput] = useState("");
 
-    const submitLogin = async () => {
+    const submitLogin = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
         try {
             await axios.post(
                 new URL("/token", serverUrl).toString(),
@@ -148,35 +150,33 @@ const LoginForm = ({
 
     return (
         <>
-            <div className="inputs">
-                <input
-                    type="text"
-                    placeholder="username"
-                    value={usernameInput}
-                    onChange={(event) => {
-                        setUsernameInput(event.target.value);
-                    }}
-                ></input>
+            <form onSubmit={submitLogin}>
+                <div className="inputs">
+                    <input
+                        type="text"
+                        placeholder="username"
+                        value={usernameInput}
+                        onChange={(event) => {
+                            setUsernameInput(event.target.value);
+                        }}
+                    ></input>
+                    <br />
+                    <input
+                        type="password"
+                        placeholder="password"
+                        value={passwordInput}
+                        onChange={(event) => {
+                            setPasswordInput(event.target.value);
+                        }}
+                    ></input>
+                </div>
                 <br />
-                <input
-                    type="password"
-                    placeholder="password"
-                    value={passwordInput}
-                    onChange={(event) => {
-                        setPasswordInput(event.target.value);
-                    }}
-                ></input>
-            </div>
-            <br />
-            <div className="submitLogin">
-                <button
-                    onClick={(_event) => {
-                        submitLogin();
-                    }}
-                >
-                    Login to {serverUrl.toString()}
-                </button>
-            </div>
+                <div className="submitLogin">
+                    <button type="submit">
+                        Login to {serverUrl.toString()}
+                    </button>
+                </div>
+            </form>
             <p>
                 <a href="" onClick={clearServerUrl}>
                     Change server

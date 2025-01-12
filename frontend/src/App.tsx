@@ -35,6 +35,7 @@ function App() {
                 <div className="left-side-panel">
                     <LeftSidePanelContents
                         user={currentUser}
+                        setCurrentUserAndCookie={setCurrentUserAndCookie}
                         serverUrl={serverUrl}
                         selectedChat={selectedChat}
                         setSelectedChat={setSelectedChat}
