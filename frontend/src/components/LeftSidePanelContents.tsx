@@ -109,7 +109,9 @@ const ChatPreview = ({
             </span>
             <br />
             <span className="chat-preview-message">
-                {chat.message_in_db.text}
+                {chat.message_in_db.text.length > 45
+                    ? chat.message_in_db.text.substring(0, 50) + "..."
+                    : chat.message_in_db.text}
             </span>
         </div>
     );

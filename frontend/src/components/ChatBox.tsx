@@ -32,6 +32,11 @@ function ChatBox({
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
+    const setCursorOnTextbox = () => {
+        if (textAreaRef.current) {
+            textAreaRef.current.focus();
+        }
+    };
 
     const getAndSetMessages = async (selectedChat: ChatListItem) => {
         const response = await axios.get(
@@ -56,9 +61,7 @@ function ChatBox({
 
     useEffect(() => {
         scrollToBottom();
-        if (textAreaRef.current) {
-            textAreaRef.current.focus();
-        }
+        setCursorOnTextbox();
     }, [messages, isInputDisabled]);
 
     const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -128,42 +131,45 @@ function ChatBox({
     return (
         <>
             <div className="cyris-chatbox">
-                <div className="cyris-chatbox-padded">
+                <div
+                    className="cyris-chatbox-padded"
+                    style={selectedChat ? {} : { alignItems: "center" }}
+                    onClick={setCursorOnTextbox}
+                >
                     {selectedChat ? (
                         messages.map((message: MessageInDb, index) => {
-                            if (message.user_id === user.user_id) {
-                                return (
-                                    <div key={index} className={"msg sent"}>
-                                        <Markdown>{message.text}</Markdown>
-                                    </div>
-                                );
-                            } else {
-                                return (
-                                    <div key={index} className={"msg received"}>
-                                        <Markdown>{message.text}</Markdown>
-                                    </div>
-                                );
-                            }
+                            return (
+                                <div
+                                    key={index}
+                                    className={
+                                        message.user_id === user.user_id
+                                            ? "msg sent"
+                                            : "msg received"
+                                    }
+                                    onClick={(event) => {
+                                        event.stopPropagation(); // prevent `setCursorOnTextbox`
+                                    }}
+                                >
+                                    <Markdown>{message.text}</Markdown>
+                                </div>
+                            );
                         })
                     ) : (
-                        <div
-                            style={{
-                                // verticalAlign: "bottom",
-                                height: "100%",
-                            }}
-                        >
-                            "Start a new chat..."
+                        <div style={{ height: "100%" }}>
+                            <div hidden={isInputDisabled}>
+                                <h1>Start a chat...</h1>
+                            </div>
+                            <div hidden={!isInputDisabled}>
+                                <h3>Please wait...</h3>
+                            </div>
                         </div>
                     )}
                     <div ref={messagesEndRef} style={{ height: "0%" }}></div>
-                    <div hidden={!isInputDisabled}>
-                        <p>Please wait...</p>
-                    </div>
                 </div>
                 <div className="cyris-chatbox-message-sender">
                     <textarea
                         className="chat-input chat-input-textarea"
-                        placeholder="Your query here"
+                        placeholder="Your message here..."
                         value={textAreaValue}
                         onChange={(event) => {
                             setTextAreaValue(event.target.value);
