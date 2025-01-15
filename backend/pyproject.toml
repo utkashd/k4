@@ -6,12 +6,12 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "backend_commons",
-    "cyris",
+    "dspy_wrapper",
+    "utils",
     "pydantic[email]>=2.9.2",
     "rich>=13.9.2",
-    "fastapi>=0.115.2",
-    "uvicorn[standard]>=0.31.1",
-    "python-multipart>=0.0.12",
+    "fastapi>=0.111.1",
+    "uvicorn[standard]>=0.22.0",
     "types-python-jose>=3.3.4.20240106",
     "types-passlib>=1.7.7.20240819",
     "passlib[bcrypt]>=1.7.4",
@@ -21,11 +21,11 @@ dependencies = [
 
 [tool.uv.sources]
 backend_commons = { workspace = true }
-cyris = { workspace = true }
+dspy_wrapper = { workspace = true }
+utils = { workspace = true }
 
 [tool.uv.workspace]
 members = ["packages/*"]
-# exclude = ["packages/cyris"]
 
 [tool.uv]
 dev-dependencies = [

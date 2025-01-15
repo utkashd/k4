@@ -2,6 +2,7 @@ from asyncio import wait_for
 from contextlib import asynccontextmanager
 import datetime
 import json
+import dspy_wrapper
 from uuid import UUID
 import asyncpg  # type: ignore[import-untyped]
 from backend_commons.messages import ClientMessage
@@ -372,33 +373,12 @@ async def get_chat_previews(
     return await messages_manager.get_user_chat_previews(current_user.user_id, 20)
 
 
-class CreateNewChatRequestBody(BaseModel):
-    message: str
-
-
-@app.post("/chat")
-async def create_new_chat_with_message(
-    msg: CreateNewChatRequestBody,
-    current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
-) -> list[MessageInDb]:
-    chat_in_db = await messages_manager.create_new_chat(
-        user_id=current_user.user_id, title=""
-    )
-    user_message = await messages_manager.save_client_message_to_db(
-        chat_id=chat_in_db.chat_id, user_id=current_user.user_id, text=msg.message
-    )
-    cyris_response_message = await messages_manager.save_cyris_message_to_db(
-        chat_id=chat_in_db.chat_id, text="first message, you fancy huh"
-    )
-    return [user_message, cyris_response_message]
-
-
 @app.delete("/chat")
 async def delete_chat(
     chat_id: int,
     current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
 ):
-    if not messages_manager.does_user_own_this_chat(
+    if not await messages_manager.does_user_own_this_chat(
         user_id=current_user.user_id, chat_id=chat_id
     ):
         raise HTTPException(
@@ -409,6 +389,26 @@ async def delete_chat(
         await messages_manager.delete_chat(chat_id=chat_id)
 
 
+class CreateNewChatRequestBody(BaseModel):
+    message: str
+
+
+@app.post("/chat")
+async def create_new_chat_with_message(
+    create_new_chat_request_body: CreateNewChatRequestBody,
+    current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
+) -> list[MessageInDb]:
+    chat_in_db = await messages_manager.create_new_chat(
+        user_id=current_user.user_id, title=""
+    )
+    return await send_message_to_cyris(
+        SendMessageRequestBody(
+            chat_id=chat_in_db.chat_id, message=create_new_chat_request_body.message
+        ),
+        current_user=current_user,
+    )
+
+
 class SendMessageRequestBody(BaseModel):
     chat_id: int
     message: str
@@ -416,16 +416,23 @@ class SendMessageRequestBody(BaseModel):
 
 @app.post("/message")
 async def send_message_to_cyris(
-    msg: SendMessageRequestBody,
+    send_message_request_body: SendMessageRequestBody,
     current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
 ) -> list[MessageInDb]:
     user_message = await messages_manager.save_client_message_to_db(
-        chat_id=msg.chat_id, user_id=current_user.user_id, text=msg.message
+        chat_id=send_message_request_body.chat_id,
+        user_id=current_user.user_id,
+        text=send_message_request_body.message,
     )
-    cyris_response_message = await messages_manager.save_cyris_message_to_db(
-        chat_id=msg.chat_id, text=f"you sent me: {msg.message} 😎"
-    )
-    return [user_message, cyris_response_message]
+    messages_in_db = [user_message]
+    responses = dspy_wrapper.ask(send_message_request_body.message)
+    for response in responses:
+        saved_response = await messages_manager.save_cyris_message_to_db(
+            chat_id=send_message_request_body.chat_id,
+            text=response,
+        )
+        messages_in_db.append(saved_response)
+    return messages_in_db
 
 
 @app.websocket("/chat")

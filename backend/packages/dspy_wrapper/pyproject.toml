@@ -1,0 +1,17 @@
+[project]
+name = "dspy-wrapper"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "dspy>=2.5.43", # first version with `dspy.disable_litellm_logging()`
+    "utils",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv.sources]
+utils = { workspace = true }
