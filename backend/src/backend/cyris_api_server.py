@@ -2,10 +2,10 @@ from asyncio import wait_for
 from contextlib import asynccontextmanager
 import datetime
 import json
-import dspy_wrapper
 from uuid import UUID
 import asyncpg  # type: ignore[import-untyped]
-from backend_commons.messages import ClientMessage
+from backend_commons.messages import ClientMessage, MessageInDb
+from dspy_wrapper.dspy_wrapper import Cyris
 from fastapi import (
     Cookie,
     Depends,
@@ -21,7 +21,7 @@ from jose import JWTError, jwt
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field, SecretStr
 from connection_management import ConnectionManager
-from message_management import ChatPreview, MessageInDb, MessagesManager
+from message_management import ChatPreview, MessagesManager
 from user_management import (
     AdminUser,
     NonAdminUser,
@@ -48,7 +48,7 @@ log = logging.getLogger("cyris")
 users_manager = UsersManager()
 messages_manager = MessagesManager()
 connection_manager = ConnectionManager()
-accepted_first = False
+cyris = Cyris()
 
 
 @asynccontextmanager
@@ -424,15 +424,18 @@ async def send_message_to_cyris(
         user_id=current_user.user_id,
         text=send_message_request_body.message,
     )
-    messages_in_db = [user_message]
-    responses = dspy_wrapper.ask(send_message_request_body.message)
+    messages_newly_in_db = [user_message]
+    chat_history = await messages_manager.get_messages_of_chat(
+        chat_id=send_message_request_body.chat_id
+    )
+    responses = await cyris.ask(new_msg=user_message, chat_history=chat_history)
     for response in responses:
         saved_response = await messages_manager.save_cyris_message_to_db(
             chat_id=send_message_request_body.chat_id,
             text=response,
         )
-        messages_in_db.append(saved_response)
-    return messages_in_db
+        messages_newly_in_db.append(saved_response)
+    return messages_newly_in_db
 
 
 @app.websocket("/chat")

@@ -551,12 +551,14 @@ name = "dspy-wrapper"
 version = "0.1.0"
 source = { editable = "packages/dspy_wrapper" }
 dependencies = [
+    { name = "backend-commons" },
     { name = "dspy" },
     { name = "utils" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "backend-commons", editable = "packages/backend_commons" },
     { name = "dspy", specifier = ">=2.5.43" },
     { name = "utils", editable = "packages/utils" },
 ]

@@ -3,6 +3,7 @@ import datetime
 from typing import Iterable
 
 from backend_commons import PostgresTableManager
+from backend_commons.messages import MessageInDb
 from rich.logging import RichHandler
 
 
@@ -22,14 +23,6 @@ class ChatInDb(BaseModel):
     title: str = Field(max_length=32)
     last_message_timestamp: datetime.datetime
     is_archived: bool
-
-
-class MessageInDb(BaseModel):
-    message_id: int
-    chat_id: int
-    user_id: int | None
-    text: str
-    inserted_at: datetime.datetime
 
 
 class ChatPreview(BaseModel):

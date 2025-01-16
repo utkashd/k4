@@ -1,4 +1,4 @@
 __version__ = "0.0.1"
-from .dspy_wrapper import ask
+from .dspy_wrapper import Cyris
 
-__all__ = ["ask"]
+__all__ = ["Cyris"]

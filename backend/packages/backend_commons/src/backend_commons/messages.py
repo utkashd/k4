@@ -1,5 +1,14 @@
 from pydantic import BaseModel, Field, RootModel
 from uuid import UUID
+import datetime
+
+
+class MessageInDb(BaseModel):
+    message_id: int
+    chat_id: int
+    user_id: int | None
+    text: str
+    inserted_at: datetime.datetime
 
 
 class Message(BaseModel):
