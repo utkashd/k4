@@ -2,11 +2,13 @@ from asyncio import wait_for
 from contextlib import asynccontextmanager
 import datetime
 import json
+import os
 from uuid import UUID
 import asyncpg  # type: ignore[import-untyped]
 from backend_commons.messages import ClientMessage, MessageInDb
-from dspy_wrapper.dspy_wrapper import Cyris
+from cyris import Cyris
 from fastapi import (
+    BackgroundTasks,
     Cookie,
     Depends,
     FastAPI,
@@ -16,7 +18,7 @@ from fastapi import (
     WebSocketDisconnect,
     status,
 )
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from jose import JWTError, jwt
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field, SecretStr
@@ -77,6 +79,23 @@ async def lifespan(app: FastAPI):
         )  # wait 60 seconds for the connections to complete whatever they're doing and close
         # TODO I think I actually want to wait for requests to finish. do that instead
 
+
+if os.environ.get("CYRIS_SENTRY_DSN"):
+    import sentry_sdk
+
+    sentry_sdk.init(
+        # THIS MUST HAPPEN BEFORE app = `FastAPI()`
+        dsn=os.environ.get("CYRIS_SENTRY_DSN"),
+        # Set traces_sample_rate to 1.0 to capture 100%
+        # of transactions for tracing.
+        traces_sample_rate=1.0,
+        _experiments={
+            # Set continuous_profiling_auto_start to True
+            # to automatically start the profiler on when
+            # possible.
+            "continuous_profiling_auto_start": True,
+        },
+    )
 
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(
@@ -436,6 +455,56 @@ async def send_message_to_cyris(
         )
         messages_newly_in_db.append(saved_response)
     return messages_newly_in_db
+
+
+@app.post("/test")
+async def send_message_to_cyris_stream(
+    send_message_request_body: SendMessageRequestBody,
+    background_tasks: BackgroundTasks,
+    current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
+) -> StreamingResponse:
+    user_message = await messages_manager.save_client_message_to_db(
+        chat_id=send_message_request_body.chat_id,
+        user_id=current_user.user_id,
+        text=send_message_request_body.message,
+    )
+    # messages_newly_in_db = [user_message]
+    all_cyris_responses: list[str] = []
+
+    async def stream_response_and_async_write_to_db():
+        # yield user_message
+        log.info(user_message)
+        chat_history = await messages_manager.get_messages_of_chat(
+            chat_id=send_message_request_body.chat_id
+        )
+        async for response_chunk in cyris.ask_stream(
+            new_msg=user_message, chat_history=chat_history
+        ):
+            if isinstance(response_chunk, str):
+                yield response_chunk
+                print(response_chunk, end="")
+                all_cyris_responses.append(response_chunk)
+        print("1. consumed the generator")
+
+    background_tasks.add_task(
+        # I believe this is guaranteed to run AFTER this endpoint completes. We need
+        # that guarantee, otherwise `all_cyris_responses` is incomplete.
+        # https://fastapi.tiangolo.com/tutorial/background-tasks/
+        save_cyris_response_to_db,
+        chat_id=send_message_request_body.chat_id,
+        all_cyris_responses=all_cyris_responses,
+    )
+    return StreamingResponse(stream_response_and_async_write_to_db())
+
+
+async def save_cyris_response_to_db(
+    chat_id: int, all_cyris_responses: list[str]
+) -> None:
+    print("2. started saving the message")
+    cyris_response: str = "".join(all_cyris_responses)
+    await messages_manager.save_cyris_message_to_db(
+        chat_id=chat_id, text=cyris_response
+    )
 
 
 @app.websocket("/chat")

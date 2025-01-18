@@ -73,30 +73,93 @@ function ChatBox({
 
         if (humanInputSaved) {
             if (selectedChat) {
-                const response = await axios.post(
-                    new URL("/message", serverUrl).toString(),
+                const response = await fetch(
+                    new URL("/test", serverUrl).toString(),
                     {
-                        chat_id: selectedChat?.chat_in_db.chat_id,
-                        message: humanInputSaved,
-                    },
-                    {
-                        withCredentials: true,
+                        method: "POST",
+                        credentials: "include",
+                        headers: {
+                            "Content-Type": "application/json",
+                            // Authorization: api.defaults.headers.common["Authorization"],
+                            //   'Accept': 'text/event-stream',
+                        },
+                        body: JSON.stringify({
+                            chat_id: selectedChat?.chat_in_db.chat_id,
+                            message: humanInputSaved,
+                        }),
                     }
                 );
-                const receivedMessages: MessageInDb[] = response.data;
-                setMessages((currentMessages) => {
-                    return [...currentMessages, ...receivedMessages];
-                });
-                setChats((existingChats: ChatListItem[]) => {
-                    return existingChats.map((existingChat: ChatListItem) => {
-                        if (existingChat !== selectedChat) {
-                            return existingChat;
+
+                if (!response.ok) {
+                    const errorBody = await response.json();
+                    throw new Error(
+                        `generateImage HTTP error! status: ${response.status} ${
+                            response.statusText
+                        }. Details: ${JSON.stringify(errorBody)}`
+                    );
+                }
+
+                const reader = response.body!.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split("\n").filter(Boolean);
+
+                    for (const line of lines) {
+                        try {
+                            const update = line;
+                            console.log(update);
+                        } catch (error) {
+                            console.error("Error parsing update:", error);
                         }
-                        const updatedCurrentChat = existingChat;
-                        updatedCurrentChat.message_in_db = receivedMessages[1];
-                        return updatedCurrentChat;
-                    });
-                });
+                    }
+                }
+                // const response = await axios.post(
+                //     new URL("/test", serverUrl).toString(),
+                //     {
+                //         chat_id: selectedChat?.chat_in_db.chat_id,
+                //         message: humanInputSaved,
+                //     },
+                //     {
+                //         withCredentials: true,
+                //         responseType: "stream",
+                //     }
+                // );
+                // response.data.on("data", (data: string) => {
+                //     console.log(data);
+                // });
+                // response.data.on("end", () => {
+                //     console.log("END");
+                // });
+
+                // const response = await axios.post(
+                //     new URL("/message", serverUrl).toString(),
+                //     {
+                //         chat_id: selectedChat?.chat_in_db.chat_id,
+                //         message: humanInputSaved,
+                //     },
+                //     {
+                //         withCredentials: true,
+                //     }
+                // );
+                // const receivedMessages: MessageInDb[] = response.data;
+                // setMessages((currentMessages) => {
+                //     return [...currentMessages, ...receivedMessages];
+                // });
+                // setChats((existingChats: ChatListItem[]) => {
+                //     return existingChats.map((existingChat: ChatListItem) => {
+                //         if (existingChat !== selectedChat) {
+                //             return existingChat;
+                //         }
+                //         const updatedCurrentChat = existingChat;
+                //         updatedCurrentChat.message_in_db = receivedMessages[1];
+                //         return updatedCurrentChat;
+                //     });
+                // });
             } else {
                 const response = await axios.post(
                     new URL("/chat", serverUrl).toString(),

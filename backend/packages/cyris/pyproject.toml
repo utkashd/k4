@@ -1,13 +1,13 @@
 [project]
-name = "dspy-wrapper"
+name = "cyris"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "backend-commons",
-    "dspy>=2.5.43",
-    # first version with `dspy.disable_litellm_logging()`
+    "litellm>=1.58.2",
+    "rich>=13.9.2",
     "utils",
 ]
 
