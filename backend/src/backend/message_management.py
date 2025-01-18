@@ -25,9 +25,14 @@ class ChatInDb(BaseModel):
     is_archived: bool
 
 
+class Chat(BaseModel):
+    messages: list[MessageInDb]
+    chat_in_db: ChatInDb
+
+
 class ChatPreview(BaseModel):
     chat_in_db: ChatInDb
-    message_in_db: MessageInDb
+    most_recent_message_in_db: MessageInDb
 
 
 class MessagesManager(PostgresTableManager):
@@ -145,7 +150,7 @@ class MessagesManager(PostgresTableManager):
                 chat_previews.append(
                     ChatPreview(
                         chat_in_db=ChatInDb(**chat),
-                        message_in_db=MessageInDb(**latest_message),
+                        most_recent_message_in_db=MessageInDb(**latest_message),
                     )
                 )
             return chat_previews
@@ -155,6 +160,17 @@ class MessagesManager(PostgresTableManager):
             return user_id == await connection.fetchval(
                 "SELECT user_id FROM chats WHERE chat_id=$1", chat_id
             )
+
+    async def get_chat(self, chat_id: int) -> Chat:
+        return Chat(
+            chat_in_db=await self.get_chat_in_db(chat_id=chat_id),
+            messages=await self.get_messages_of_chat(chat_id=chat_id),
+        )
+
+    async def get_chat_in_db(self, chat_id: int) -> ChatInDb:
+        async with self.get_connection() as connection:
+            chat = await connection.fetchrow("SELECT * FROM chats WHERE chat_id=$1")
+            return ChatInDb(**chat)
 
     async def get_messages_of_chat(self, chat_id: int) -> list[MessageInDb]:
         # TODO reverse-paginate

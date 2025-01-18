@@ -8,30 +8,32 @@ const CyrisLogo = () => {
 };
 
 const ChatsList = ({
-    user,
+    currentUser,
     setCurrentUserAndCookie,
     serverUrl,
-    selectedChat,
-    setSelectedChat,
-    chats,
-    setChats,
+    selectedChatPreview,
+    setSelectedChatPreview,
+    chatPreviews,
+    setChatPreviews,
 }: {
-    user: User | null;
+    currentUser: User | null;
     setCurrentUserAndCookie: (user: User | null) => void;
     serverUrl: URL | null;
-    selectedChat: ChatListItem | null;
-    setSelectedChat: React.Dispatch<React.SetStateAction<ChatListItem | null>>;
-    chats: ChatListItem[];
-    setChats: React.Dispatch<React.SetStateAction<ChatListItem[]>>;
+    selectedChatPreview: ChatPreview | null;
+    setSelectedChatPreview: React.Dispatch<
+        React.SetStateAction<ChatPreview | null>
+    >;
+    chatPreviews: ChatPreview[];
+    setChatPreviews: React.Dispatch<React.SetStateAction<ChatPreview[]>>;
 }) => {
     const getUsersChats = async () => {
         if (serverUrl) {
             try {
                 const response = await axios.get(
-                    new URL("/chats", serverUrl).toString(),
+                    new URL("/chat_previews", serverUrl).toString(),
                     { withCredentials: true }
                 );
-                setChats(response.data);
+                setChatPreviews(response.data);
             } catch (error: unknown) {
                 if (axios.isAxiosError(error)) {
                     if (error.response?.status === 401) {
@@ -45,21 +47,21 @@ const ChatsList = ({
     };
 
     useEffect(() => {
-        if (user && !user.is_user_an_admin) {
+        if (currentUser && !currentUser.is_user_an_admin) {
             getUsersChats();
         } else {
-            setChats([]);
+            setChatPreviews([]);
         }
-    }, [user, serverUrl]);
+    }, [currentUser, serverUrl]);
 
-    const selectThisChat = (chatToSelect: ChatListItem | null) => {
+    const selectThisChat = (chatToSelect: ChatPreview | null) => {
         return () => {
-            setSelectedChat(chatToSelect);
+            setSelectedChatPreview(chatToSelect);
         };
     };
 
     const newChat = () => {
-        setSelectedChat(null);
+        setSelectedChatPreview(null);
     };
 
     return (
@@ -68,16 +70,16 @@ const ChatsList = ({
                 New Chat
             </button>
             <div className="chats-list">
-                {chats.map((chat: ChatListItem, index: number) => {
+                {chatPreviews.map((chat: ChatPreview, index: number) => {
                     return (
                         <div key={index}>
                             <ChatPreview
                                 chat={chat}
-                                selectedChat={selectedChat}
-                                setSelectedChat={setSelectedChat}
+                                selectedChatPreview={selectedChatPreview}
+                                setSelectedChatPreview={setSelectedChatPreview}
                                 selectThisChat={selectThisChat}
                                 serverUrl={serverUrl!} // this can't be null when `chats` is a non-empty array
-                                setChats={setChats}
+                                setChatPreviews={setChatPreviews}
                             />
                         </div>
                     );
@@ -89,33 +91,36 @@ const ChatsList = ({
 
 const ChatPreview = ({
     chat,
-    selectedChat,
-    setSelectedChat,
+    selectedChatPreview,
+    setSelectedChatPreview,
     selectThisChat,
     serverUrl,
-    setChats,
+    setChatPreviews,
 }: {
-    chat: ChatListItem;
-    selectedChat: ChatListItem | null;
-    setSelectedChat: React.Dispatch<React.SetStateAction<ChatListItem | null>>;
-    selectThisChat: (chatListItem: ChatListItem) => () => void;
+    chat: ChatPreview;
+    selectedChatPreview: ChatPreview | null;
+    setSelectedChatPreview: React.Dispatch<
+        React.SetStateAction<ChatPreview | null>
+    >;
+    selectThisChat: (chatPreview: ChatPreview) => () => void;
     serverUrl: URL;
-    setChats: React.Dispatch<React.SetStateAction<ChatListItem[]>>;
+    setChatPreviews: React.Dispatch<React.SetStateAction<ChatPreview[]>>;
 }) => {
     const previewText = (
         <div>
             <span className="chat-preview-sender">
-                {chat.message_in_db.user_id ? "You:" : "Cyris:"}
+                {chat.most_recent_message_in_db.user_id ? "You:" : "Cyris:"}
             </span>
             <br />
             <span className="chat-preview-message">
-                {chat.message_in_db.text.length > 45
-                    ? chat.message_in_db.text.substring(0, 50) + "..."
-                    : chat.message_in_db.text}
+                {chat.most_recent_message_in_db.text.length > 45
+                    ? chat.most_recent_message_in_db.text.substring(0, 50) +
+                      "..."
+                    : chat.most_recent_message_in_db.text}
             </span>
         </div>
     );
-    const deleteChat = async (chatToDelete: ChatListItem) => {
+    const deleteChat = async (chatToDelete: ChatPreview) => {
         const areTheySureTheyWantToDeleteTheChat = confirm(
             "Are you sure you want to delete this chat?"
         );
@@ -126,18 +131,18 @@ const ChatPreview = ({
                 },
                 withCredentials: true,
             });
-            setChats((chats: ChatListItem[]) => {
-                return chats.filter((chatListItem: ChatListItem) => {
+            setChatPreviews((chats: ChatPreview[]) => {
+                return chats.filter((chatPreview: ChatPreview) => {
                     return (
-                        chatListItem.chat_in_db.chat_id !==
+                        chatPreview.chat_in_db.chat_id !==
                         chatToDelete.chat_in_db.chat_id
                     );
                 });
             });
-            setSelectedChat(null);
+            setSelectedChatPreview(null);
         }
     };
-    if (chat === selectedChat) {
+    if (chat === selectedChatPreview) {
         return (
             <>
                 <div className="chat-preview-selected">
@@ -162,33 +167,35 @@ const ChatPreview = ({
 };
 
 const LeftSidePanelContents = ({
-    user,
+    currentUser,
     setCurrentUserAndCookie,
     serverUrl,
-    selectedChat,
-    setSelectedChat,
-    chats,
-    setChats,
+    selectedChatPreview,
+    setSelectedChatPreview,
+    chatPreviews,
+    setChatPreviews,
 }: {
-    user: User | null;
+    currentUser: User | null;
     setCurrentUserAndCookie: (user: User | null) => void;
     serverUrl: URL | null;
-    selectedChat: ChatListItem | null;
-    setSelectedChat: React.Dispatch<React.SetStateAction<ChatListItem | null>>;
-    chats: ChatListItem[];
-    setChats: React.Dispatch<React.SetStateAction<ChatListItem[]>>;
+    selectedChatPreview: ChatPreview | null;
+    setSelectedChatPreview: React.Dispatch<
+        React.SetStateAction<ChatPreview | null>
+    >;
+    chatPreviews: ChatPreview[];
+    setChatPreviews: React.Dispatch<React.SetStateAction<ChatPreview[]>>;
 }) => {
     return (
         <>
             <CyrisLogo />
             <ChatsList
-                user={user}
+                currentUser={currentUser}
                 setCurrentUserAndCookie={setCurrentUserAndCookie}
                 serverUrl={serverUrl}
-                selectedChat={selectedChat}
-                setSelectedChat={setSelectedChat}
-                chats={chats}
-                setChats={setChats}
+                selectedChatPreview={selectedChatPreview}
+                setSelectedChatPreview={setSelectedChatPreview}
+                chatPreviews={chatPreviews}
+                setChatPreviews={setChatPreviews}
             />
         </>
     );

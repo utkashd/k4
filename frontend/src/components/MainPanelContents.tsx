@@ -191,17 +191,19 @@ const MainPanelContents = ({
     setServerUrlAndCookie,
     currentUser,
     setCurrentUserAndCookie,
-    selectedChat,
-    setSelectedChat,
-    setChats,
+    selectedChatPreview,
+    setSelectedChatPreview,
+    setChatPreviews,
 }: {
     serverUrl: URL | null;
     setServerUrlAndCookie: (url: URL | null) => void;
     currentUser: User | null;
     setCurrentUserAndCookie: (user: User | null) => void;
-    selectedChat: ChatListItem | null;
-    setSelectedChat: React.Dispatch<React.SetStateAction<ChatListItem | null>>;
-    setChats: React.Dispatch<React.SetStateAction<ChatListItem[]>>;
+    selectedChatPreview: ChatPreview | null;
+    setSelectedChatPreview: React.Dispatch<
+        React.SetStateAction<ChatPreview | null>
+    >;
+    setChatPreviews: React.Dispatch<React.SetStateAction<ChatPreview[]>>;
 }) => {
     const [isInitialSetupRequired, setIsInitialSetupRequired] = useState(true);
 
@@ -245,9 +247,9 @@ const MainPanelContents = ({
         <ChatBox
             user={currentUser}
             serverUrl={serverUrl}
-            selectedChat={selectedChat}
-            setSelectedChat={setSelectedChat}
-            setChats={setChats}
+            selectedChatPreview={selectedChatPreview}
+            setSelectedChatPreview={setSelectedChatPreview}
+            setChatPreviews={setChatPreviews}
         />
     );
 };

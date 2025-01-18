@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import "../assets/ChatBox.css";
-import axios from "axios";
+import axios, { AxiosResponse } from "axios";
 import Markdown from "react-markdown";
 
 interface MessageInDb {
@@ -14,15 +14,17 @@ interface MessageInDb {
 function ChatBox({
     user,
     serverUrl,
-    selectedChat,
-    setSelectedChat,
-    setChats,
+    selectedChatPreview,
+    setSelectedChatPreview,
+    setChatPreviews,
 }: {
     user: User;
     serverUrl: URL;
-    selectedChat: ChatListItem | null;
-    setSelectedChat: React.Dispatch<React.SetStateAction<ChatListItem | null>>;
-    setChats: React.Dispatch<React.SetStateAction<ChatListItem[]>>;
+    selectedChatPreview: ChatPreview | null;
+    setSelectedChatPreview: React.Dispatch<
+        React.SetStateAction<ChatPreview | null>
+    >;
+    setChatPreviews: React.Dispatch<React.SetStateAction<ChatPreview[]>>;
 }) {
     const [messages, setMessages] = useState([] as MessageInDb[]);
     const [isInputDisabled, setIsInputDisabled] = useState(false);
@@ -38,8 +40,8 @@ function ChatBox({
         }
     };
 
-    const getAndSetMessages = async (selectedChat: ChatListItem) => {
-        const response = await axios.get(
+    const getAndSetMessages = async (selectedChat: ChatPreview) => {
+        const response: AxiosResponse<ApiResponse<Chat>> = await axios.get(
             new URL("/chat", serverUrl).toString(),
             {
                 withCredentials: true,
@@ -52,12 +54,12 @@ function ChatBox({
     };
 
     useEffect(() => {
-        if (selectedChat) {
-            getAndSetMessages(selectedChat);
+        if (selectedChatPreview) {
+            getAndSetMessages(selectedChatPreview);
         } else {
             setMessages([]);
         }
-    }, [selectedChat]);
+    }, [selectedChatPreview]);
 
     useEffect(() => {
         scrollToBottom();
@@ -72,9 +74,9 @@ function ChatBox({
         setTextAreaValue("");
 
         if (humanInputSaved) {
-            if (selectedChat) {
+            if (selectedChatPreview) {
                 const response = await fetch(
-                    new URL("/test", serverUrl).toString(),
+                    new URL("/message", serverUrl).toString(),
                     {
                         method: "POST",
                         credentials: "include",
@@ -84,7 +86,7 @@ function ChatBox({
                             //   'Accept': 'text/event-stream',
                         },
                         body: JSON.stringify({
-                            chat_id: selectedChat?.chat_in_db.chat_id,
+                            chat_id: selectedChatPreview.chat_in_db.chat_id,
                             message: humanInputSaved,
                         }),
                     }
@@ -167,7 +169,7 @@ function ChatBox({
                     { withCredentials: true }
                 );
                 const receivedMessages: MessageInDb[] = response.data;
-                const newChatListItem: ChatListItem = {
+                const newChatPreview: ChatPreview = {
                     chat_in_db: {
                         chat_id: receivedMessages[0].chat_id,
                         is_archived: false,
@@ -175,12 +177,12 @@ function ChatBox({
                         title: "",
                         user_id: user.user_id,
                     },
-                    message_in_db: receivedMessages[1],
+                    most_recent_message_in_db: receivedMessages[1],
                 };
-                setChats((currentChats: ChatListItem[]) => {
-                    return [newChatListItem, ...currentChats];
+                setChatPreviews((currentChatPreviews: ChatPreview[]) => {
+                    return [newChatPreview, ...currentChatPreviews];
                 });
-                setSelectedChat(newChatListItem);
+                setSelectedChatPreview(newChatPreview);
                 setMessages(receivedMessages);
             }
             setIsInputDisabled(false);
@@ -196,10 +198,10 @@ function ChatBox({
             <div className="cyris-chatbox">
                 <div
                     className="cyris-chatbox-padded"
-                    style={selectedChat ? {} : { alignItems: "center" }}
+                    style={selectedChatPreview ? {} : { alignItems: "center" }}
                     onClick={setCursorOnTextbox}
                 >
-                    {selectedChat ? (
+                    {selectedChatPreview ? (
                         messages.map((message: MessageInDb, index) => {
                             return (
                                 <div

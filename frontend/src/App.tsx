@@ -24,34 +24,34 @@ function App() {
         setCookie("currentUser", user);
         setCurrentUser(user);
     }
-    const [selectedChat, setSelectedChat] = useState(
-        null as ChatListItem | null
+    const [selectedChatPreview, setSelectedChatPreview] = useState(
+        null as ChatPreview | null
     ); // `selectedChat === null` means "create a new chat"
-    const [chats, setChats] = useState([] as ChatListItem[]);
+    const [chatPreviews, setChatPreviews] = useState([] as ChatPreview[]);
 
     return (
         <>
             <div className="app-container">
                 <div className="left-side-panel">
                     <LeftSidePanelContents
-                        user={currentUser}
+                        currentUser={currentUser}
                         setCurrentUserAndCookie={setCurrentUserAndCookie}
                         serverUrl={serverUrl}
-                        selectedChat={selectedChat}
-                        setSelectedChat={setSelectedChat}
-                        chats={chats}
-                        setChats={setChats}
+                        selectedChatPreview={selectedChatPreview}
+                        setSelectedChatPreview={setSelectedChatPreview}
+                        chatPreviews={chatPreviews}
+                        setChatPreviews={setChatPreviews}
                     />
                 </div>
                 <div className="main-panel">
                     <MainPanelContents
+                        currentUser={currentUser}
                         serverUrl={serverUrl}
                         setServerUrlAndCookie={setServerUrlAndCookie}
-                        currentUser={currentUser}
                         setCurrentUserAndCookie={setCurrentUserAndCookie}
-                        selectedChat={selectedChat}
-                        setSelectedChat={setSelectedChat}
-                        setChats={setChats}
+                        selectedChatPreview={selectedChatPreview}
+                        setSelectedChatPreview={setSelectedChatPreview}
+                        setChatPreviews={setChatPreviews}
                     />
                 </div>
                 <div className="right-side-panel">

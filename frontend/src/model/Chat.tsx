@@ -1,7 +1,8 @@
-interface ChatListItem {
+interface ChatPreview {
     chat_in_db: ChatInDb;
-    message_in_db: MessageInDb;
+    most_recent_message_in_db: MessageInDb;
 }
+
 interface ChatInDb {
     chat_id: number;
     is_archived: boolean;
@@ -16,4 +17,9 @@ interface MessageInDb {
     message_id: number;
     text: string;
     user_id: number | null;
+}
+
+interface Chat {
+    chat_in_db: ChatInDb;
+    messages: MessageInDb[];
 }

@@ -382,10 +382,10 @@ async def get_chat_by_chat_id(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can't access a different user's chats.",
         )
-    return await messages_manager.get_messages_of_chat(chat_id)
+    return await messages_manager.get_chat(chat_id=chat_id)
 
 
-@app.get("/chats")
+@app.get("/chat_previews")
 async def get_chat_previews(
     current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
 ) -> list[ChatPreview]:
@@ -415,6 +415,7 @@ class CreateNewChatRequestBody(BaseModel):
 @app.post("/chat")
 async def create_new_chat_with_message(
     create_new_chat_request_body: CreateNewChatRequestBody,
+    # background_tasks: BackgroundTasks,
     current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
 ) -> list[MessageInDb]:
     chat_in_db = await messages_manager.create_new_chat(
@@ -424,6 +425,7 @@ async def create_new_chat_with_message(
         SendMessageRequestBody(
             chat_id=chat_in_db.chat_id, message=create_new_chat_request_body.message
         ),
+        # background_tasks=background_tasks,
         current_user=current_user,
     )
 
@@ -433,11 +435,12 @@ class SendMessageRequestBody(BaseModel):
     message: str
 
 
-@app.post("/message")
 async def send_message_to_cyris(
     send_message_request_body: SendMessageRequestBody,
     current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
 ) -> list[MessageInDb]:
+    # TODO delete this function once streaming is stable
+    # This function is no longer used, in favor of `send_message_to_cyris_stream`
     user_message = await messages_manager.save_client_message_to_db(
         chat_id=send_message_request_body.chat_id,
         user_id=current_user.user_id,
@@ -457,7 +460,12 @@ async def send_message_to_cyris(
     return messages_newly_in_db
 
 
-@app.post("/test")
+class LlmStreamingResponse(BaseModel):
+    chunk: str
+    chat_id: int
+
+
+@app.post("/message")
 async def send_message_to_cyris_stream(
     send_message_request_body: SendMessageRequestBody,
     background_tasks: BackgroundTasks,
@@ -472,8 +480,7 @@ async def send_message_to_cyris_stream(
     all_cyris_responses: list[str] = []
 
     async def stream_response_and_async_write_to_db():
-        # yield user_message
-        log.info(user_message)
+        yield user_message.model_dump_json()
         chat_history = await messages_manager.get_messages_of_chat(
             chat_id=send_message_request_body.chat_id
         )
@@ -481,13 +488,14 @@ async def send_message_to_cyris_stream(
             new_msg=user_message, chat_history=chat_history
         ):
             if isinstance(response_chunk, str):
-                yield response_chunk
-                print(response_chunk, end="")
+                # ignore the final chunk, which is `None`
+                yield LlmStreamingResponse(
+                    chunk=response_chunk, chat_id=send_message_request_body.chat_id
+                ).model_dump_json()
                 all_cyris_responses.append(response_chunk)
-        print("1. consumed the generator")
 
     background_tasks.add_task(
-        # I believe this is guaranteed to run AFTER this endpoint completes. We need
+        # I believe this is guaranteed to run AFTER this endpoint finishes. We need
         # that guarantee, otherwise `all_cyris_responses` is incomplete.
         # https://fastapi.tiangolo.com/tutorial/background-tasks/
         save_cyris_response_to_db,
@@ -500,7 +508,6 @@ async def send_message_to_cyris_stream(
 async def save_cyris_response_to_db(
     chat_id: int, all_cyris_responses: list[str]
 ) -> None:
-    print("2. started saving the message")
     cyris_response: str = "".join(all_cyris_responses)
     await messages_manager.save_cyris_message_to_db(
         chat_id=chat_id, text=cyris_response
