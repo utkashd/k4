@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import "../assets/ChatBox.css";
-import axios, { AxiosResponse } from "axios";
 import Markdown from "react-markdown";
+import Server from "../model/Server";
 
 interface MessageInDb {
     message_id: number;
@@ -13,13 +13,13 @@ interface MessageInDb {
 
 function ChatBox({
     user,
-    serverUrl,
+    server,
     selectedChatPreview,
     setSelectedChatPreview,
     setChatPreviews,
 }: {
     user: User;
-    serverUrl: URL;
+    server: Server;
     selectedChatPreview: ChatPreview | null;
     setSelectedChatPreview: React.Dispatch<
         React.SetStateAction<ChatPreview | null>
@@ -41,16 +41,13 @@ function ChatBox({
     };
 
     const getAndSetMessages = async (selectedChat: ChatPreview) => {
-        const response: AxiosResponse<ApiResponse<Chat>> = await axios.get(
-            new URL("/chat", serverUrl).toString(),
-            {
-                withCredentials: true,
-                params: {
-                    chat_id: selectedChat.chat_in_db.chat_id,
-                },
-            }
-        );
-        setMessages(response.data);
+        const response = await server.api.get<Chat>("/chat", {
+            withCredentials: true,
+            params: {
+                chat_id: selectedChat.chat_in_db.chat_id,
+            },
+        });
+        setMessages(response.data.messages);
     };
 
     useEffect(() => {
@@ -76,7 +73,7 @@ function ChatBox({
         if (humanInputSaved) {
             if (selectedChatPreview) {
                 const response = await fetch(
-                    new URL("/message", serverUrl).toString(),
+                    new URL("/message", server.url!).toString(),
                     {
                         method: "POST",
                         credentials: "include",
@@ -163,8 +160,8 @@ function ChatBox({
                 //     });
                 // });
             } else {
-                const response = await axios.post(
-                    new URL("/chat", serverUrl).toString(),
+                const response = await server.api.post<MessageInDb[]>(
+                    "/chat",
                     { message: humanInputSaved },
                     { withCredentials: true }
                 );

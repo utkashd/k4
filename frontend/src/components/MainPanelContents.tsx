@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import "../assets/SetServerForm.css";
-import axios from "axios";
 import ChatBox from "./ChatBox";
 import AdminPanel from "./AdminPanel";
+import Server from "../model/Server";
 
 function SetServerForm({
     setServerUrlAndCookie,
@@ -17,8 +17,7 @@ function SetServerForm({
     ) => {
         event.preventDefault();
         try {
-            const serverUrl = new URL(serverUrlInput);
-            setServerUrlAndCookie(serverUrl);
+            setServerUrlAndCookie(new URL(serverUrlInput));
         } catch (error) {
             alert(`"${serverUrlInput}" is not a valid URL.`);
             setServerUrlInput("http://");
@@ -58,13 +57,13 @@ function SetServerForm({
     );
 }
 
-const CreateFirstAdminForm = ({ serverUrl }: { serverUrl: URL }) => {
+const CreateFirstAdminForm = ({ server }: { server: Server }) => {
     const [firstAdminUsernameInput, setFirstAdminUsernameInput] = useState("");
     const [firstAdminPasswordInput, setFirstAdminPasswordInput] = useState("");
 
     const submitLogin = async () => {
         try {
-            await axios.post(new URL("/first_admin", serverUrl).toString(), {
+            await server.api.post("/first_admin", {
                 desired_user_email: firstAdminUsernameInput,
                 desired_user_password: firstAdminPasswordInput,
             });
@@ -111,11 +110,11 @@ const CreateFirstAdminForm = ({ serverUrl }: { serverUrl: URL }) => {
 };
 
 const LoginForm = ({
-    serverUrl,
+    server,
     setServerUrlAndCookie,
     setCurrentUserAndCookie,
 }: {
-    serverUrl: URL;
+    server: Server;
     setServerUrlAndCookie: (url: URL | null) => void;
     setCurrentUserAndCookie: (user: User | null) => void;
 }) => {
@@ -129,16 +128,16 @@ const LoginForm = ({
         e.preventDefault();
         e.stopPropagation();
         try {
-            await axios.post(
-                new URL("/token", serverUrl).toString(),
+            await server.api.post(
+                "/token",
                 new URLSearchParams({
                     username: usernameInput,
                     password: passwordInput,
                 }),
-                { withCredentials: true }
+                { withCredentials: true } // Is this necessary?
             );
-            const currentUserRequestResponse = await axios.get(
-                new URL("/user/me", serverUrl).toString(),
+            const currentUserRequestResponse = await server.api.get<User>(
+                "/user/me",
                 { withCredentials: true }
             );
             setCurrentUserAndCookie(currentUserRequestResponse.data);
@@ -173,7 +172,7 @@ const LoginForm = ({
                 <br />
                 <div className="submitLogin">
                     <button type="submit">
-                        Login to {serverUrl.toString()}
+                        Login to {server.url!.toString()}
                     </button>
                 </div>
             </form>
@@ -187,7 +186,7 @@ const LoginForm = ({
 };
 
 const MainPanelContents = ({
-    serverUrl,
+    server,
     setServerUrlAndCookie,
     currentUser,
     setCurrentUserAndCookie,
@@ -195,7 +194,7 @@ const MainPanelContents = ({
     setSelectedChatPreview,
     setChatPreviews,
 }: {
-    serverUrl: URL | null;
+    server: Server | null;
     setServerUrlAndCookie: (url: URL | null) => void;
     currentUser: User | null;
     setCurrentUserAndCookie: (user: User | null) => void;
@@ -208,29 +207,29 @@ const MainPanelContents = ({
     const [isInitialSetupRequired, setIsInitialSetupRequired] = useState(true);
 
     useEffect(() => {
-        async function learnWhetherInitialSetupIsRequired(serverUrl: URL) {
-            const response = await axios.get(
-                new URL("/is_setup_required", serverUrl).toString()
+        async function learnWhetherInitialSetupIsRequired(server: Server) {
+            const response = await server.api.get<boolean>(
+                "/is_setup_required"
             );
             setIsInitialSetupRequired(response.data === true);
         }
-        if (serverUrl) {
-            learnWhetherInitialSetupIsRequired(serverUrl);
+        if (server) {
+            learnWhetherInitialSetupIsRequired(server);
         }
-    }, [serverUrl]);
+    }, [server]);
 
-    if (!serverUrl) {
+    if (!server) {
         return <SetServerForm setServerUrlAndCookie={setServerUrlAndCookie} />;
     }
 
     if (isInitialSetupRequired) {
-        return <CreateFirstAdminForm serverUrl={serverUrl} />;
+        return <CreateFirstAdminForm server={server} />;
     }
 
     if (!currentUser) {
         return (
             <LoginForm
-                serverUrl={serverUrl}
+                server={server}
                 setServerUrlAndCookie={setServerUrlAndCookie}
                 setCurrentUserAndCookie={setCurrentUserAndCookie}
             />
@@ -238,15 +237,13 @@ const MainPanelContents = ({
     }
 
     if (currentUser.is_user_an_admin) {
-        return (
-            <AdminPanel currentAdminUser={currentUser} serverUrl={serverUrl} />
-        );
+        return <AdminPanel currentAdminUser={currentUser} server={server} />;
     }
 
     return (
         <ChatBox
             user={currentUser}
-            serverUrl={serverUrl}
+            server={server}
             selectedChatPreview={selectedChatPreview}
             setSelectedChatPreview={setSelectedChatPreview}
             setChatPreviews={setChatPreviews}

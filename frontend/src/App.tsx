@@ -4,6 +4,8 @@ import { useCookies } from "react-cookie";
 import MainPanelContents from "./components/MainPanelContents";
 import LeftSidePanelContents from "./components/LeftSidePanelContents";
 import RightSidePanelContents from "./components/RightSidePanelContents";
+import Server from "./model/Server";
+import axios from "axios";
 
 function App() {
     const [cookies, setCookie, _removeCookie] = useCookies([
@@ -13,12 +15,33 @@ function App() {
     const [serverUrl, setServerUrl] = useState(
         cookies["serverUrl"] as URL | null
     );
+    const [server, setServer] = useState(
+        serverUrl
+            ? {
+                  url: serverUrl,
+                  api: axios.create({
+                      baseURL: serverUrl ? serverUrl.toString() : undefined,
+                  }),
+              }
+            : (null as Server | null)
+    );
     const [currentUser, setCurrentUser] = useState(
         cookies["currentUser"] as User | null
     );
-    function setServerUrlAndCookie(url: URL | null) {
-        setCookie("serverUrl", url);
-        setServerUrl(url);
+    function setServerUrlAndCookie(serverUrl: URL | null) {
+        let server: Server | null = null;
+        if (serverUrl) {
+            server = {
+                url: serverUrl,
+                api: axios.create({
+                    baseURL: serverUrl ? serverUrl.toString() : undefined,
+                }),
+            };
+            setServer(server);
+        }
+        setCookie("serverUrl", serverUrl);
+        setServerUrl(serverUrl);
+        setServer(server);
     }
     function setCurrentUserAndCookie(user: User | null) {
         setCookie("currentUser", user);
@@ -36,7 +59,7 @@ function App() {
                     <LeftSidePanelContents
                         currentUser={currentUser}
                         setCurrentUserAndCookie={setCurrentUserAndCookie}
-                        serverUrl={serverUrl}
+                        server={server}
                         selectedChatPreview={selectedChatPreview}
                         setSelectedChatPreview={setSelectedChatPreview}
                         chatPreviews={chatPreviews}
@@ -46,7 +69,7 @@ function App() {
                 <div className="main-panel">
                     <MainPanelContents
                         currentUser={currentUser}
-                        serverUrl={serverUrl}
+                        server={server}
                         setServerUrlAndCookie={setServerUrlAndCookie}
                         setCurrentUserAndCookie={setCurrentUserAndCookie}
                         selectedChatPreview={selectedChatPreview}
@@ -57,7 +80,7 @@ function App() {
                 <div className="right-side-panel">
                     <RightSidePanelContents
                         currentUser={currentUser}
-                        serverUrl={serverUrl}
+                        server={server}
                         setCurrentUserAndCookie={setCurrentUserAndCookie}
                     />
                 </div>

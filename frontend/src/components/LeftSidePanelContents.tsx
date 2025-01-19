@@ -2,6 +2,7 @@ import axios from "axios";
 import { useEffect } from "react";
 import "../assets/LeftSidePanelContents.css";
 import { BsTrash3Fill } from "react-icons/bs";
+import Server from "../model/Server";
 
 const CyrisLogo = () => {
     return <img src="./gh.png" className="logo-test" alt="logo"></img>;
@@ -10,7 +11,7 @@ const CyrisLogo = () => {
 const ChatsList = ({
     currentUser,
     setCurrentUserAndCookie,
-    serverUrl,
+    server,
     selectedChatPreview,
     setSelectedChatPreview,
     chatPreviews,
@@ -18,7 +19,7 @@ const ChatsList = ({
 }: {
     currentUser: User | null;
     setCurrentUserAndCookie: (user: User | null) => void;
-    serverUrl: URL | null;
+    server: Server;
     selectedChatPreview: ChatPreview | null;
     setSelectedChatPreview: React.Dispatch<
         React.SetStateAction<ChatPreview | null>
@@ -27,10 +28,10 @@ const ChatsList = ({
     setChatPreviews: React.Dispatch<React.SetStateAction<ChatPreview[]>>;
 }) => {
     const getUsersChats = async () => {
-        if (serverUrl) {
+        if (server) {
             try {
-                const response = await axios.get(
-                    new URL("/chat_previews", serverUrl).toString(),
+                const response = await server.api.get<ChatPreview[]>(
+                    "/chat_previews",
                     { withCredentials: true }
                 );
                 setChatPreviews(response.data);
@@ -52,7 +53,7 @@ const ChatsList = ({
         } else {
             setChatPreviews([]);
         }
-    }, [currentUser, serverUrl]);
+    }, [currentUser, server]);
 
     const selectThisChat = (chatToSelect: ChatPreview | null) => {
         return () => {
@@ -78,7 +79,7 @@ const ChatsList = ({
                                 selectedChatPreview={selectedChatPreview}
                                 setSelectedChatPreview={setSelectedChatPreview}
                                 selectThisChat={selectThisChat}
-                                serverUrl={serverUrl!} // this can't be null when `chats` is a non-empty array
+                                server={server}
                                 setChatPreviews={setChatPreviews}
                             />
                         </div>
@@ -94,7 +95,7 @@ const ChatPreview = ({
     selectedChatPreview,
     setSelectedChatPreview,
     selectThisChat,
-    serverUrl,
+    server,
     setChatPreviews,
 }: {
     chat: ChatPreview;
@@ -103,7 +104,7 @@ const ChatPreview = ({
         React.SetStateAction<ChatPreview | null>
     >;
     selectThisChat: (chatPreview: ChatPreview) => () => void;
-    serverUrl: URL;
+    server: Server;
     setChatPreviews: React.Dispatch<React.SetStateAction<ChatPreview[]>>;
 }) => {
     const previewText = (
@@ -125,7 +126,7 @@ const ChatPreview = ({
             "Are you sure you want to delete this chat?"
         );
         if (areTheySureTheyWantToDeleteTheChat) {
-            await axios.delete(new URL("/chat", serverUrl).toString(), {
+            await server.api.delete("/chat", {
                 params: {
                     chat_id: chatToDelete.chat_in_db.chat_id,
                 },
@@ -169,7 +170,7 @@ const ChatPreview = ({
 const LeftSidePanelContents = ({
     currentUser,
     setCurrentUserAndCookie,
-    serverUrl,
+    server,
     selectedChatPreview,
     setSelectedChatPreview,
     chatPreviews,
@@ -177,7 +178,7 @@ const LeftSidePanelContents = ({
 }: {
     currentUser: User | null;
     setCurrentUserAndCookie: (user: User | null) => void;
-    serverUrl: URL | null;
+    server: Server | null;
     selectedChatPreview: ChatPreview | null;
     setSelectedChatPreview: React.Dispatch<
         React.SetStateAction<ChatPreview | null>
@@ -188,15 +189,19 @@ const LeftSidePanelContents = ({
     return (
         <>
             <CyrisLogo />
-            <ChatsList
-                currentUser={currentUser}
-                setCurrentUserAndCookie={setCurrentUserAndCookie}
-                serverUrl={serverUrl}
-                selectedChatPreview={selectedChatPreview}
-                setSelectedChatPreview={setSelectedChatPreview}
-                chatPreviews={chatPreviews}
-                setChatPreviews={setChatPreviews}
-            />
+            {server ? (
+                <ChatsList
+                    currentUser={currentUser}
+                    setCurrentUserAndCookie={setCurrentUserAndCookie}
+                    server={server}
+                    selectedChatPreview={selectedChatPreview}
+                    setSelectedChatPreview={setSelectedChatPreview}
+                    chatPreviews={chatPreviews}
+                    setChatPreviews={setChatPreviews}
+                />
+            ) : (
+                <></>
+            )}
         </>
     );
 };

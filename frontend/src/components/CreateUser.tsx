@@ -1,7 +1,13 @@
-import axios from "axios";
 import { useState } from "react";
+import Server from "../model/Server";
 
-function CreateUser({ refreshUsers }: { refreshUsers: () => void }) {
+function CreateUser({
+    refreshUsers,
+    server,
+}: {
+    refreshUsers: () => void;
+    server: Server;
+}) {
     const [humanNameInput, setHumanNameInput] = useState("");
     const [aiNameInput, setAiNameInput] = useState("");
 
@@ -27,8 +33,8 @@ function CreateUser({ refreshUsers }: { refreshUsers: () => void }) {
 
         if (aiNameInput && humanNameInput) {
             try {
-                await axios.post(
-                    "http://localhost:8000/user",
+                await server.api.post(
+                    "/user",
                     {
                         ai_name: aiNameInput,
                         human_name: humanNameInput,

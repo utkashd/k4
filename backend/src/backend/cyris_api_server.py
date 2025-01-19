@@ -23,7 +23,7 @@ from jose import JWTError, jwt
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field, SecretStr
 from connection_management import ConnectionManager
-from message_management import ChatPreview, MessagesManager
+from message_management import Chat, ChatPreview, MessagesManager
 from user_management import (
     AdminUser,
     NonAdminUser,
@@ -183,6 +183,11 @@ async def get_current_active_user(
     user = await users_manager.get_active_user_by_email(user_email)
 
     return user
+
+
+@app.get("/")
+async def am_i_alive():
+    return True
 
 
 @app.post("/token")
@@ -374,7 +379,7 @@ class ChatPreviewsRequestParams(BaseModel):
 async def get_chat_by_chat_id(
     chat_id: int,
     current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
-):
+) -> Chat:
     if not await messages_manager.does_user_own_this_chat(
         user_id=current_user.user_id, chat_id=chat_id
     ):

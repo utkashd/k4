@@ -1,21 +1,21 @@
-import axios from "axios";
+import Server from "../model/Server";
 
 const CurrentUserAndLogoutButton = ({
     currentUser,
-    serverUrl,
+    server,
     setCurrentUserAndCookie,
 }: {
     currentUser: User | null;
-    serverUrl: URL | null;
+    server: Server | null;
     setCurrentUserAndCookie: (user: User | null) => void;
 }) => {
-    if (!currentUser || !serverUrl) {
+    if (!currentUser || !server) {
         return <>You're not logged in.</>;
     }
 
     const logout = async () => {
         setCurrentUserAndCookie(null);
-        await axios.post(new URL("/logout", serverUrl).toString());
+        await server.api.post("/logout");
     };
     return (
         <>
@@ -29,17 +29,17 @@ const CurrentUserAndLogoutButton = ({
 
 const RightSidePanelContents = ({
     currentUser,
-    serverUrl,
+    server,
     setCurrentUserAndCookie,
 }: {
     currentUser: User | null;
-    serverUrl: URL | null;
+    server: Server | null;
     setCurrentUserAndCookie: (user: User | null) => void;
 }) => {
     return (
         <CurrentUserAndLogoutButton
             currentUser={currentUser}
-            serverUrl={serverUrl}
+            server={server}
             setCurrentUserAndCookie={setCurrentUserAndCookie}
         />
     );

@@ -1,21 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
-import axios from "axios";
 import DataTable from "react-data-table-component";
 import { FaTrash, FaTrashRestore } from "react-icons/fa";
+import Server from "../model/Server";
 
 function ManageUsers({
-    serverUrl,
+    server,
     currentAdminUser,
 }: {
-    serverUrl: URL;
+    server: Server;
     currentAdminUser: User;
 }) {
     const [users, setUsers] = useState<User[]>([]);
     const refreshUsers = async () => {
-        const response = await axios.get(
-            new URL("/user", serverUrl).toString(),
-            { withCredentials: true }
-        );
+        const response = await server.api.get<User[]>("/user", {
+            withCredentials: true,
+        });
         setUsers(response.data);
     };
     useEffect(() => {
@@ -39,7 +38,7 @@ function ManageUsers({
     );
     return (
         <>
-            <CreateUsers serverUrl={serverUrl} refreshUsers={refreshUsers} />
+            <CreateUsers server={server} refreshUsers={refreshUsers} />
             <UsersList
                 users={users}
                 handleRowSelected={handleRowSelected}
@@ -48,7 +47,7 @@ function ManageUsers({
             />
             <UserManagementActionsBar
                 refreshUsers={refreshUsers}
-                serverUrl={serverUrl}
+                server={server}
                 selectedUsers={selectedUsers}
                 clearSelection={clearSelection}
             />
@@ -57,10 +56,10 @@ function ManageUsers({
 }
 
 function CreateUsers({
-    serverUrl,
+    server,
     refreshUsers,
 }: {
-    serverUrl: URL;
+    server: Server;
     refreshUsers: () => void;
 }) {
     const [usernameInput, setUsernameInput] = useState("");
@@ -83,8 +82,8 @@ function CreateUsers({
             return;
         }
 
-        axios.post(
-            new URL("/user", serverUrl).toString(),
+        server.api.post(
+            "/user",
             {
                 desired_user_email: usernameInput,
                 desired_user_password: passwordInput,
@@ -149,12 +148,12 @@ function CreateUsers({
 function UserManagementActionsBar({
     refreshUsers,
     selectedUsers,
-    serverUrl,
+    server,
     clearSelection,
 }: {
     refreshUsers: () => Promise<void>;
     selectedUsers: User[];
-    serverUrl: URL;
+    server: Server;
     clearSelection: () => void;
 }) {
     if (!selectedUsers.length) {
@@ -173,7 +172,7 @@ function UserManagementActionsBar({
             );
             if (doesAdminWantToDeactivateSelectedUsers) {
                 for (const user of selectedUsers) {
-                    await axios.delete(new URL("/user", serverUrl).toString(), {
+                    await server.api.delete("/user", {
                         withCredentials: true,
                         data: user,
                     });
@@ -213,11 +212,9 @@ function UserManagementActionsBar({
             );
             if (doesAdminWantToDeactivateSelectedUsers) {
                 for (const user of selectedUsers) {
-                    await axios.put(
-                        new URL("/user", serverUrl).toString(),
-                        user,
-                        { withCredentials: true }
-                    );
+                    await server.api.put("/user", user, {
+                        withCredentials: true,
+                    });
                 }
                 clearSelection();
                 refreshUsers();
@@ -320,10 +317,10 @@ function UsersList({
 
 const AdminPanel = ({
     currentAdminUser,
-    serverUrl,
+    server,
 }: {
     currentAdminUser: User;
-    serverUrl: URL;
+    server: Server;
 }) => {
     return (
         <>
@@ -331,10 +328,7 @@ const AdminPanel = ({
             deactivate users.
             <br />
             <br />
-            <ManageUsers
-                serverUrl={serverUrl}
-                currentAdminUser={currentAdminUser}
-            />
+            <ManageUsers server={server} currentAdminUser={currentAdminUser} />
         </>
     );
 };

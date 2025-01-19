@@ -169,7 +169,9 @@ class MessagesManager(PostgresTableManager):
 
     async def get_chat_in_db(self, chat_id: int) -> ChatInDb:
         async with self.get_connection() as connection:
-            chat = await connection.fetchrow("SELECT * FROM chats WHERE chat_id=$1")
+            chat = await connection.fetchrow(
+                "SELECT * FROM chats WHERE chat_id=$1", chat_id
+            )
             return ChatInDb(**chat)
 
     async def get_messages_of_chat(self, chat_id: int) -> list[MessageInDb]:
