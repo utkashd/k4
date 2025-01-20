@@ -1,15 +1,22 @@
 import { useEffect, useState } from "react";
 import "../assets/SetServerForm.css";
-import ChatBox from "./ChatBox";
-import AdminPanel from "./AdminPanel";
 import Server from "../model/Server";
+import { useNavigate } from "react-router-dom";
 
-function SetServerForm({
+export function SetServer({
     setServerUrlAndCookie,
+    server,
 }: {
     setServerUrlAndCookie: (url: URL | null) => void;
+    server: Server | null;
 }) {
-    // setServerUrlAndCookie(new URL("http://localhost:8000"));
+    const navigate = useNavigate();
+    useEffect(() => {
+        if (server) {
+            navigate("/");
+            return;
+        }
+    }, [navigate, server]);
     const [serverUrlInput, setServerUrlInput] = useState("http://");
 
     const submitSetServerUrl = async (
@@ -57,20 +64,25 @@ function SetServerForm({
     );
 }
 
-const CreateFirstAdminForm = ({ server }: { server: Server }) => {
+export const Setup = ({ server }: { server: Server | null }) => {
+    const navigate = useNavigate();
+    useEffect(() => {
+        if (!server) {
+            navigate("/");
+            return;
+        }
+    }, [navigate, server]);
+    if (!server) {
+        return null;
+    }
     const [firstAdminUsernameInput, setFirstAdminUsernameInput] = useState("");
     const [firstAdminPasswordInput, setFirstAdminPasswordInput] = useState("");
 
     const submitLogin = async () => {
-        try {
-            await server.api.post("/first_admin", {
-                desired_user_email: firstAdminUsernameInput,
-                desired_user_password: firstAdminPasswordInput,
-            });
-        } catch (error) {
-            console.log(error);
-            console.log("TODO deal w dis unhandled error 78465132");
-        }
+        await server.api.post("/first_admin", {
+            desired_user_email: firstAdminUsernameInput,
+            desired_user_password: firstAdminPasswordInput,
+        });
     };
     return (
         <>
@@ -109,15 +121,33 @@ const CreateFirstAdminForm = ({ server }: { server: Server }) => {
     );
 };
 
-const LoginForm = ({
+export const LoginForm = ({
     server,
+    currentUser,
     setServerUrlAndCookie,
     setCurrentUserAndCookie,
 }: {
-    server: Server;
+    server: Server | null;
+    currentUser: User | null;
     setServerUrlAndCookie: (url: URL | null) => void;
     setCurrentUserAndCookie: (user: User | null) => void;
 }) => {
+    const navigate = useNavigate();
+    useEffect(() => {
+        if (!server) {
+            navigate("/");
+            return;
+        }
+        if (currentUser) {
+            navigate("/");
+            return;
+        }
+    }, [server, currentUser, navigate]);
+
+    if (!server) {
+        return null;
+    }
+
     const clearServerUrl = () => {
         setServerUrlAndCookie(null);
     };
@@ -127,24 +157,18 @@ const LoginForm = ({
     const submitLogin = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         e.stopPropagation();
-        try {
-            await server.api.post(
-                "/token",
-                new URLSearchParams({
-                    username: usernameInput,
-                    password: passwordInput,
-                }),
-                { withCredentials: true } // Is this necessary?
-            );
-            const currentUserRequestResponse = await server.api.get<User>(
-                "/user/me",
-                { withCredentials: true }
-            );
-            setCurrentUserAndCookie(currentUserRequestResponse.data);
-        } catch (error) {
-            console.log(error);
-            console.log("TODO deal w dis unhandled error 874512");
-        }
+        await server.api.post(
+            "/token",
+            new URLSearchParams({
+                username: usernameInput,
+                password: passwordInput,
+            })
+        );
+        const currentUserRequestResponse = await server.api.get<User>(
+            "/user/me",
+            { withCredentials: true }
+        );
+        setCurrentUserAndCookie(currentUserRequestResponse.data);
     };
 
     return (
@@ -172,7 +196,7 @@ const LoginForm = ({
                 <br />
                 <div className="submitLogin">
                     <button type="submit">
-                        Login to {server.url!.toString()}
+                        Login to {server.url.toString()}
                     </button>
                 </div>
             </form>
@@ -184,71 +208,3 @@ const LoginForm = ({
         </>
     );
 };
-
-const MainPanelContents = ({
-    server,
-    setServerUrlAndCookie,
-    currentUser,
-    setCurrentUserAndCookie,
-    selectedChatPreview,
-    setSelectedChatPreview,
-    setChatPreviews,
-}: {
-    server: Server | null;
-    setServerUrlAndCookie: (url: URL | null) => void;
-    currentUser: User | null;
-    setCurrentUserAndCookie: (user: User | null) => void;
-    selectedChatPreview: ChatPreview | null;
-    setSelectedChatPreview: React.Dispatch<
-        React.SetStateAction<ChatPreview | null>
-    >;
-    setChatPreviews: React.Dispatch<React.SetStateAction<ChatPreview[]>>;
-}) => {
-    const [isInitialSetupRequired, setIsInitialSetupRequired] = useState(true);
-
-    useEffect(() => {
-        async function learnWhetherInitialSetupIsRequired(server: Server) {
-            const response = await server.api.get<boolean>(
-                "/is_setup_required"
-            );
-            setIsInitialSetupRequired(response.data === true);
-        }
-        if (server) {
-            learnWhetherInitialSetupIsRequired(server);
-        }
-    }, [server]);
-
-    if (!server) {
-        return <SetServerForm setServerUrlAndCookie={setServerUrlAndCookie} />;
-    }
-
-    if (isInitialSetupRequired) {
-        return <CreateFirstAdminForm server={server} />;
-    }
-
-    if (!currentUser) {
-        return (
-            <LoginForm
-                server={server}
-                setServerUrlAndCookie={setServerUrlAndCookie}
-                setCurrentUserAndCookie={setCurrentUserAndCookie}
-            />
-        );
-    }
-
-    if (currentUser.is_user_an_admin) {
-        return <AdminPanel currentAdminUser={currentUser} server={server} />;
-    }
-
-    return (
-        <ChatBox
-            user={currentUser}
-            server={server}
-            selectedChatPreview={selectedChatPreview}
-            setSelectedChatPreview={setSelectedChatPreview}
-            setChatPreviews={setChatPreviews}
-        />
-    );
-};
-
-export default MainPanelContents;

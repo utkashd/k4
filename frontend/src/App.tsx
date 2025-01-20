@@ -1,11 +1,20 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./assets/App.css";
 import { useCookies } from "react-cookie";
-import MainPanelContents from "./components/MainPanelContents";
+import { Setup, LoginForm } from "./components/MainPanelContents";
 import LeftSidePanelContents from "./components/LeftSidePanelContents";
 import RightSidePanelContents from "./components/RightSidePanelContents";
 import Server from "./model/Server";
 import axios from "axios";
+import {
+    BrowserRouter as Router,
+    Routes,
+    Route,
+    useNavigate,
+} from "react-router-dom";
+import { SetServer } from "./components/MainPanelContents";
+import AdminPanel from "./components/AdminPanel";
+import ChatBox from "./components/ChatBox";
 
 function App() {
     const [cookies, setCookie, _removeCookie] = useCookies([
@@ -39,53 +48,168 @@ function App() {
             };
             setServer(server);
         }
+        setServer(server);
         setCookie("serverUrl", serverUrl);
         setServerUrl(serverUrl);
-        setServer(server);
     }
     function setCurrentUserAndCookie(user: User | null) {
         setCookie("currentUser", user);
         setCurrentUser(user);
     }
-    const [selectedChatPreview, setSelectedChatPreview] = useState(
-        null as ChatPreview | null
-    ); // `selectedChat === null` means "create a new chat"
-    const [chatPreviews, setChatPreviews] = useState([] as ChatPreview[]);
 
     return (
-        <>
-            <div className="app-container">
-                <div className="left-side-panel">
-                    <LeftSidePanelContents
-                        currentUser={currentUser}
-                        setCurrentUserAndCookie={setCurrentUserAndCookie}
-                        server={server}
-                        selectedChatPreview={selectedChatPreview}
-                        setSelectedChatPreview={setSelectedChatPreview}
-                        chatPreviews={chatPreviews}
-                        setChatPreviews={setChatPreviews}
-                    />
-                </div>
-                <div className="main-panel">
-                    <MainPanelContents
-                        currentUser={currentUser}
-                        server={server}
-                        setServerUrlAndCookie={setServerUrlAndCookie}
-                        setCurrentUserAndCookie={setCurrentUserAndCookie}
-                        selectedChatPreview={selectedChatPreview}
-                        setSelectedChatPreview={setSelectedChatPreview}
-                        setChatPreviews={setChatPreviews}
-                    />
-                </div>
-                <div className="right-side-panel">
-                    <RightSidePanelContents
-                        currentUser={currentUser}
-                        server={server}
-                        setCurrentUserAndCookie={setCurrentUserAndCookie}
-                    />
-                </div>
+        <Router>
+            <Routes>
+                <Route
+                    path="/"
+                    element={<Home server={server} currentUser={currentUser} />}
+                />
+                <Route
+                    path="/chats"
+                    element={
+                        <Chats
+                            currentUser={currentUser}
+                            setCurrentUserAndCookie={setCurrentUserAndCookie}
+                            server={server}
+                            setServerUrlAndCookie={setServerUrlAndCookie}
+                        />
+                    }
+                />
+                <Route
+                    path="/set_server"
+                    element={
+                        <SetServer
+                            server={server}
+                            setServerUrlAndCookie={setServerUrlAndCookie}
+                        />
+                    }
+                />
+                <Route path="/setup" element={<Setup server={server} />} />
+                <Route
+                    path="/login"
+                    element={
+                        <LoginForm
+                            server={server}
+                            currentUser={currentUser}
+                            setServerUrlAndCookie={setServerUrlAndCookie}
+                            setCurrentUserAndCookie={setCurrentUserAndCookie}
+                        />
+                    }
+                />
+                <Route
+                    path="/admin_panel"
+                    element={
+                        <AdminPanel
+                            currentAdminUser={currentUser}
+                            server={server}
+                        />
+                    }
+                />
+            </Routes>
+        </Router>
+    );
+}
+
+function Home({
+    server,
+    currentUser,
+}: {
+    server: Server | null;
+    currentUser: User | null;
+}) {
+    const navigate = useNavigate();
+    useEffect(() => {
+        if (!server) {
+            navigate("/set_server");
+            return;
+        }
+        if (!currentUser) {
+            navigate("/login");
+            return;
+        } else if (currentUser.is_user_an_admin) {
+            navigate("/admin_panel");
+            return;
+        }
+        async function setupIfNecessary(server: Server) {
+            const response = await server.api.get<boolean>(
+                "/is_setup_required"
+            );
+            const isInitialSetupRequired = response.data;
+            if (isInitialSetupRequired) {
+                navigate("/setup");
+                return;
+            }
+        }
+        if (server) {
+            setupIfNecessary(server);
+        }
+        navigate("/chats");
+        return;
+    }, [server, currentUser, navigate]);
+    return <>If you're seeing this message, something went wrong 🥲</>;
+}
+
+function Chats({
+    currentUser,
+    setCurrentUserAndCookie,
+    server,
+}: {
+    currentUser: User | null;
+    setCurrentUserAndCookie: (user: User | null) => void;
+    server: Server | null;
+    setServerUrlAndCookie: (url: URL | null) => void;
+}) {
+    const navigate = useNavigate();
+    useEffect(() => {
+        if (!server) {
+            navigate("/");
+            return;
+        }
+        if (!currentUser || currentUser.is_user_an_admin) {
+            navigate("/");
+            return;
+        }
+    }, [server, currentUser, navigate]);
+
+    if (!server || !currentUser) {
+        return null;
+    }
+
+    const [selectedChatPreview, setSelectedChatPreview] = useState(
+        null as ChatPreview | null
+    ); // `selectedChatPreview === null` means "create a new chat"
+    const [chatPreviews, setChatPreviews] = useState<ChatPreview[]>([]);
+
+    return (
+        <div className="app-container">
+            <div className="left-side-panel">
+                <LeftSidePanelContents
+                    currentUser={currentUser}
+                    setCurrentUserAndCookie={setCurrentUserAndCookie}
+                    server={server}
+                    selectedChatPreview={selectedChatPreview}
+                    setSelectedChatPreview={setSelectedChatPreview}
+                    chatPreviews={chatPreviews}
+                    setChatPreviews={setChatPreviews}
+                />
             </div>
-        </>
+            <div className="main-panel">
+                <ChatBox
+                    user={currentUser}
+                    server={server}
+                    selectedChatPreview={selectedChatPreview}
+                    setSelectedChatPreview={setSelectedChatPreview}
+                    setChatPreviews={setChatPreviews}
+                />
+            </div>
+            <div className="right-side-panel">
+                <RightSidePanelContents
+                    currentUser={currentUser}
+                    server={server}
+                    setCurrentUserAndCookie={setCurrentUserAndCookie}
+                />
+            </div>
+        </div>
     );
 }
 

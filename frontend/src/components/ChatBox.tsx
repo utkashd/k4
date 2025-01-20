@@ -26,6 +26,7 @@ function ChatBox({
     >;
     setChatPreviews: React.Dispatch<React.SetStateAction<ChatPreview[]>>;
 }) {
+    const [chats, setChats] = useState<Record<number, Chat>>({});
     const [messages, setMessages] = useState([] as MessageInDb[]);
     const [isInputDisabled, setIsInputDisabled] = useState(false);
     const [textAreaValue, setTextAreaValue] = useState("");
@@ -41,13 +42,24 @@ function ChatBox({
     };
 
     const getAndSetMessages = async (selectedChat: ChatPreview) => {
-        const response = await server.api.get<Chat>("/chat", {
-            withCredentials: true,
-            params: {
-                chat_id: selectedChat.chat_in_db.chat_id,
-            },
-        });
-        setMessages(response.data.messages);
+        if (selectedChat.chat_in_db.chat_id in chats) {
+            setMessages(chats[selectedChat.chat_in_db.chat_id].messages);
+        } else {
+            const response = await server.api.get<Chat>("/chat", {
+                withCredentials: true,
+                params: {
+                    chat_id: selectedChat.chat_in_db.chat_id,
+                },
+            });
+            setChats((existingChats) => {
+                existingChats[selectedChat.chat_in_db.chat_id] = {
+                    chat_in_db: selectedChat.chat_in_db,
+                    messages: response.data.messages,
+                };
+                return existingChats;
+            });
+            setMessages(response.data.messages);
+        }
     };
 
     useEffect(() => {
@@ -73,14 +85,14 @@ function ChatBox({
         if (humanInputSaved) {
             if (selectedChatPreview) {
                 const response = await fetch(
-                    new URL("/message", server.url!).toString(),
+                    new URL("/message", server.url).toString(),
                     {
                         method: "POST",
                         credentials: "include",
                         headers: {
                             "Content-Type": "application/json",
                             // Authorization: api.defaults.headers.common["Authorization"],
-                            //   'Accept': 'text/event-stream',
+                            Accept: "text/event-stream",
                         },
                         body: JSON.stringify({
                             chat_id: selectedChatPreview.chat_in_db.chat_id,
@@ -88,15 +100,6 @@ function ChatBox({
                         }),
                     }
                 );
-
-                if (!response.ok) {
-                    const errorBody = await response.json();
-                    throw new Error(
-                        `generateImage HTTP error! status: ${response.status} ${
-                            response.statusText
-                        }. Details: ${JSON.stringify(errorBody)}`
-                    );
-                }
 
                 const reader = response.body!.getReader();
                 const decoder = new TextDecoder();
@@ -110,30 +113,55 @@ function ChatBox({
 
                     for (const line of lines) {
                         try {
-                            const update = line;
-                            console.log(update);
+                            const parsedLine = JSON.parse(line);
+                            if (parsedLine["message_id"]) {
+                                const userMessage = parsedLine as MessageInDb;
+                                setChats((existingChats) => {
+                                    existingChats[
+                                        userMessage.chat_id
+                                    ].messages.push(parsedLine);
+                                    return existingChats;
+                                });
+                                setMessages((existingMessages) => {
+                                    return [...existingMessages, parsedLine];
+                                });
+                            } else {
+                                const chunk = parsedLine as {
+                                    chunk: string;
+                                    chat_id: number;
+                                };
+                                if (
+                                    chats[
+                                        selectedChatPreview.chat_in_db.chat_id
+                                    ].messages.at(-1)!.user_id
+                                ) {
+                                    setMessages((existingMessages) => {
+                                        return [
+                                            ...existingMessages,
+                                            {
+                                                message_id: 1,
+                                                chat_id: chunk.chat_id,
+                                                user_id: null,
+                                                text: chunk.chunk,
+                                                inserted_at: "",
+                                            },
+                                        ];
+                                    });
+                                } else {
+                                    setMessages((existingMessages) => {
+                                        existingMessages.at(-1)!.text =
+                                            existingMessages
+                                                .at(-1)!
+                                                .text.concat(chunk.chunk);
+                                        return existingMessages;
+                                    });
+                                }
+                            }
                         } catch (error) {
                             console.error("Error parsing update:", error);
                         }
                     }
                 }
-                // const response = await axios.post(
-                //     new URL("/test", serverUrl).toString(),
-                //     {
-                //         chat_id: selectedChat?.chat_in_db.chat_id,
-                //         message: humanInputSaved,
-                //     },
-                //     {
-                //         withCredentials: true,
-                //         responseType: "stream",
-                //     }
-                // );
-                // response.data.on("data", (data: string) => {
-                //     console.log(data);
-                // });
-                // response.data.on("end", () => {
-                //     console.log("END");
-                // });
 
                 // const response = await axios.post(
                 //     new URL("/message", serverUrl).toString(),
@@ -181,6 +209,13 @@ function ChatBox({
                 });
                 setSelectedChatPreview(newChatPreview);
                 setMessages(receivedMessages);
+                setChats((existingChats) => {
+                    existingChats[receivedMessages[0].chat_id] = {
+                        chat_in_db: newChatPreview.chat_in_db,
+                        messages: receivedMessages,
+                    };
+                    return existingChats;
+                });
             }
             setIsInputDisabled(false);
         }

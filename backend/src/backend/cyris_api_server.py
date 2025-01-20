@@ -465,7 +465,7 @@ async def send_message_to_cyris(
     return messages_newly_in_db
 
 
-class LlmStreamingResponse(BaseModel):
+class LlmStreamingChunk(BaseModel):
     chunk: str
     chat_id: int
 
@@ -485,7 +485,7 @@ async def send_message_to_cyris_stream(
     all_cyris_responses: list[str] = []
 
     async def stream_response_and_async_write_to_db():
-        yield user_message.model_dump_json()
+        yield f"{user_message.model_dump_json()}\n"
         chat_history = await messages_manager.get_messages_of_chat(
             chat_id=send_message_request_body.chat_id
         )
@@ -494,9 +494,9 @@ async def send_message_to_cyris_stream(
         ):
             if isinstance(response_chunk, str):
                 # ignore the final chunk, which is `None`
-                yield LlmStreamingResponse(
-                    chunk=response_chunk, chat_id=send_message_request_body.chat_id
-                ).model_dump_json()
+                yield f"{LlmStreamingChunk(
+                        chunk=response_chunk, chat_id=send_message_request_body.chat_id
+                    ).model_dump_json()}\n"
                 all_cyris_responses.append(response_chunk)
 
     background_tasks.add_task(
@@ -507,7 +507,9 @@ async def send_message_to_cyris_stream(
         chat_id=send_message_request_body.chat_id,
         all_cyris_responses=all_cyris_responses,
     )
-    return StreamingResponse(stream_response_and_async_write_to_db())
+    return StreamingResponse(
+        stream_response_and_async_write_to_db(), media_type="text/event-stream"
+    )
 
 
 async def save_cyris_response_to_db(

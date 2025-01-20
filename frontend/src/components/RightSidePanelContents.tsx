@@ -32,8 +32,8 @@ const RightSidePanelContents = ({
     server,
     setCurrentUserAndCookie,
 }: {
-    currentUser: User | null;
-    server: Server | null;
+    currentUser: User;
+    server: Server;
     setCurrentUserAndCookie: (user: User | null) => void;
 }) => {
     return (

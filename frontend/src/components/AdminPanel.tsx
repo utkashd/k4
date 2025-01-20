@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import DataTable from "react-data-table-component";
 import { FaTrash, FaTrashRestore } from "react-icons/fa";
 import Server from "../model/Server";
+import { useNavigate } from "react-router-dom";
 
 function ManageUsers({
     server,
@@ -315,13 +316,22 @@ function UsersList({
     );
 }
 
-const AdminPanel = ({
+export const AdminPanel = ({
     currentAdminUser,
     server,
 }: {
-    currentAdminUser: User;
-    server: Server;
+    currentAdminUser: User | null;
+    server: Server | null;
 }) => {
+    const navigate = useNavigate();
+    if (!server) {
+        navigate("/");
+        return;
+    }
+    if (!currentAdminUser || !currentAdminUser.is_user_an_admin) {
+        navigate("/");
+        return;
+    }
     return (
         <>
             Welcome Admin {currentAdminUser.user_email}. Here you may create and

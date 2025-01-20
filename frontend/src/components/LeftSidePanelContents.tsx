@@ -5,7 +5,7 @@ import { BsTrash3Fill } from "react-icons/bs";
 import Server from "../model/Server";
 
 const CyrisLogo = () => {
-    return <img src="./gh.png" className="logo-test" alt="logo"></img>;
+    return <img src="/gh.png" className="logo-test" alt="logo"></img>;
 };
 
 const ChatsList = ({
@@ -176,9 +176,9 @@ const LeftSidePanelContents = ({
     chatPreviews,
     setChatPreviews,
 }: {
-    currentUser: User | null;
+    currentUser: User;
     setCurrentUserAndCookie: (user: User | null) => void;
-    server: Server | null;
+    server: Server;
     selectedChatPreview: ChatPreview | null;
     setSelectedChatPreview: React.Dispatch<
         React.SetStateAction<ChatPreview | null>
@@ -189,19 +189,15 @@ const LeftSidePanelContents = ({
     return (
         <>
             <CyrisLogo />
-            {server ? (
-                <ChatsList
-                    currentUser={currentUser}
-                    setCurrentUserAndCookie={setCurrentUserAndCookie}
-                    server={server}
-                    selectedChatPreview={selectedChatPreview}
-                    setSelectedChatPreview={setSelectedChatPreview}
-                    chatPreviews={chatPreviews}
-                    setChatPreviews={setChatPreviews}
-                />
-            ) : (
-                <></>
-            )}
+            <ChatsList
+                currentUser={currentUser}
+                setCurrentUserAndCookie={setCurrentUserAndCookie}
+                server={server}
+                selectedChatPreview={selectedChatPreview}
+                setSelectedChatPreview={setSelectedChatPreview}
+                chatPreviews={chatPreviews}
+                setChatPreviews={setChatPreviews}
+            />
         </>
     );
 };
