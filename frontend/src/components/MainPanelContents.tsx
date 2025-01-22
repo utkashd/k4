@@ -162,7 +162,8 @@ export const LoginForm = ({
             new URLSearchParams({
                 username: usernameInput,
                 password: passwordInput,
-            })
+            }),
+            { withCredentials: true } // if we don't set this, the credentials don't get saved?
         );
         const currentUserRequestResponse = await server.api.get<User>(
             "/user/me",

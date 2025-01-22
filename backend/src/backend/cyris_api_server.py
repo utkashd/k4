@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 import datetime
 import json
 import os
+from typing import Literal
 from uuid import UUID
 import asyncpg  # type: ignore[import-untyped]
 from backend_commons.messages import ClientMessage, MessageInDb
@@ -465,9 +466,22 @@ async def send_message_to_cyris(
     return messages_newly_in_db
 
 
-class LlmStreamingChunk(BaseModel):
-    chunk: str
+class LlmStreamingResponse(BaseModel):
+    chunk_type: Literal["text"] | Literal["msg_start"]
     chat_id: int
+
+
+class LlmStreamingStart(LlmStreamingResponse):
+    chunk_type: Literal["msg_start"] = "msg_start"
+
+
+class LlmStreamingChunk(LlmStreamingResponse):
+    chunk: str
+    chunk_type: Literal["text"] = "text"
+
+
+def _format_pydantic_instance_for_stream_response(pydantic_instance: BaseModel) -> str:
+    return f"{pydantic_instance.model_dump_json()}\n"
 
 
 @app.post("/message")
@@ -481,27 +495,31 @@ async def send_message_to_cyris_stream(
         user_id=current_user.user_id,
         text=send_message_request_body.message,
     )
-    # messages_newly_in_db = [user_message]
     all_cyris_responses: list[str] = []
 
     async def stream_response_and_async_write_to_db():
-        yield f"{user_message.model_dump_json()}\n"
+        yield _format_pydantic_instance_for_stream_response(user_message)
         chat_history = await messages_manager.get_messages_of_chat(
             chat_id=send_message_request_body.chat_id
+        )
+        yield _format_pydantic_instance_for_stream_response(
+            LlmStreamingStart(chat_id=send_message_request_body.chat_id)
         )
         async for response_chunk in cyris.ask_stream(
             new_msg=user_message, chat_history=chat_history
         ):
             if isinstance(response_chunk, str):
                 # ignore the final chunk, which is `None`
-                yield f"{LlmStreamingChunk(
+                yield _format_pydantic_instance_for_stream_response(
+                    LlmStreamingChunk(
                         chunk=response_chunk, chat_id=send_message_request_body.chat_id
-                    ).model_dump_json()}\n"
+                    )
+                )
                 all_cyris_responses.append(response_chunk)
 
     background_tasks.add_task(
-        # I believe this is guaranteed to run AFTER this endpoint finishes. We need
-        # that guarantee, otherwise `all_cyris_responses` is incomplete.
+        # I believe this is guaranteed to run AFTER this the generator is consumed. We
+        # need that guarantee, otherwise `all_cyris_responses` is incomplete.
         # https://fastapi.tiangolo.com/tutorial/background-tasks/
         save_cyris_response_to_db,
         chat_id=send_message_request_body.chat_id,
