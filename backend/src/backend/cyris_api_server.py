@@ -6,7 +6,7 @@ import os
 from typing import Literal
 from uuid import UUID
 import asyncpg  # type: ignore[import-untyped]
-from backend_commons.messages import ClientMessage, MessageInDb
+from backend_commons.messages import ClientMessage
 from cyris import Cyris
 from fastapi import (
     BackgroundTasks,
@@ -421,17 +421,26 @@ class CreateNewChatRequestBody(BaseModel):
 @app.post("/chat")
 async def create_new_chat_with_message(
     create_new_chat_request_body: CreateNewChatRequestBody,
-    # background_tasks: BackgroundTasks,
+    background_tasks: BackgroundTasks,
     current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
-) -> list[MessageInDb]:
+) -> StreamingResponse:
+    has_too_many_tokens, num_tokens = cyris.does_string_have_too_many_tokens(
+        create_new_chat_request_body.message
+    )
+    if has_too_many_tokens:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Your message was too large for the model: {cyris.model=}, {num_tokens=}, {cyris.max_tokens}",
+        )
     chat_in_db = await messages_manager.create_new_chat(
         user_id=current_user.user_id, title=""
     )
-    return await send_message_to_cyris(
+    return await send_message_to_cyris_stream(
         SendMessageRequestBody(
             chat_id=chat_in_db.chat_id, message=create_new_chat_request_body.message
         ),
-        # background_tasks=background_tasks,
+        background_tasks=background_tasks,
+        need_to_check_num_tokens=False,
         current_user=current_user,
     )
 
@@ -439,31 +448,6 @@ async def create_new_chat_with_message(
 class SendMessageRequestBody(BaseModel):
     chat_id: int
     message: str
-
-
-async def send_message_to_cyris(
-    send_message_request_body: SendMessageRequestBody,
-    current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
-) -> list[MessageInDb]:
-    # TODO delete this function once streaming is stable
-    # This function is no longer used, in favor of `send_message_to_cyris_stream`
-    user_message = await messages_manager.save_client_message_to_db(
-        chat_id=send_message_request_body.chat_id,
-        user_id=current_user.user_id,
-        text=send_message_request_body.message,
-    )
-    messages_newly_in_db = [user_message]
-    chat_history = await messages_manager.get_messages_of_chat(
-        chat_id=send_message_request_body.chat_id
-    )
-    responses = await cyris.ask(new_msg=user_message, chat_history=chat_history)
-    for response in responses:
-        saved_response = await messages_manager.save_cyris_message_to_db(
-            chat_id=send_message_request_body.chat_id,
-            text=response,
-        )
-        messages_newly_in_db.append(saved_response)
-    return messages_newly_in_db
 
 
 class LlmStreamingResponse(BaseModel):
@@ -488,8 +472,25 @@ def _format_pydantic_instance_for_stream_response(pydantic_instance: BaseModel) 
 async def send_message_to_cyris_stream(
     send_message_request_body: SendMessageRequestBody,
     background_tasks: BackgroundTasks,
+    need_to_check_num_tokens: bool = True,
     current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
 ) -> StreamingResponse:
+    chat_history = await messages_manager.get_messages_of_chat(
+        chat_id=send_message_request_body.chat_id
+    )
+    if need_to_check_num_tokens:
+        has_too_many_tokens, num_tokens, messages = (
+            cyris.do_messages_have_too_many_tokens(
+                new_msg=send_message_request_body.message, chat_history=chat_history
+            )
+        )
+        if has_too_many_tokens:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Your message + chat history was too large for the model: {cyris.model=}, {num_tokens=}, {cyris.max_tokens}",
+            )
+    else:
+        messages = [{"role": "user", "content": send_message_request_body.message}]
     user_message = await messages_manager.save_client_message_to_db(
         chat_id=send_message_request_body.chat_id,
         user_id=current_user.user_id,
@@ -499,15 +500,10 @@ async def send_message_to_cyris_stream(
 
     async def stream_response_and_async_write_to_db():
         yield _format_pydantic_instance_for_stream_response(user_message)
-        chat_history = await messages_manager.get_messages_of_chat(
-            chat_id=send_message_request_body.chat_id
-        )
         yield _format_pydantic_instance_for_stream_response(
             LlmStreamingStart(chat_id=send_message_request_body.chat_id)
         )
-        async for response_chunk in cyris.ask_stream(
-            new_msg=user_message, chat_history=chat_history
-        ):
+        async for response_chunk in cyris.ask_stream(messages=messages):
             if isinstance(response_chunk, str):
                 # ignore the final chunk, which is `None`
                 yield _format_pydantic_instance_for_stream_response(

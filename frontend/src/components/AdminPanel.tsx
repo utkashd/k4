@@ -3,6 +3,7 @@ import DataTable from "react-data-table-component";
 import { FaTrash, FaTrashRestore } from "react-icons/fa";
 import Server from "../model/Server";
 import { useNavigate } from "react-router-dom";
+import { CurrentUserAndLogoutButton } from "./RightSidePanelContents";
 
 function ManageUsers({
     server,
@@ -319,24 +320,37 @@ function UsersList({
 export const AdminPanel = ({
     currentAdminUser,
     server,
+    setCurrentUserAndCookie,
 }: {
     currentAdminUser: User | null;
     server: Server | null;
+    setCurrentUserAndCookie: (user: User | null) => void;
 }) => {
     const navigate = useNavigate();
-    if (!server) {
-        navigate("/");
+    useEffect(() => {
+        if (
+            !server ||
+            !currentAdminUser ||
+            !currentAdminUser.is_user_an_admin
+        ) {
+            navigate("/"); // TODO put this in useEffect
+            return;
+        }
+    }, [navigate, currentAdminUser, server]);
+    if (!currentAdminUser || !server) {
         return;
     }
-    if (!currentAdminUser || !currentAdminUser.is_user_an_admin) {
-        navigate("/");
-        return;
-    }
+
     return (
         <>
             Welcome Admin {currentAdminUser.user_email}. Here you may create and
             deactivate users.
             <br />
+            <CurrentUserAndLogoutButton
+                currentUser={currentAdminUser}
+                server={server}
+                setCurrentUserAndCookie={setCurrentUserAndCookie}
+            />
             <br />
             <ManageUsers server={server} currentAdminUser={currentAdminUser} />
         </>

@@ -121,7 +121,7 @@ export const Setup = ({ server }: { server: Server | null }) => {
     );
 };
 
-export const LoginForm = ({
+export const Login = ({
     server,
     currentUser,
     setServerUrlAndCookie,

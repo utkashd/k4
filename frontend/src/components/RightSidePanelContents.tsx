@@ -1,6 +1,6 @@
 import Server from "../model/Server";
 
-const CurrentUserAndLogoutButton = ({
+export const CurrentUserAndLogoutButton = ({
     currentUser,
     server,
     setCurrentUserAndCookie,
@@ -14,8 +14,9 @@ const CurrentUserAndLogoutButton = ({
     }
 
     const logout = async () => {
-        setCurrentUserAndCookie(null);
         await server.api.post("/logout");
+        setCurrentUserAndCookie(null);
+        window.location.reload(); // TODO need to fix underlying issue so this isn't necessary
     };
     return (
         <>

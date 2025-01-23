@@ -23,3 +23,17 @@ interface Chat {
     chat_in_db: ChatInDb;
     messages: MessageInDb[];
 }
+
+interface LlmStreamingResponse {
+    chunk_type: "text" | "msg_start";
+    chat_id: number;
+}
+
+interface LlmStreamingStart extends LlmStreamingResponse {
+    chunk_type: "msg_start";
+}
+
+interface LlmStreamingChunk extends LlmStreamingResponse {
+    chunk_type: "text";
+    chunk: string;
+}

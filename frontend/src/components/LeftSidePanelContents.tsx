@@ -27,28 +27,27 @@ const ChatsList = ({
     chatPreviews: ChatPreview[];
     setChatPreviews: React.Dispatch<React.SetStateAction<ChatPreview[]>>;
 }) => {
-    const getUsersChats = async () => {
-        if (server) {
-            try {
-                const response = await server.api.get<ChatPreview[]>(
-                    "/chat_previews",
-                    { withCredentials: true }
-                );
-                setChatPreviews(response.data);
-            } catch (error: unknown) {
-                if (axios.isAxiosError(error)) {
-                    if (error.response?.status === 401) {
-                        setCurrentUserAndCookie(null);
-                    } else {
-                        console.error(error);
-                    }
-                }
-            }
-        }
-    };
-
     useEffect(() => {
         if (currentUser && !currentUser.is_user_an_admin) {
+            const getUsersChats = async () => {
+                if (server) {
+                    try {
+                        const response = await server.api.get<ChatPreview[]>(
+                            "/chat_previews",
+                            { withCredentials: true }
+                        );
+                        setChatPreviews(response.data);
+                    } catch (error: unknown) {
+                        if (axios.isAxiosError(error)) {
+                            if (error.response?.status === 401) {
+                                setCurrentUserAndCookie(null);
+                            } else {
+                                console.error("this needs fixinggg!", error);
+                            }
+                        }
+                    }
+                }
+            };
             getUsersChats();
         } else {
             setChatPreviews([]);

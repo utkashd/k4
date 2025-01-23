@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import "./assets/App.css";
 import { useCookies } from "react-cookie";
-import { Setup, LoginForm } from "./components/MainPanelContents";
+import { Setup, Login } from "./components/MainPanelContents";
 import LeftSidePanelContents from "./components/LeftSidePanelContents";
 import RightSidePanelContents from "./components/RightSidePanelContents";
 import Server from "./model/Server";
@@ -88,7 +88,7 @@ function App() {
                 <Route
                     path="/login"
                     element={
-                        <LoginForm
+                        <Login
                             server={server}
                             currentUser={currentUser}
                             setServerUrlAndCookie={setServerUrlAndCookie}
@@ -102,6 +102,7 @@ function App() {
                         <AdminPanel
                             currentAdminUser={currentUser}
                             server={server}
+                            setCurrentUserAndCookie={setCurrentUserAndCookie}
                         />
                     }
                 />
@@ -161,17 +162,13 @@ function Chats({
 }) {
     const navigate = useNavigate();
     useEffect(() => {
-        if (!server) {
+        if (!server || !currentUser || currentUser.is_user_an_admin) {
             navigate("/");
             return;
         }
-        if (!currentUser || currentUser.is_user_an_admin) {
-            navigate("/");
-            return;
-        }
-    }, [server, currentUser, navigate]);
+    }, [navigate, server, currentUser]);
 
-    if (!server || !currentUser) {
+    if (!server || !currentUser || currentUser.is_user_an_admin) {
         return null;
     }
 

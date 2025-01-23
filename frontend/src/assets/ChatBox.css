@@ -45,8 +45,11 @@ div.chat-message-right {
 .msg {
     position: relative;
     max-width: 100%;
-    padding: 7px 15px;
-    margin-bottom: 5px;
+    padding-left: 15px;
+    padding-right: 15px;
+    padding-bottom: 0px;
+    padding-top: 0px;
+    margin-bottom: 12px;
     text-align: left;
 }
 
@@ -55,7 +58,7 @@ div.chat-message-right {
     box-sizing: border-box;
     background: rgb(9, 93, 162);
     color: #fff;
-    max-width: 40%;
+    max-width: 75%;
     /* moves it to the right */
     margin-left: auto;
 }
@@ -65,7 +68,7 @@ div.chat-message-right {
     box-sizing: border-box;
     background: rgb(32, 35, 36);
     color: rgb(178, 172, 162);
-    max-width: 40%;
+    max-width: 80%;
     /* moves it to the left */
     margin-right: auto;
 }

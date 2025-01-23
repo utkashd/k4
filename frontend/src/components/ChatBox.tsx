@@ -31,7 +31,7 @@ function ChatBox({
     const [textAreaValue, setTextAreaValue] = useState("");
 
     const messagesEndRef = useRef<null | HTMLDivElement>(null);
-    const scrollToBottom = () => {
+    const scrollToBottomOfMessages = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
     const setCursorOnTextbox = () => {
@@ -67,21 +67,28 @@ function ChatBox({
     }, [selectedChatPreview]);
 
     useEffect(() => {
-        scrollToBottom();
-        setCursorOnTextbox();
+        scrollToBottomOfMessages();
+        setCursorOnTextbox(); // TODO this isn't working for some reason
     }, [chats]);
 
     const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
 
     const submitHumanInput = async () => {
+        if (textAreaValue === "") {
+            return;
+        }
         setIsInputDisabled(true);
         const humanInputSaved = textAreaValue;
-        setTextAreaValue(""); // TODO don't clear this until we start to get a response from the server
 
         if (humanInputSaved) {
+            let response;
+            let chatId: number;
+            let isNewChat: boolean;
             if (selectedChatPreview) {
-                const chatId = selectedChatPreview.chat_in_db.chat_id;
-                const response = await fetch(
+                // sending a message in an existing chat; chat_id is known
+                isNewChat = false;
+                chatId = selectedChatPreview.chat_in_db.chat_id;
+                response = await fetch(
                     new URL("/message", server.url).toString(),
                     {
                         method: "POST",
@@ -95,25 +102,40 @@ function ChatBox({
                         }),
                     }
                 );
+            } else {
+                // starting a new chat; chat_id is TBD
+                isNewChat = true;
+                response = await fetch(
+                    new URL("/chat", server.url).toString(),
+                    {
+                        method: "POST",
+                        credentials: "include",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({ message: humanInputSaved }),
+                    }
+                );
+            }
 
+            if (!response.ok) {
+                if (response.status == 400) {
+                    alert(
+                        "This chat has gotten too long, please start a new one"
+                    );
+                } else {
+                    const errorBody = await response.json();
+                    console.log(
+                        "unexpected issue with chat response",
+                        errorBody
+                    );
+                }
+            } else {
+                setTextAreaValue("");
                 const reader = response.body!.getReader();
                 const decoder = new TextDecoder();
 
-                interface LlmStreamingResponse {
-                    chunk_type: "text" | "msg_start";
-                    chat_id: number;
-                }
-
-                interface LlmStreamingStart extends LlmStreamingResponse {
-                    chunk_type: "msg_start";
-                }
-
-                interface LlmStreamingChunk extends LlmStreamingResponse {
-                    chunk_type: "text";
-                    chunk: string;
-                }
-
-                let message_so_far = "";
+                let response_message_so_far = "";
                 while (true) {
                     const { done, value } = await reader.read();
                     if (done) {
@@ -121,6 +143,7 @@ function ChatBox({
                             return existingChatPreviews.map(
                                 (existingChatPreview) => {
                                     if (
+                                        chatId &&
                                         existingChatPreview.chat_in_db
                                             .chat_id === chatId
                                     ) {
@@ -128,7 +151,7 @@ function ChatBox({
                                             ...existingChatPreview,
                                             most_recent_message_in_db: {
                                                 ...existingChatPreview.most_recent_message_in_db,
-                                                text: message_so_far,
+                                                text: response_message_so_far,
                                             },
                                         };
                                         return updatedChatPreview;
@@ -150,53 +173,90 @@ function ChatBox({
                             | LlmStreamingStart
                             | LlmStreamingChunk = JSON.parse(line);
                         if ("message_id" in parsedLine) {
+                            // received part 1 of 3: the message we sent. This includes the
+                            // chat_id of the (potentially new) chat.
                             const userMessage = parsedLine;
+                            chatId = userMessage.chat_id;
 
-                            setChats((existingChats) => {
-                                const updatedChats = { ...existingChats };
-                                const chatMessages = [
-                                    ...(updatedChats[userMessage.chat_id]
-                                        ?.messages || []),
-                                ];
-
-                                if (
-                                    !chatMessages.some(
-                                        (msg) =>
-                                            msg.message_id ===
-                                            userMessage.message_id
-                                    )
-                                ) {
-                                    // Prevent duplicate messages
-                                    chatMessages.push(userMessage);
-                                }
-
-                                updatedChats[userMessage.chat_id] = {
-                                    ...updatedChats[userMessage.chat_id],
-                                    messages: chatMessages,
+                            if (isNewChat) {
+                                const newChatInDb: ChatInDb = {
+                                    chat_id: userMessage.chat_id,
+                                    is_archived: false,
+                                    last_message_timestamp:
+                                        userMessage.inserted_at,
+                                    title: "",
+                                    user_id: user.user_id,
                                 };
-                                return updatedChats;
-                            });
-                            setChatPreviews((existingChatPreviews) => {
-                                return existingChatPreviews.map(
-                                    (existingChatPreview) => {
-                                        if (
-                                            existingChatPreview.chat_in_db
-                                                .chat_id === parsedLine.chat_id
-                                        ) {
-                                            const updatedChatPreview = {
-                                                ...existingChatPreview,
-                                                most_recent_message_in_db: {
-                                                    ...existingChatPreview.most_recent_message_in_db,
-                                                    text: parsedLine.text,
-                                                },
-                                            };
-                                            return updatedChatPreview;
-                                        } else {
-                                            return existingChatPreview;
-                                        }
+                                setChats((existingChats) => {
+                                    return {
+                                        ...existingChats,
+                                        [userMessage.chat_id]: {
+                                            chat_in_db: newChatInDb,
+                                            messages: [userMessage],
+                                        },
+                                    };
+                                });
+                                const newChatPreview: ChatPreview = {
+                                    chat_in_db: newChatInDb,
+                                    most_recent_message_in_db: userMessage,
+                                };
+                                setChatPreviews(
+                                    (currentChatPreviews: ChatPreview[]) => {
+                                        return [
+                                            newChatPreview,
+                                            ...currentChatPreviews,
+                                        ];
                                     }
                                 );
-                            });
+                                setSelectedChatPreview(newChatPreview);
+                            } else {
+                                setChats((existingChats) => {
+                                    const updatedChats = { ...existingChats };
+                                    const chatMessages = [
+                                        ...updatedChats[userMessage.chat_id]!
+                                            .messages,
+                                    ];
+
+                                    if (
+                                        !chatMessages.some(
+                                            (msg) =>
+                                                msg.message_id ===
+                                                userMessage.message_id
+                                        )
+                                    ) {
+                                        // Prevent duplicate messages
+                                        chatMessages.push(userMessage);
+                                    }
+
+                                    updatedChats[userMessage.chat_id] = {
+                                        ...updatedChats[userMessage.chat_id],
+                                        messages: chatMessages,
+                                    };
+                                    return updatedChats;
+                                });
+                                setChatPreviews((existingChatPreviews) => {
+                                    return existingChatPreviews.map(
+                                        (existingChatPreview) => {
+                                            if (
+                                                existingChatPreview.chat_in_db
+                                                    .chat_id ===
+                                                parsedLine.chat_id
+                                            ) {
+                                                const updatedChatPreview = {
+                                                    ...existingChatPreview,
+                                                    most_recent_message_in_db: {
+                                                        ...existingChatPreview.most_recent_message_in_db,
+                                                        text: parsedLine.text,
+                                                    },
+                                                };
+                                                return updatedChatPreview;
+                                            } else {
+                                                return existingChatPreview;
+                                            }
+                                        }
+                                    );
+                                });
+                            }
                         } else if (parsedLine.chunk_type == "msg_start") {
                             setChats((existingChats) => {
                                 const updatedChats = { ...existingChats };
@@ -242,21 +302,18 @@ function ChatBox({
                             });
                         } else {
                             setChats((existingChats) => {
-                                // Check if the chat exists in the current state
                                 const chat = existingChats[parsedLine.chat_id];
-
-                                // Update the most recent message
                                 const updatedMessages = chat.messages.map(
                                     (message, index) => {
                                         if (
                                             index ===
                                             chat.messages.length - 1
                                         ) {
-                                            message_so_far =
+                                            response_message_so_far =
                                                 message.text + parsedLine.chunk;
                                             return {
                                                 ...message,
-                                                text: message_so_far,
+                                                text: response_message_so_far,
                                             };
                                         }
                                         return message;
@@ -295,34 +352,6 @@ function ChatBox({
                         }
                     }
                 }
-            } else {
-                const response = await server.api.post<MessageInDb[]>(
-                    "/chat",
-                    { message: humanInputSaved },
-                    { withCredentials: true }
-                );
-                const receivedMessages = response.data;
-                const newChatPreview: ChatPreview = {
-                    chat_in_db: {
-                        chat_id: receivedMessages[0].chat_id,
-                        is_archived: false,
-                        last_message_timestamp: receivedMessages[1].inserted_at,
-                        title: "",
-                        user_id: user.user_id,
-                    },
-                    most_recent_message_in_db: receivedMessages[1],
-                };
-                setChatPreviews((currentChatPreviews: ChatPreview[]) => {
-                    return [newChatPreview, ...currentChatPreviews];
-                });
-                setSelectedChatPreview(newChatPreview);
-                setChats((existingChats) => {
-                    existingChats[receivedMessages[0].chat_id] = {
-                        chat_in_db: newChatPreview.chat_in_db,
-                        messages: receivedMessages,
-                    };
-                    return existingChats;
-                });
             }
             setIsInputDisabled(false);
         }
@@ -355,6 +384,16 @@ function ChatBox({
                                     onClick={(event) => {
                                         event.stopPropagation(); // prevent `setCursorOnTextbox`
                                     }}
+                                    ref={
+                                        index ===
+                                        chats[
+                                            selectedChatPreview.chat_in_db
+                                                .chat_id
+                                        ].messages.length -
+                                            2
+                                            ? messagesEndRef
+                                            : null
+                                    }
                                 >
                                     <Markdown>{message.text}</Markdown>
                                 </div>
@@ -370,7 +409,6 @@ function ChatBox({
                             </div>
                         </div>
                     )}
-                    <div ref={messagesEndRef} style={{ height: "0%" }}></div>
                 </div>
                 <div className="cyris-chatbox-message-sender">
                     <textarea
