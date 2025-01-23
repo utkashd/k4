@@ -18,6 +18,7 @@ dependencies = [
     "asyncpg>=0.29.0",
     "python-jose[cryptography]>=3.3.0",
     "sentry-sdk[fastapi]>=2.20.0",
+    "async-property>=0.2.2",
 ]
 
 [tool.uv.sources]

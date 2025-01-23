@@ -197,7 +197,7 @@ async def login_for_access_token(
 ) -> JSONResponse:
     # TODO switch to sessions? https://evertpot.com/jwt-is-a-bad-default/
     JWT_EXPIRE_MINUTES = (
-        240  # long only because I plan to remove this in favor of sessions
+        60 * 24  # long only because I plan to remove this in favor of sessions
     )
     user_email = form_data.username
     unhashed_user_password = SecretStr(form_data.password)
@@ -278,12 +278,12 @@ class FirstAdminDetails(BaseModel):
 
 @app.get("/is_setup_required")
 async def does_initial_setup_need_to_be_completed() -> bool:
-    return not await users_manager.does_at_least_one_active_admin_user_exist()
+    return not await users_manager.does_at_least_one_active_admin_user_exist
 
 
 @app.post("/first_admin")
 async def create_first_admin_user(first_admin_details: FirstAdminDetails):
-    if await users_manager.does_at_least_one_active_admin_user_exist():
+    if await users_manager.does_at_least_one_active_admin_user_exist:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can't try to create a user through this endpoint because an admin user has already been created.",

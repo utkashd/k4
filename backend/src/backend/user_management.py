@@ -1,4 +1,5 @@
 import logging
+from async_property import async_cached_property  # type: ignore[import-untyped]
 import asyncpg  # type: ignore[import-untyped]
 from backend_commons import PostgresTableManager
 from fastapi import HTTPException, status
@@ -89,6 +90,7 @@ class UsersManager(PostgresTableManager):
     def create_indexes_queries(self):
         return ("CREATE INDEX IF NOT EXISTS idx_user_email ON users(user_email)",)
 
+    @async_cached_property
     async def does_at_least_one_active_admin_user_exist(self) -> bool:
         async with self.get_connection() as connection:
             admin_user_or_none = await connection.fetchrow(
