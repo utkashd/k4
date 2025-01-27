@@ -3,7 +3,7 @@ from pathlib import Path
 
 
 def get_repo_root_directory() -> Path:
-    def does_string_end_with_suffix(string: str, suffix: str):
+    def does_string_end_with_suffix(string: str, suffix: str) -> bool:
         return string[len(string) - len(suffix) :] == suffix
 
     this_files_full_path = os.path.realpath(__file__)

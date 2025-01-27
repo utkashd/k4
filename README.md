@@ -1,12 +1,9 @@
 # Why a company should like this
 
-- data privacy: deploy your own LLM (full privacy) or trust an API provider to not store
-  the API queries
+- data privacy: deploy your own LLM (full privacy) or trust an API provider
 - customizable and extensible for company-specific use-cases
-- because this is self-hosted, not subject to many complex regulations that ruin the
-  experience or add a bunch of costs. internal tools can sometimes win
-- deployed in and only accessible through your private cloud; no unauthorized devices or
-  users can even see it, let alone attempt to log in
+- not subject to many complex regulations that ruin the experience or add costs
+- deployed in and only accessible through your private cloud
 - no contract renewal pains, no switching costs from me
 
 Authentication
@@ -44,6 +41,6 @@ Things I've learned
 - python package management (with uv)
 - basics of auth, jwts vs sessions, how to implement at scale
 
-# Cyris
+## Cyris
 
 An opinionated, ChatGPT-style interface for Home Assistant.
