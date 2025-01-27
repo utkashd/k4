@@ -1,0 +1,49 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+repos:
+    - repo: https://github.com/charliermarsh/ruff
+      rev: v0.9.3
+      hooks:
+          - id: ruff
+            args: [--fix]
+            files: \.py$
+
+    - repo: https://github.com/timothycrosley/isort
+      rev: 5.13.2
+      hooks:
+          - id: isort
+            args: ["--profile", "black"]
+            files: \.py$
+
+    - repo: https://github.com/pre-commit/mirrors-mypy
+      rev: v1.14.1
+      hooks:
+          - id: mypy
+            args:
+                [
+                    "--strict",
+                    "--ignore-missing-imports",
+                    "--incremental",
+                    "--check-untyped-defs",
+                ]
+            files: \.py$
+
+    - repo: https://github.com/igorshubovych/markdownlint-cli
+      rev: v0.44.0
+      hooks:
+          - id: markdownlint
+            files: \.(md|markdown)$
+
+    - repo: https://github.com/pre-commit/pre-commit-hooks
+      rev: v5.0.0
+      hooks:
+          - id: end-of-file-fixer
+          - id: trailing-whitespace
+          - id: check-added-large-files
+            files: \.py$
+
+    - repo: https://github.com/prettier/prettier
+      rev: 3.4.2
+      hooks:
+          - id: prettier
+            files: \.(json|yaml|yml|md|markdown|toml|html|css|js|ts)$

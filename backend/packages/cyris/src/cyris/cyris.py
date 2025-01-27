@@ -1,16 +1,26 @@
 import os
 import logging
-from typing import AsyncGenerator
-from backend_commons.messages import MessageInDb
+from typing import AsyncGenerator, Literal, TypedDict
 from litellm import acompletion, token_counter, get_max_tokens
 from litellm.types.utils import ModelResponseStream
 from rich.logging import RichHandler
+import pluggy
+
 
 FORMAT = "%(message)s"
 logging.basicConfig(
     level="INFO", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
 )
 log = logging.getLogger("cyris")
+
+
+hookspec = pluggy.HookspecMarker("myproject")
+hookimpl = pluggy.HookimplMarker("myproject")
+
+
+class ChatMessage(TypedDict):
+    role: Literal["user", "assistant"]
+    content: str
 
 
 class Cyris:
@@ -29,26 +39,17 @@ class Cyris:
         )
         return (num_tokens > self.max_tokens, num_tokens)
 
+    @hookspec
     def do_messages_have_too_many_tokens(
         self,
         new_msg: str,
-        chat_history: list[
-            MessageInDb
-        ],  # TODO refactor so this doesn't rely on MessageInDb?
-    ) -> tuple[bool, int, list[dict[str, str]]]:
+        chat_history: list[ChatMessage],
+    ) -> tuple[bool, int, list[ChatMessage]]:
         # this implementation is nice because we could easily overwrite it to, e.g.,
         # support "infinite" chat (FIFO queue)
-        history: list[dict[str, str]] = []
-        for history_message in chat_history:
-            history.append(
-                {
-                    "role": "user" if history_message.user_id else "assistant",
-                    "content": history_message.text,
-                }
-            )
-        history.append({"role": "user", "content": new_msg})
-        num_tokens = token_counter(model=self.model, messages=history)
-        return num_tokens > self.max_tokens, num_tokens, history
+        chat_history.append({"role": "user", "content": new_msg})
+        num_tokens = token_counter(model=self.model, messages=chat_history)
+        return num_tokens > self.max_tokens, num_tokens, chat_history
 
     async def ask_stream(
         self, messages: list[dict[str, str]]
