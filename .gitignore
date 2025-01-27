@@ -11,8 +11,6 @@ __pycache__/
 # files for the home assistant tool store
 hass_*.json
 
-dspy_cache/
-
 tmp/*
 
 .dmypy.json

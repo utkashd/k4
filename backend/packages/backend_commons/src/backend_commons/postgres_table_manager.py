@@ -3,6 +3,7 @@ import logging
 import asyncpg  # type: ignore[import-untyped]
 from rich.logging import RichHandler
 from typing import Iterable, cast
+from abc import ABC, abstractmethod
 
 
 FORMAT = "%(message)s"
@@ -12,7 +13,7 @@ logging.basicConfig(
 log = logging.getLogger("cyris")
 
 
-class PostgresTableManager:
+class PostgresTableManager(ABC):
     """
     A thin class that:
     - accepts a table name, a schema in the form of a Pydantic `BaseModel`, and an
@@ -34,12 +35,12 @@ class PostgresTableManager:
         self.postgres_connection_pool: asyncpg.Pool | None = None
 
     @property
-    def create_table_queries(self) -> Iterable[str]:
-        raise NotImplementedError("You need to define the table creation query")
+    @abstractmethod
+    def create_table_queries(self) -> Iterable[str]: ...
 
     @property
-    def create_indexes_queries(self) -> Iterable[str]:
-        raise NotImplementedError("You need to define the index creation queries")
+    @abstractmethod
+    def create_indexes_queries(self) -> Iterable[str]: ...
 
     def _get_connection_pool(self) -> asyncpg.Pool:
         if self.postgres_connection_pool:

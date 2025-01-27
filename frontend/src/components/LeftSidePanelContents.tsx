@@ -108,9 +108,7 @@ const ChatPreview = ({
 }) => {
     const previewText = (
         <div>
-            <span className="chat-preview-sender">
-                {chat.most_recent_message_in_db.user_id ? "You:" : "Cyris:"}
-            </span>
+            <span className="chat-preview-sender">Cyris:</span>
             <br />
             <span className="chat-preview-message">
                 {chat.most_recent_message_in_db.text.length > 45

@@ -16,11 +16,12 @@ div.chat-preview-selected {
 div.chat-preview {
     background-color: rgb(49, 49, 49);
     width: 80%;
-    margin-right: 20%;
+    padding-right: 20%;
 }
 
 div.chat-preview-selected {
-    background-color: rgb(59, 59, 59);
+    /* background-color: rgb(59, 59, 59); */
+    background-color: black;
     width: 80%;
     padding-right: 20%;
 }
