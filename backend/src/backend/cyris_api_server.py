@@ -1,13 +1,15 @@
-from asyncio import wait_for
-from contextlib import asynccontextmanager
 import datetime
 import json
+import logging
 import os
+from asyncio import wait_for
+from contextlib import asynccontextmanager
 from typing import Literal
 from uuid import UUID
-import asyncpg  # type: ignore[import-untyped]
-from backend_commons.messages import ClientMessage
-from cyris import Cyris
+
+import asyncpg  # type: ignore[import-untyped,unused-ignore]
+from backend_commons.messages import ClientMessage, MessageInDb
+from connection_management import ConnectionManager
 from fastapi import (
     BackgroundTasks,
     Cookie,
@@ -19,12 +21,16 @@ from fastapi import (
     WebSocketDisconnect,
     status,
 )
-from fastapi.responses import JSONResponse, StreamingResponse
-from jose import JWTError, jwt
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr, Field, SecretStr
-from connection_management import ConnectionManager
+from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from jose import JWTError, jwt
 from message_management import Chat, ChatPreview, MessagesManager
+from passlib.context import (  # TODO remove passlib because it's not maintained anymore https://github.com/pyca/bcrypt/issues/684
+    CryptContext,
+)
+from pydantic import BaseModel, EmailStr, Field, SecretStr
+from rich.logging import RichHandler
 from user_management import (
     AdminUser,
     NonAdminUser,
@@ -32,15 +38,9 @@ from user_management import (
     RegistrationAttempt,
     UsersManager,
 )
-from passlib.context import (
-    CryptContext,
-)  # TODO remove passlib because it's not maintained anymore https://github.com/pyca/bcrypt/issues/684
-from fastapi.security import (
-    OAuth2PasswordBearer,
-    OAuth2PasswordRequestForm,
-)
-import logging
-from rich.logging import RichHandler
+
+from cyris import Cyris
+from cyris.cyris import ChatMessage
 
 FORMAT = "%(message)s"
 logging.basicConfig(
@@ -55,13 +55,13 @@ cyris = Cyris()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
     try:
         """
         we do this because the `finally` clause will *always* be run, even if there's an
         error somewhere during the `yield`
         """
-        postgres_connection_pool: asyncpg.Pool = await asyncpg.create_pool(  # type: ignore[annotation-unchecked]
+        postgres_connection_pool: asyncpg.Pool = await asyncpg.create_pool(
             host="localhost",
             port=5432,
             user="postgres",
@@ -186,12 +186,12 @@ async def get_current_active_user(
     return user
 
 
-@app.get("/")
-async def am_i_alive():
+@app.get("/")  # type: ignore[misc]
+async def am_i_alive() -> Literal[True]:
     return True
 
 
-@app.post("/token")
+@app.post("/token")  # type: ignore[misc]
 async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> JSONResponse:
@@ -213,10 +213,11 @@ async def login_for_access_token(
     def is_password_correct(
         unhashed_user_password: SecretStr, hashed_user_password: SecretStr
     ) -> bool:
-        return pwd_context.verify(
+        is_correct: bool = pwd_context.verify(  # doing this because mypy complains
             unhashed_user_password.get_secret_value(),
             hashed_user_password.get_secret_value(),
         )
+        return is_correct
 
     if not is_password_correct(
         unhashed_user_password=unhashed_user_password,
@@ -229,19 +230,20 @@ async def login_for_access_token(
         )
 
     def create_access_token(
-        data: dict, minutes_after_which_access_token_expires: int
+        data: dict[str, EmailStr],
+        minutes_after_which_access_token_expires: int,
     ) -> str:
-        data_to_encode = data.copy()
+        data_to_encode: dict[str, str] = data.copy()
         time_access_token_expires = datetime.datetime.now(
             datetime.UTC
         ) + datetime.timedelta(minutes=minutes_after_which_access_token_expires)
 
-        data_to_encode.update({"exp": time_access_token_expires})
-        encoded_jwt = jwt.encode(data_to_encode, SECRET_KEY, algorithm="HS256")
+        data_to_encode.update({"exp": str(time_access_token_expires)})
+        encoded_jwt: str = jwt.encode(data_to_encode, SECRET_KEY, algorithm="HS256")
         return encoded_jwt
 
     access_token = create_access_token(
-        data={"user_email": user.user_email},
+        data={"user_email": str(user.user_email)},
         minutes_after_which_access_token_expires=JWT_EXPIRE_MINUTES,
     )
     response = JSONResponse({"msg": "Login successful"})
@@ -256,7 +258,7 @@ async def login_for_access_token(
     return response
 
 
-@app.post("/logout")
+@app.post("/logout")  # type: ignore[misc]
 async def logout() -> JSONResponse:
     response = JSONResponse(content={"msg": "Logout succcessful"})
     # Overwrite the client's existing `authToken` cookie with an empty/expired one
@@ -276,13 +278,15 @@ class FirstAdminDetails(BaseModel):
     desired_user_password: SecretStr = Field(max_length=32)
 
 
-@app.get("/is_setup_required")
+@app.get("/is_setup_required")  # type: ignore[misc]
 async def does_initial_setup_need_to_be_completed() -> bool:
     return not await users_manager.does_at_least_one_active_admin_user_exist
 
 
-@app.post("/first_admin")
-async def create_first_admin_user(first_admin_details: FirstAdminDetails):
+@app.post("/first_admin")  # type: ignore[misc]
+async def create_first_admin_user(
+    first_admin_details: FirstAdminDetails,
+) -> RegisteredUser:
     if await users_manager.does_at_least_one_active_admin_user_exist:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -303,7 +307,7 @@ async def create_first_admin_user(first_admin_details: FirstAdminDetails):
         )
 
 
-@app.post("/admin")
+@app.post("/admin")  # type: ignore[misc]
 async def create_admin_user(
     new_user_details: RegistrationAttempt,
     current_admin_user: AdminUser = Depends(get_current_active_admin_user),
@@ -320,7 +324,7 @@ async def create_admin_user(
     )
 
 
-@app.post("/user")
+@app.post("/user")  # type: ignore[misc]
 async def create_user(
     new_user_details: RegistrationAttempt,
     current_admin_user: AdminUser = Depends(get_current_active_admin_user),
@@ -336,11 +340,11 @@ async def create_user(
     )
 
 
-@app.delete("/user")
+@app.delete("/user")  # type: ignore[misc]
 async def deactivate_user(
     user_to_deactivate: RegisteredUser,
     current_admin_user: AdminUser = Depends(get_current_active_admin_user),
-):
+) -> None:
     if current_admin_user.user_id == user_to_deactivate.user_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -349,25 +353,25 @@ async def deactivate_user(
     await users_manager.deactivate_user(user_to_deactivate)
 
 
-@app.put("/user")
+@app.put("/user")  # type: ignore[misc]
 async def reactivate_user(
     user_to_reactivate: RegisteredUser,
     current_admin_user: AdminUser = Depends(get_current_active_admin_user),
-):
+) -> None:
     await users_manager.reactivate_user(user_to_reactivate)
 
 
-@app.get("/user")
+@app.get("/user")  # type: ignore[misc]
 async def get_users(
     current_admin_user: AdminUser = Depends(get_current_active_admin_user),
 ) -> list[RegisteredUser]:
     return await users_manager.get_users()
 
 
-@app.get("/user/me")
+@app.get("/user/me")  # type: ignore[misc]
 async def get_current_user_info(
     current_user: RegisteredUser = Depends(get_current_active_user),
-):
+) -> RegisteredUser:
     return current_user
 
 
@@ -376,7 +380,7 @@ class ChatPreviewsRequestParams(BaseModel):
     num_chats: int = 10
 
 
-@app.get("/chat")
+@app.get("/chat")  # type: ignore[misc]
 async def get_chat_by_chat_id(
     chat_id: int,
     current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
@@ -391,18 +395,18 @@ async def get_chat_by_chat_id(
     return await messages_manager.get_chat(chat_id=chat_id)
 
 
-@app.get("/chat_previews")
+@app.get("/chat_previews")  # type: ignore[misc]
 async def get_chat_previews(
     current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
 ) -> list[ChatPreview]:
     return await messages_manager.get_user_chat_previews(current_user.user_id, 20)
 
 
-@app.delete("/chat")
+@app.delete("/chat")  # type: ignore[misc]
 async def delete_chat(
     chat_id: int,
     current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
-):
+) -> None:
     if not await messages_manager.does_user_own_this_chat(
         user_id=current_user.user_id, chat_id=chat_id
     ):
@@ -418,7 +422,7 @@ class CreateNewChatRequestBody(BaseModel):
     message: str
 
 
-@app.post("/chat")
+@app.post("/chat")  # type: ignore[misc]
 async def create_new_chat_with_message(
     create_new_chat_request_body: CreateNewChatRequestBody,
     background_tasks: BackgroundTasks,
@@ -468,7 +472,7 @@ def _format_pydantic_instance_for_stream_response(pydantic_instance: BaseModel) 
     return f"{pydantic_instance.model_dump_json()}\n"
 
 
-@app.post("/message")
+@app.post("/message")  # type: ignore[misc]
 async def send_message_to_cyris_stream(
     send_message_request_body: SendMessageRequestBody,
     background_tasks: BackgroundTasks,
@@ -478,10 +482,25 @@ async def send_message_to_cyris_stream(
     chat_history = await messages_manager.get_messages_of_chat(
         chat_id=send_message_request_body.chat_id
     )
+
+    def convert_message_in_db_to_llm_messages(
+        chat_history: list[MessageInDb],
+    ) -> list[ChatMessage]:
+        chat_messages: list[ChatMessage] = []
+        for message_in_db in chat_history:
+            chat_messages.append(
+                ChatMessage(
+                    role="user" if message_in_db.user_id else "assistant",
+                    content=message_in_db.text,
+                )
+            )
+        return chat_messages
+
     if need_to_check_num_tokens:
         has_too_many_tokens, num_tokens, messages = (
             cyris.do_messages_have_too_many_tokens(
-                new_msg=send_message_request_body.message, chat_history=chat_history
+                new_msg=send_message_request_body.message,
+                chat_history=convert_message_in_db_to_llm_messages(chat_history),
             )
         )
         if has_too_many_tokens:
@@ -490,7 +509,7 @@ async def send_message_to_cyris_stream(
                 detail=f"Your message + chat history was too large for the model: {cyris.model=}, {num_tokens=}, {cyris.max_tokens}",
             )
     else:
-        messages = [{"role": "user", "content": send_message_request_body.message}]
+        messages = [ChatMessage(role="user", content=send_message_request_body.message)]
     user_message = await messages_manager.save_client_message_to_db(
         chat_id=send_message_request_body.chat_id,
         user_id=current_user.user_id,
@@ -498,7 +517,7 @@ async def send_message_to_cyris_stream(
     )
     all_cyris_responses: list[str] = []
 
-    async def stream_response_and_async_write_to_db():
+    async def stream_response_and_async_write_to_db():  # type: ignore[no-untyped-def]
         yield _format_pydantic_instance_for_stream_response(user_message)
         yield _format_pydantic_instance_for_stream_response(
             LlmStreamingStart(chat_id=send_message_request_body.chat_id)
@@ -522,7 +541,8 @@ async def send_message_to_cyris_stream(
         all_cyris_responses=all_cyris_responses,
     )
     return StreamingResponse(
-        stream_response_and_async_write_to_db(), media_type="text/event-stream"
+        stream_response_and_async_write_to_db(),  # type: ignore[no-untyped-call]
+        media_type="text/event-stream",
     )
 
 
@@ -535,7 +555,7 @@ async def save_cyris_response_to_db(
     )
 
 
-@app.websocket("/chat")
+@app.websocket("/chat")  # type: ignore[misc]
 async def websocket_endpoint(
     client_websocket: WebSocket,
     current_user: NonAdminUser = Depends(get_current_active_non_admin_user_ws),

@@ -1,6 +1,7 @@
-from pydantic import BaseModel, Field, RootModel
-from uuid import UUID
 import datetime
+from uuid import UUID
+
+from pydantic import BaseModel, Field, RootModel
 
 
 class MessageInDb(BaseModel):

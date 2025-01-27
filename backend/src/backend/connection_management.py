@@ -1,19 +1,19 @@
+import logging
+import uuid
 from collections import defaultdict
 from dataclasses import dataclass
-import logging
-from fastapi.websockets import WebSocketState
-from rich.logging import RichHandler
 from typing import Any
+
 from backend_commons.messages import (
     ClientMessage,
     CyrisConfirmingReceiptOfClientMessage,
     CyrisMessage,
     Message,
 )
-import uuid
 from fastapi import WebSocket
-
+from fastapi.websockets import WebSocketState
 from message_management import MessagesManager
+from rich.logging import RichHandler
 
 
 @dataclass(frozen=True)
@@ -63,14 +63,16 @@ class ConnectionManager:
         )
         return session_id
 
-    async def disconnect(self, user_id: int, session_id: uuid.UUID):
+    async def disconnect(self, user_id: int, session_id: uuid.UUID) -> None:
         for connection in self.active_connections_by_user_id[user_id]:
             if connection.session_id == session_id:
                 connection_to_remove = connection
                 break
         self.active_connections_by_user_id[user_id].remove(connection_to_remove)
 
-    async def send_custom_message_to_user(self, user_id: int, json: dict[str, Any]):
+    async def send_custom_message_to_user(
+        self, user_id: int, json: dict[str, Any]
+    ) -> None:
         connections = self.active_connections_by_user_id[user_id]
         dropped_connections: set[CyrisServerClientConnection] = set()
         for connection in connections:
@@ -84,7 +86,7 @@ class ConnectionManager:
         for connection in dropped_connections:
             await self.disconnect(user_id, connection.session_id)
 
-    async def send_message_to_user(self, user_id: int, message: Message):
+    async def send_message_to_user(self, user_id: int, message: Message) -> None:
         await self.send_custom_message_to_user(user_id, message.model_dump(mode="json"))
 
     async def save_and_acknowledge_and_reply_to_client_message(
@@ -98,7 +100,7 @@ class ConnectionManager:
 
         async def acknowledge_message_receipt(
             user_id: int, client_message: ClientMessage
-        ):
+        ) -> None:
             acknowledge_message = CyrisConfirmingReceiptOfClientMessage(
                 client_generated_message_uuid=client_message.client_generated_message_uuid
             )

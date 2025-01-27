@@ -43,7 +43,7 @@ elif [[ ! $( docker container ls -al | grep cyris-dev-postgres ) ]] ; then
 elif [[ ! $( docker ps -q -f name=cyris-dev-postgres ) ]] ; then
     printf "\t${YELLOW}postgres docker container found, but the container is not running. Starting it now.${END_COLOR}\n"
     set -x
-    docker container start cyris-dev-postgres > /dev/null 2>&1 # TODO loop until the container is ready? 
+    docker container start cyris-dev-postgres > /dev/null 2>&1 # TODO loop until the container is ready?
     { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
 fi
 

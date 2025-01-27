@@ -32,10 +32,8 @@ members = ["packages/*"]
 [tool.uv]
 dev-dependencies = [
     "ipdb>=0.13.13",
-    "mypy>=1.11.2",
+    "mypy>=1.14.1",
     "ruff>=0.6.9",
-    # "aioconsole>=0.8.1", # occasionally useful for testing async `input()`: `await aioconsole.ainput("send them something ")`
-    # "typed-argument-parser>=1.10.1",
     "pre-commit>=4.1.0",
 ]
 package = false
@@ -45,3 +43,4 @@ strict = true
 ignore_missing_imports = true # necessary for `transformers`. See https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-library-stubs-or-py-typed-marker
 incremental = true
 check_untyped_defs = true
+disallow_untyped_decorators = false

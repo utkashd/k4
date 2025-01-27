@@ -1,11 +1,10 @@
-import os
 import logging
+import os
 from typing import AsyncGenerator, Literal, TypedDict
-from litellm import acompletion, token_counter, get_max_tokens
+
+from litellm import acompletion, get_max_tokens, token_counter
 from litellm.types.utils import ModelResponseStream
 from rich.logging import RichHandler
-import pluggy
-
 
 FORMAT = "%(message)s"
 logging.basicConfig(
@@ -14,17 +13,13 @@ logging.basicConfig(
 log = logging.getLogger("cyris")
 
 
-hookspec = pluggy.HookspecMarker("myproject")
-hookimpl = pluggy.HookimplMarker("myproject")
-
-
 class ChatMessage(TypedDict):
     role: Literal["user", "assistant"]
     content: str
 
 
 class Cyris:
-    def __init__(self):
+    def __init__(self) -> None:
         openai_api_key = os.environ.get("CYRIS_OPENAI_API_KEY")
         if not openai_api_key:
             raise Exception("env var `CYRIS_OPENAI_API_KEY` is not defined")
@@ -34,12 +29,13 @@ class Cyris:
         self.max_tokens = get_max_tokens(self.model)
 
     def does_string_have_too_many_tokens(self, msg: str) -> tuple[bool, int]:
-        num_tokens = token_counter(
-            model=self.model, messages=[{"role": "user", "content": msg}]
-        )
-        return (num_tokens > self.max_tokens, num_tokens)
+        if self.max_tokens:
+            num_tokens = token_counter(
+                model=self.model, messages=[{"role": "user", "content": msg}]
+            )
+            return (num_tokens > self.max_tokens, num_tokens)
+        return False, 0
 
-    @hookspec
     def do_messages_have_too_many_tokens(
         self,
         new_msg: str,
@@ -48,11 +44,13 @@ class Cyris:
         # this implementation is nice because we could easily overwrite it to, e.g.,
         # support "infinite" chat (FIFO queue)
         chat_history.append({"role": "user", "content": new_msg})
-        num_tokens = token_counter(model=self.model, messages=chat_history)
-        return num_tokens > self.max_tokens, num_tokens, chat_history
+        if self.max_tokens:
+            num_tokens = token_counter(model=self.model, messages=chat_history)
+            return num_tokens > self.max_tokens, num_tokens, chat_history
+        return False, 0, chat_history
 
     async def ask_stream(
-        self, messages: list[dict[str, str]]
+        self, messages: list[ChatMessage]
     ) -> AsyncGenerator[str | None, None]:
         async for chunk in await acompletion(
             model=self.model, messages=messages, stream=True

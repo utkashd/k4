@@ -1,11 +1,13 @@
 import logging
-from async_property import async_cached_property  # type: ignore[import-untyped]
-import asyncpg  # type: ignore[import-untyped]
+
+import asyncpg  # type: ignore[import-untyped,unused-ignore]
+from async_property import (  # type: ignore[import-untyped,unused-ignore]
+    async_cached_property,
+)
 from backend_commons import PostgresTableManager
 from fastapi import HTTPException, status
-from rich.logging import RichHandler
 from pydantic import BaseModel, EmailStr, Field, SecretStr
-
+from rich.logging import RichHandler
 
 FORMAT = "%(message)s"
 logging.basicConfig(
@@ -15,17 +17,14 @@ log = logging.getLogger("cyris")
 
 
 class RegisteredUser(BaseModel):
-    """
-    If you're changing the table, you'll need to drop the existing table
-    on your local machine first. Something like:
-    > `$ docker exec -it cyris-dev-postgres bash`
-    > > `$ psql -U postgres`
-    > > > `$ \c postgres` # connect to the DB named "postgres"
-    > > > `$ \d` # show the tables
-    > > > `$ drop table users;`
-
-    `exit` a couple times to return to your terminal
-    """
+    # If you're changing the table, you'll need to drop the existing table
+    # on your local machine first. Something like:
+    # > `$ docker exec -it cyris-dev-postgres bash`
+    # > > `$ psql -U postgres`
+    # > > > `$ \c postgres` # connect to the DB named "postgres"
+    # > > > `$ \d` # show the tables
+    # > > > `$ drop table users;`
+    # `exit` a couple times to return to your terminal
 
     user_id: int
     user_email: EmailStr  # index, unique
@@ -87,10 +86,10 @@ class UsersManager(PostgresTableManager):
         ]
 
     @property
-    def create_indexes_queries(self):
+    def create_indexes_queries(self) -> tuple[str]:
         return ("CREATE INDEX IF NOT EXISTS idx_user_email ON users(user_email)",)
 
-    @async_cached_property
+    @async_cached_property  # type: ignore[misc]
     async def does_at_least_one_active_admin_user_exist(self) -> bool:
         async with self.get_connection() as connection:
             admin_user_or_none = await connection.fetchrow(
@@ -159,9 +158,9 @@ class UsersManager(PostgresTableManager):
                     if isinstance(value, SecretStr):
                         user_row_params[key] = value.get_secret_value()
                 positional_arg_idxs = ", ".join(
-                    f"${idx+1}" for idx in range(len(user_row_params))
+                    f"${idx + 1}" for idx in range(len(user_row_params))
                 )  # results in "$1, $2, $3, $4, $5"
-                query = f'INSERT INTO USERS ({', '.join(user_row_params)}) VALUES ({positional_arg_idxs}) RETURNING *'
+                query = f"INSERT INTO USERS ({', '.join(user_row_params)}) VALUES ({positional_arg_idxs}) RETURNING *"
                 # query = "INSERT INTO users (user_email, hashed_user_password,
                 # human_name, ai_name, is_user_email_verified) VALUES ($1, $2, $3,
                 # $4, $5) RETURNING *"
@@ -238,7 +237,7 @@ class UsersManager(PostgresTableManager):
                 users.append(RegisteredUser(**row))
             return users
 
-    async def deactivate_user(self, user_to_deactivate: RegisteredUser):
+    async def deactivate_user(self, user_to_deactivate: RegisteredUser) -> None:
         """
         Meant only for admins
         """
@@ -248,7 +247,7 @@ class UsersManager(PostgresTableManager):
                 user_to_deactivate.user_id,
             )
 
-    async def reactivate_user(self, user_to_reactivate: RegisteredUser):
+    async def reactivate_user(self, user_to_reactivate: RegisteredUser) -> None:
         """
         Meant only for admins
         """

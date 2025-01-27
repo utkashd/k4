@@ -1,14 +1,11 @@
-import logging
 import datetime
+import logging
 from typing import Iterable
 
 from backend_commons import PostgresTableManager
 from backend_commons.messages import MessageInDb
-from rich.logging import RichHandler
-
-
 from pydantic import BaseModel, Field
-
+from rich.logging import RichHandler
 
 FORMAT = "%(message)s"
 logging.basicConfig(
@@ -79,7 +76,7 @@ class MessagesManager(PostgresTableManager):
             "CREATE INDEX IF NOT EXISTS idx_chat_id ON messages(chat_id)",
         )
 
-    async def create_new_chat(self, user_id: int, title: str):
+    async def create_new_chat(self, user_id: int, title: str) -> ChatInDb:
         if len(title) > 32:
             title = title[:29] + "..."
         async with self.get_transaction_connection() as connection:
@@ -91,7 +88,7 @@ class MessagesManager(PostgresTableManager):
             )
             return ChatInDb(**new_chat)
 
-    async def delete_chat(self, chat_id: int):
+    async def delete_chat(self, chat_id: int) -> None:
         async with self.get_transaction_connection() as connection:
             await connection.execute("DELETE FROM messages WHERE chat_id=$1", chat_id)
             await connection.execute("DELETE FROM chats WHERE chat_id=$1", chat_id)
@@ -120,7 +117,9 @@ class MessagesManager(PostgresTableManager):
             )
             return new_message_in_db
 
-    async def save_client_message_to_db(self, chat_id: int, user_id: int, text: str):
+    async def save_client_message_to_db(
+        self, chat_id: int, user_id: int, text: str
+    ) -> MessageInDb:
         return await self._save_message_to_db(
             chat_id=chat_id, user_id=user_id, text=text
         )
@@ -157,9 +156,10 @@ class MessagesManager(PostgresTableManager):
 
     async def does_user_own_this_chat(self, user_id: int, chat_id: int) -> bool:
         async with self.get_connection() as connection:
-            return user_id == await connection.fetchval(
+            val: int = await connection.fetchval(
                 "SELECT user_id FROM chats WHERE chat_id=$1", chat_id
             )
+            return user_id == val
 
     async def get_chat(self, chat_id: int) -> Chat:
         return Chat(

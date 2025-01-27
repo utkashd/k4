@@ -1,10 +1,10 @@
-from contextlib import asynccontextmanager
 import logging
-import asyncpg  # type: ignore[import-untyped]
-from rich.logging import RichHandler
-from typing import Iterable, cast
 from abc import ABC, abstractmethod
+from contextlib import asynccontextmanager
+from typing import Iterable, cast
 
+import asyncpg  # type: ignore[import-untyped,unused-ignore]
+from rich.logging import RichHandler
 
 FORMAT = "%(message)s"
 logging.basicConfig(
@@ -49,7 +49,9 @@ class PostgresTableManager(ABC):
             "Connection pool was not provided. You need to implement this method"
         )
 
-    async def set_connection_pool_and_start(self, connection_pool: asyncpg.Pool):
+    async def set_connection_pool_and_start(
+        self, connection_pool: asyncpg.Pool
+    ) -> None:
         self.postgres_connection_pool = connection_pool
         await self._ensure_table_is_created_in_db()
 
@@ -67,7 +69,7 @@ class PostgresTableManager(ABC):
                 await connection.execute(create_index_query)
         log.info(f"Finished ensuring the {self.__class__.__name__} table is created")
 
-    @asynccontextmanager
+    @asynccontextmanager  # type: ignore[no-untyped-def]
     async def get_connection(self):
         """
         Acquire a Postgres connection
@@ -78,7 +80,7 @@ class PostgresTableManager(ABC):
             connection = cast(asyncpg.Connection, connection)
             yield connection
 
-    @asynccontextmanager
+    @asynccontextmanager  # type: ignore[no-untyped-def]
     async def get_transaction_connection(self):
         """
         Acquire a Postgres connection and execute a transaction

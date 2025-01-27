@@ -8,10 +8,10 @@ class AsyncObject:
     So you can create objects with `await MyClass(params)`
     """
 
-    async def __new__(cls, *a, **kw):
+    async def __new__(cls, *a, **kw):  # type: ignore[no-untyped-def]
         instance = super().__new__(cls)
-        await instance.__init__(*a, **kw)
+        await instance.__init__(*a, **kw)  # type: ignore[misc]
         return instance
 
-    async def __init__(self):
+    async def __init__(self):  # type: ignore[no-untyped-def]
         pass
