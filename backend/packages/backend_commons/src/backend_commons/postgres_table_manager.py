@@ -46,7 +46,7 @@ class PostgresTableManager(ABC):
         if self.postgres_connection_pool:
             return self.postgres_connection_pool
         raise NotImplementedError(
-            "Connection pool was not provided. You need to implement this method"
+            "Connection pool was not provided. You must call `set_connection_pool_and_start` after instatiating."
         )
 
     async def set_connection_pool_and_start(

@@ -480,7 +480,7 @@ async def send_message_to_cyris_stream(
     current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
 ) -> StreamingResponse:
     chat_history = await messages_manager.get_messages_of_chat(
-        chat_id=send_message_request_body.chat_id
+        chat_id=send_message_request_body.chat_id, limit=50
     )
 
     def convert_message_in_db_to_llm_messages(

@@ -174,11 +174,16 @@ class MessagesManager(PostgresTableManager):
             )
             return ChatInDb(**chat)
 
-    async def get_messages_of_chat(self, chat_id: int) -> list[MessageInDb]:
+    async def get_messages_of_chat(
+        self, chat_id: int, limit: int | None = None
+    ) -> list[MessageInDb]:
         # TODO reverse-paginate
         async with self.get_connection() as connection:
-            records = await connection.fetch(
-                "SELECT * FROM messages WHERE chat_id=$1 ORDER BY inserted_at ASC",
-                chat_id,
-            )
+            if limit:
+                query = f"SELECT * FROM messages WHERE chat_id=$1 ORDER BY inserted_at ASC LIMIT {limit}"
+            else:
+                query = (
+                    "SELECT * FROM messages WHERE chat_id=$1 ORDER BY inserted_at ASC"
+                )
+            records = await connection.fetch(query, chat_id)
             return [MessageInDb(**record) for record in records]

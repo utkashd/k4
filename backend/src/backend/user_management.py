@@ -89,6 +89,7 @@ class UsersManager(PostgresTableManager):
     def create_indexes_queries(self) -> tuple[str]:
         return ("CREATE INDEX IF NOT EXISTS idx_user_email ON users(user_email)",)
 
+    # TODO need to cache this more intelligently
     @async_cached_property  # type: ignore[misc]
     async def does_at_least_one_active_admin_user_exist(self) -> bool:
         async with self.get_connection() as connection:
