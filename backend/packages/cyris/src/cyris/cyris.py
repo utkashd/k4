@@ -28,26 +28,20 @@ class Cyris:
         self.model = "gpt-4o-mini"
         self.max_tokens = get_max_tokens(self.model)
 
-    def does_string_have_too_many_tokens(self, msg: str) -> tuple[bool, int]:
-        if self.max_tokens:
-            num_tokens = token_counter(
-                model=self.model, messages=[{"role": "user", "content": msg}]
-            )
-            return (num_tokens > self.max_tokens, num_tokens)
-        return False, 0
-
-    def do_messages_have_too_many_tokens(
+    def do_chat_messages_have_too_many_tokens(
         self,
-        new_msg: str,
-        chat_history: list[ChatMessage],
-    ) -> tuple[bool, int, list[ChatMessage]]:
+        complete_chat: list[ChatMessage],
+    ) -> tuple[bool, int, int]:
         # this implementation is nice because we could easily overwrite it to, e.g.,
         # support "infinite" chat (FIFO queue)
-        chat_history.append({"role": "user", "content": new_msg})
         if self.max_tokens:
-            num_tokens = token_counter(model=self.model, messages=chat_history)
-            return num_tokens > self.max_tokens, num_tokens, chat_history
-        return False, 0, chat_history
+            num_tokens = token_counter(model=self.model, messages=complete_chat)
+            return num_tokens > self.max_tokens, num_tokens, self.max_tokens
+        return (
+            False,
+            0,
+            -1,
+        )
 
     async def ask_stream(
         self, messages: list[ChatMessage]
