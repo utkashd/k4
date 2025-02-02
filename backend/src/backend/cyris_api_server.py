@@ -2,14 +2,21 @@ import datetime
 import json
 import logging
 import os
+import types
 from asyncio import wait_for
 from contextlib import asynccontextmanager
+from importlib import util as importlib_util
 from typing import Literal
 from uuid import UUID
 
+import apluggy  # type: ignore[import-untyped,unused-ignore]
 import asyncpg  # type: ignore[import-untyped,unused-ignore]
-from backend_commons.messages import ClientMessage, MessageInDb
+from backend_commons.messages import ClientMessage
 from connection_management import ConnectionManager
+from extendables.get_complete_chat_for_llm import (  # GetCompleteChatDefaultImplementation,
+    GetCompleteChatSpec,
+    ParamsForAlreadyExistingChat,
+)
 from fastapi import (
     BackgroundTasks,
     Cookie,
@@ -52,6 +59,36 @@ users_manager = UsersManager()
 messages_manager = MessagesManager()
 connection_manager = ConnectionManager()
 cyris = Cyris()
+
+
+def load_external_plugin(
+    local_path: str = "/Users/utkash/src/infinite_chat",
+) -> types.ModuleType:
+    """Loads the external plugin dynamically from a local path."""
+
+    module_name = "infinite_chat_plugin"
+    module_path = os.path.join(
+        local_path, "src/infinite_chat/get_complete_chat_for_llm.py"
+    )
+
+    if not os.path.exists(module_path):
+        raise FileNotFoundError(f"Expected module {module_path} not found.")
+
+    spec = importlib_util.spec_from_file_location(module_name, module_path)
+    if not spec or not spec.loader:
+        raise ImportError(f"Could not load module {module_name} from {module_path}.")
+
+    module = importlib_util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    return module
+
+
+pm = apluggy.PluginManager("get_complete_chat_for_llm")
+pm.add_hookspecs(GetCompleteChatSpec)
+# pm.register(GetCompleteChatDefaultImplementation())
+external_module = load_external_plugin()
+pm.register(external_module)
 
 
 @asynccontextmanager
@@ -121,6 +158,25 @@ class TokenData(BaseModel):
 
 pwd_context = CryptContext(schemes=["bcrypt"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+
+class SendMessageRequestBody(BaseModel):
+    chat_id: int
+    message: str
+
+
+class LlmStreamingResponse(BaseModel):
+    chunk_type: Literal["text"] | Literal["msg_start"]
+    chat_id: int
+
+
+class LlmStreamingStart(LlmStreamingResponse):
+    chunk_type: Literal["msg_start"] = "msg_start"
+
+
+class LlmStreamingChunk(LlmStreamingResponse):
+    chunk: str
+    chunk_type: Literal["text"] = "text"
 
 
 async def get_current_active_admin_user(request: Request) -> AdminUser:
@@ -429,11 +485,13 @@ async def create_new_chat_with_message(
     background_tasks: BackgroundTasks,
     current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
 ) -> StreamingResponse:
-    new_chat_message = ChatMessage(
-        role="user", content=create_new_chat_request_body.message
+    complete_chats: list[list[ChatMessage]] = await pm.ahook.get_complete_chat_for_llm(
+        new_message_from_user=create_new_chat_request_body.message,
+        existing_chat_params=None,
     )
+    complete_chat = complete_chats[0]
     has_too_many_tokens, num_tokens, max_tokens = (
-        cyris.do_chat_messages_have_too_many_tokens([new_chat_message])
+        cyris.do_chat_messages_have_too_many_tokens(complete_chat)
     )
     if has_too_many_tokens:
         raise HTTPException(
@@ -446,32 +504,9 @@ async def create_new_chat_with_message(
     return await get_and_stream_cyris_response(
         user_id=current_user.user_id,
         chat_id=chat_in_db.chat_id,
-        complete_chat=[new_chat_message],
+        complete_chat=complete_chat,
         background_tasks=background_tasks,
     )
-
-
-class SendMessageRequestBody(BaseModel):
-    chat_id: int
-    message: str
-
-
-class LlmStreamingResponse(BaseModel):
-    chunk_type: Literal["text"] | Literal["msg_start"]
-    chat_id: int
-
-
-class LlmStreamingStart(LlmStreamingResponse):
-    chunk_type: Literal["msg_start"] = "msg_start"
-
-
-class LlmStreamingChunk(LlmStreamingResponse):
-    chunk: str
-    chunk_type: Literal["text"] = "text"
-
-
-def _format_pydantic_instance_for_stream_response(pydantic_instance: BaseModel) -> str:
-    return f"{pydantic_instance.model_dump_json()}\n"
 
 
 @app.post("/message")  # type: ignore[misc]
@@ -489,27 +524,14 @@ async def send_message_to_cyris_stream(
             detail="You can't access another user's chats.",
         )
 
-    chat_history = await messages_manager.get_messages_of_chat(
-        chat_id=send_message_request_body.chat_id, limit=50
+    complete_chats: list[list[ChatMessage]] = await pm.ahook.get_complete_chat_for_llm(
+        new_message_from_user=send_message_request_body.message,
+        existing_chat_params=ParamsForAlreadyExistingChat(
+            chat_id=send_message_request_body.chat_id,
+            get_messages_of_chat=messages_manager.get_messages_of_chat,
+        ),
     )
-
-    def convert_messages_in_db_to_chat_messages(
-        chat_history: list[MessageInDb],
-    ) -> list[ChatMessage]:
-        chat_messages: list[ChatMessage] = []
-        for message_in_db in chat_history:
-            chat_messages.append(
-                ChatMessage(
-                    role="user" if message_in_db.user_id else "assistant",
-                    content=message_in_db.text,
-                )
-            )
-        return chat_messages
-
-    complete_chat = convert_messages_in_db_to_chat_messages(chat_history)
-    complete_chat.append(
-        ChatMessage(role="user", content=send_message_request_body.message)
-    )
+    complete_chat = complete_chats[0]
 
     has_too_many_tokens, num_tokens, max_tokens = (
         cyris.do_chat_messages_have_too_many_tokens(complete_chat=complete_chat)
@@ -543,13 +565,26 @@ async def get_and_stream_cyris_response(
     complete_chat: list[ChatMessage],
     background_tasks: BackgroundTasks,
 ) -> StreamingResponse:
-    user_message = await messages_manager.save_client_message_to_db(
-        chat_id=chat_id,
-        user_id=user_id,
-        text=complete_chat[-1]["content"],
-    )
+    unmodified_content = complete_chat[-1].get("unmodified_content")
+    if unmodified_content:
+        user_message = await messages_manager.save_client_message_to_db(
+            chat_id=chat_id,
+            user_id=user_id,
+            text=unmodified_content,
+        )
+    else:
+        user_message = await messages_manager.save_client_message_to_db(
+            chat_id=chat_id,
+            user_id=user_id,
+            text=complete_chat[-1]["content"],
+        )
 
     all_cyris_response_tokens: list[str] = []
+
+    def _format_pydantic_instance_for_stream_response(
+        pydantic_instance: BaseModel,
+    ) -> str:
+        return f"{pydantic_instance.model_dump_json()}\n"
 
     async def stream_response_and_async_write_to_db():  # type: ignore[no-untyped-def]
         yield _format_pydantic_instance_for_stream_response(user_message)

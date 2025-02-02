@@ -16,6 +16,7 @@ log = logging.getLogger("cyris")
 class ChatMessage(TypedDict):
     role: Literal["user", "assistant"]
     content: str
+    unmodified_content: str | None
 
 
 class Cyris:
