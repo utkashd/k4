@@ -1,26 +1,15 @@
-import logging
 import os
-from dataclasses import dataclass
-from typing import AsyncGenerator, Literal
+from typing import AsyncGenerator, Literal, TypedDict
 
 from litellm import acompletion, get_max_tokens, token_counter
 from litellm.types.utils import ModelResponseStream
-from rich.logging import RichHandler
-
-FORMAT = "%(message)s"
-logging.basicConfig(
-    level="INFO", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
-)
-log = logging.getLogger("cyris")
 
 
-@dataclass(frozen=True)
-class ChatMessage:
+class ChatMessage(TypedDict):
     role: Literal["user", "assistant"]
     content: str
 
 
-@dataclass(frozen=True)
 class ModifiedChatMessage(ChatMessage):
     unmodified_content: str
 
@@ -55,7 +44,7 @@ class Cyris:
         modified_chat_messages: list[ModifiedChatMessage],
     ) -> list[ChatMessage]:
         return [
-            ChatMessage(role=message.role, content=message.content)
+            ChatMessage(role=message["role"], content=message["content"])
             for message in modified_chat_messages
         ]
 

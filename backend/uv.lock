@@ -503,10 +503,16 @@ version = "0.1.0"
 source = { editable = "packages/extendables" }
 dependencies = [
     { name = "apluggy" },
+    { name = "backend-commons" },
+    { name = "cyris" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "apluggy", specifier = ">=1.0.3" }]
+requires-dist = [
+    { name = "apluggy", specifier = ">=1.0.3" },
+    { name = "backend-commons", editable = "packages/backend_commons" },
+    { name = "cyris", editable = "packages/cyris" },
+]
 
 [[package]]
 name = "fastapi"

@@ -553,12 +553,13 @@ async def get_and_stream_cyris_response(
     complete_chat: list[ChatMessage | ModifiedChatMessage],
     background_tasks: BackgroundTasks,
 ) -> StreamingResponse:
+    text = str(
+        complete_chat[-1].get("unmodified_content")
+    )  # for some reason it's considered `str | Any` before casting
+    if not text:
+        text = complete_chat[-1]["content"]
     user_message = await messages_manager.save_client_message_to_db(
-        chat_id=chat_id,
-        user_id=user_id,
-        text=complete_chat[-1].unmodified_content
-        if isinstance(complete_chat[-1], ModifiedChatMessage)
-        else complete_chat[-1].content,
+        chat_id=chat_id, user_id=user_id, text=text
     )
 
     all_cyris_response_tokens: list[str] = []

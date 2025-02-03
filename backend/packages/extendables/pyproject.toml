@@ -6,6 +6,8 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "apluggy>=1.0.3",
+    "backend-commons",
+    "cyris",
 ]
 
 [project.scripts]
@@ -14,3 +16,7 @@ extendables = "extendables:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.uv.sources]
+backend-commons = { workspace = true }
+cyris = { workspace = true }

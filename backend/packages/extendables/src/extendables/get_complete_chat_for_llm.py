@@ -37,7 +37,7 @@ class GetCompleteChatDefaultImplementation:
     async def get_complete_chat_for_llm(
         self,
         new_message_from_user: str,
-        existing_chat_params: ParamsForAlreadyExistingChat | None = None,
+        existing_chat_params: ParamsForAlreadyExistingChat | None,
     ) -> list[ChatMessage]:
         """
         Retrieves chat messages and constructs a list of `ChatMessage` which can be passed
@@ -91,7 +91,7 @@ class GetCompleteChatDefaultImplementation:
 
 plugin_manager = apluggy.PluginManager("get_complete_chat_for_llm")
 plugin_manager.add_hookspecs(GetCompleteChatSpec)
-plugin_manager.register(GetCompleteChatDefaultImplementation)
+plugin_manager.register(GetCompleteChatDefaultImplementation())
 
 
 async def get_complete_chat_for_llm(
@@ -101,6 +101,7 @@ async def get_complete_chat_for_llm(
     complete_chats: list[
         list[ChatMessage | ModifiedChatMessage]
     ] = await plugin_manager.ahook.get_complete_chat_for_llm(
-        new_message_from_user, existing_chat_params
+        new_message_from_user=new_message_from_user,
+        existing_chat_params=existing_chat_params,
     )
     return complete_chats[0]
