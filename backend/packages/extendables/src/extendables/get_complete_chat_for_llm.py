@@ -4,7 +4,7 @@ from typing import Awaitable, Callable
 import apluggy  # type: ignore[import-untyped,unused-ignore]
 from backend_commons.messages import MessageInDb
 
-from cyris import ChatMessage, ModifiedChatMessage
+from cyris import ChatMessage
 
 hookspec = apluggy.HookspecMarker("get_complete_chat_for_llm")
 hookimpl = apluggy.HookimplMarker("get_complete_chat_for_llm")
@@ -29,7 +29,7 @@ class GetCompleteChatSpec:
         self,
         new_message_from_user: str,
         existing_chat_params: ParamsForAlreadyExistingChat | None,
-    ) -> list[ChatMessage | ModifiedChatMessage]: ...
+    ) -> list[ChatMessage]: ...
 
 
 class GetCompleteChatDefaultImplementation:
@@ -97,9 +97,9 @@ plugin_manager.register(GetCompleteChatDefaultImplementation())
 async def get_complete_chat_for_llm(
     new_message_from_user: str,
     existing_chat_params: ParamsForAlreadyExistingChat | None,
-) -> list[ChatMessage | ModifiedChatMessage]:
+) -> list[ChatMessage]:
     complete_chats: list[
-        list[ChatMessage | ModifiedChatMessage]
+        list[ChatMessage]
     ] = await plugin_manager.ahook.get_complete_chat_for_llm(
         new_message_from_user=new_message_from_user,
         existing_chat_params=existing_chat_params,

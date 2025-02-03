@@ -40,8 +40,7 @@ from user_management import (
     UsersManager,
 )
 
-from cyris import Cyris, ModifiedChatMessage
-from cyris.cyris import ChatMessage
+from cyris import ChatMessage, Cyris
 
 FORMAT = "%(message)s"
 logging.basicConfig(
@@ -550,12 +549,10 @@ async def save_cyris_response_to_db(
 async def get_and_stream_cyris_response(
     user_id: int,
     chat_id: int,
-    complete_chat: list[ChatMessage | ModifiedChatMessage],
+    complete_chat: list[ChatMessage],
     background_tasks: BackgroundTasks,
 ) -> StreamingResponse:
-    text = str(
-        complete_chat[-1].get("unmodified_content")
-    )  # for some reason it's considered `str | Any` before casting
+    text = complete_chat[-1].get("unmodified_content")
     if not text:
         text = complete_chat[-1]["content"]
     user_message = await messages_manager.save_client_message_to_db(
