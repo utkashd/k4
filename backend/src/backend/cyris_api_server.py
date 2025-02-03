@@ -11,6 +11,7 @@ import asyncpg  # type: ignore[import-untyped,unused-ignore]
 from extendables.get_complete_chat_for_llm import (
     ParamsForAlreadyExistingChat,
     get_complete_chat_for_llm,
+    replace_default_with_external_function,
 )
 from fastapi import (
     BackgroundTasks,
@@ -58,7 +59,7 @@ def load_external_plugin(
 ) -> types.ModuleType:
     """Loads the external plugin dynamically from a local path."""
 
-    module_name = "infinite_chat_plugin"
+    module_name = "get_complete_chat_for_llm"
     module_path = os.path.join(
         local_path, "src/infinite_chat/get_complete_chat_for_llm.py"
     )
@@ -76,7 +77,8 @@ def load_external_plugin(
     return module
 
 
-# external_module = load_external_plugin()
+external_module = load_external_plugin()
+replace_default_with_external_function(external_module)
 # pm.register(external_module)
 
 

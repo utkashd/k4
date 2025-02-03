@@ -1,8 +1,9 @@
 from dataclasses import dataclass
-from typing import Awaitable, Callable
+from typing import Callable, Protocol
 
 import apluggy  # type: ignore[import-untyped,unused-ignore]
 from backend_commons.messages import MessageInDb
+from pluggy._hooks import _Plugin
 
 from cyris import ChatMessage
 
@@ -10,17 +11,23 @@ hookspec = apluggy.HookspecMarker("get_complete_chat_for_llm")
 hookimpl = apluggy.HookimplMarker("get_complete_chat_for_llm")
 
 
+class GetMessagesOfChatFunctionType(Protocol):
+    async def __call__(
+        self, chat_id: int, limit: int | None = None
+    ) -> list[MessageInDb]: ...
+
+
 @dataclass
 class ParamsForAlreadyExistingChat:
     """
     chat_id: `int`
-    get_messages_of_chat: `Callable[[int, int | None], Awaitable[list[MessageInDb]]]`
+    get_messages_of_chat: GetMessagesOfChatFunctionType
         An async function that accepts a `chat_id` and an optional `limit`, which
         returns a list of chat messages in the DB
     """
 
     chat_id: int
-    get_messages_of_chat: Callable[[int, int | None], Awaitable[list[MessageInDb]]]
+    get_messages_of_chat: GetMessagesOfChatFunctionType
 
 
 class GetCompleteChatSpec:
@@ -30,6 +37,18 @@ class GetCompleteChatSpec:
         new_message_from_user: str,
         existing_chat_params: ParamsForAlreadyExistingChat | None,
     ) -> list[ChatMessage]: ...
+
+
+def convert_messages_in_db_to_chat_messages(
+    chat_history: list[MessageInDb],
+) -> list[ChatMessage]:
+    return [
+        ChatMessage(
+            role="user" if msg_in_db.user_id else "assistant",
+            content=msg_in_db.text,
+        )
+        for msg_in_db in chat_history
+    ]
 
 
 class GetCompleteChatDefaultImplementation:
@@ -68,17 +87,6 @@ class GetCompleteChatDefaultImplementation:
                 existing_chat_params.chat_id, None
             )
 
-            def convert_messages_in_db_to_chat_messages(
-                chat_history: list[MessageInDb],
-            ) -> list[ChatMessage]:
-                return [
-                    ChatMessage(
-                        role="user" if msg_in_db.user_id else "assistant",
-                        content=msg_in_db.text,
-                    )
-                    for msg_in_db in chat_history
-                ]
-
             complete_chat = convert_messages_in_db_to_chat_messages(chat_history)
             complete_chat.append(
                 ChatMessage(
@@ -91,7 +99,14 @@ class GetCompleteChatDefaultImplementation:
 
 plugin_manager = apluggy.PluginManager("get_complete_chat_for_llm")
 plugin_manager.add_hookspecs(GetCompleteChatSpec)
-plugin_manager.register(GetCompleteChatDefaultImplementation())
+plugin_manager.register(GetCompleteChatDefaultImplementation, name="default")
+
+
+def replace_default_with_external_function(
+    plugin: _Plugin | Callable[[], _Plugin],
+) -> None:
+    plugin_manager.unregister(name="default")
+    plugin_manager.register(plugin)
 
 
 async def get_complete_chat_for_llm(
