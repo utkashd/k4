@@ -11,6 +11,7 @@ members = [
     "backend-commons",
     "cyris",
     "cyris-backend",
+    "extendables",
     "utils",
 ]
 
@@ -375,6 +376,7 @@ dependencies = [
     { name = "asyncpg" },
     { name = "backend-commons" },
     { name = "cyris" },
+    { name = "extendables" },
     { name = "fastapi" },
     { name = "gitpython" },
     { name = "passlib", extra = ["bcrypt"] },
@@ -403,6 +405,7 @@ requires-dist = [
     { name = "asyncpg", specifier = ">=0.29.0" },
     { name = "backend-commons", editable = "packages/backend_commons" },
     { name = "cyris", editable = "packages/cyris" },
+    { name = "extendables", editable = "packages/extendables" },
     { name = "fastapi", specifier = ">=0.111.1" },
     { name = "gitpython", specifier = ">=3.1.44" },
     { name = "passlib", extras = ["bcrypt"], specifier = ">=1.7.4" },
@@ -493,6 +496,17 @@ sdist = { url = "https://files.pythonhosted.org/packages/8c/e3/7d45f492c2c4a0e8e
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b5/fd/afcd0496feca3276f509df3dbd5dae726fcc756f1a08d9e25abe1733f962/executing-2.1.0-py2.py3-none-any.whl", hash = "sha256:8d63781349375b5ebccc3142f4b30350c0cd9c79f921cde38be2be4637e98eaf", size = 25805 },
 ]
+
+[[package]]
+name = "extendables"
+version = "0.1.0"
+source = { editable = "packages/extendables" }
+dependencies = [
+    { name = "apluggy" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "apluggy", specifier = ">=1.0.3" }]
 
 [[package]]
 name = "fastapi"

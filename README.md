@@ -40,6 +40,7 @@ Things I've learned
 - Basic React webapp
 - python package management (with uv)
 - basics of auth, jwts vs sessions, how to implement at scale
+- basics of websockets, server-side-events (SSE)
 
 ## Cyris
 

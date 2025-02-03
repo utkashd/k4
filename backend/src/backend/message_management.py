@@ -32,7 +32,7 @@ class ChatPreview(BaseModel):
     most_recent_message_in_db: MessageInDb
 
 
-class MessagesManager(PostgresTableManager):  # type: ignore[misc]
+class MessagesManager(PostgresTableManager):
     @property
     def create_table_queries(self) -> list[str]:
         # If you're changing the tables, you'll need to drop the existing table

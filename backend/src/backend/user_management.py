@@ -55,7 +55,7 @@ class RegistrationAttempt(BaseModel):
     desired_ai_name: str = Field(max_length=64)
 
 
-class UsersManager(PostgresTableManager):  # type: ignore[misc]
+class UsersManager(PostgresTableManager):
     """
     This class is intended to be instantiated like so:
 

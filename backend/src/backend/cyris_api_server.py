@@ -1,5 +1,4 @@
 import datetime
-import json
 import logging
 import os
 import types
@@ -7,15 +6,11 @@ from asyncio import wait_for
 from contextlib import asynccontextmanager
 from importlib import util as importlib_util
 from typing import Literal
-from uuid import UUID
 
-import apluggy  # type: ignore[import-untyped,unused-ignore]
 import asyncpg  # type: ignore[import-untyped,unused-ignore]
-from backend_commons.messages import ClientMessage
-from connection_management import ConnectionManager
-from extendables.get_complete_chat_for_llm import (  # GetCompleteChatDefaultImplementation,
-    GetCompleteChatSpec,
+from extendables.get_complete_chat_for_llm import (
     ParamsForAlreadyExistingChat,
+    get_complete_chat_for_llm,
 )
 from fastapi import (
     BackgroundTasks,
@@ -25,7 +20,6 @@ from fastapi import (
     HTTPException,
     Request,
     WebSocket,
-    WebSocketDisconnect,
     status,
 )
 from fastapi.middleware.cors import CORSMiddleware
@@ -46,7 +40,7 @@ from user_management import (
     UsersManager,
 )
 
-from cyris import Cyris
+from cyris import Cyris, ModifiedChatMessage
 from cyris.cyris import ChatMessage
 
 FORMAT = "%(message)s"
@@ -57,7 +51,6 @@ log = logging.getLogger("cyris")
 
 users_manager = UsersManager()
 messages_manager = MessagesManager()
-connection_manager = ConnectionManager()
 cyris = Cyris()
 
 
@@ -84,11 +77,8 @@ def load_external_plugin(
     return module
 
 
-pm = apluggy.PluginManager("get_complete_chat_for_llm")
-pm.add_hookspecs(GetCompleteChatSpec)
-# pm.register(GetCompleteChatDefaultImplementation())
-external_module = load_external_plugin()
-pm.register(external_module)
+# external_module = load_external_plugin()
+# pm.register(external_module)
 
 
 @asynccontextmanager
@@ -485,11 +475,10 @@ async def create_new_chat_with_message(
     background_tasks: BackgroundTasks,
     current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
 ) -> StreamingResponse:
-    complete_chats: list[list[ChatMessage]] = await pm.ahook.get_complete_chat_for_llm(
+    complete_chat = await get_complete_chat_for_llm(
         new_message_from_user=create_new_chat_request_body.message,
         existing_chat_params=None,
     )
-    complete_chat = complete_chats[0]
     has_too_many_tokens, num_tokens, max_tokens = (
         cyris.do_chat_messages_have_too_many_tokens(complete_chat)
     )
@@ -524,14 +513,13 @@ async def send_message_to_cyris_stream(
             detail="You can't access another user's chats.",
         )
 
-    complete_chats: list[list[ChatMessage]] = await pm.ahook.get_complete_chat_for_llm(
+    complete_chat = await get_complete_chat_for_llm(
         new_message_from_user=send_message_request_body.message,
         existing_chat_params=ParamsForAlreadyExistingChat(
             chat_id=send_message_request_body.chat_id,
             get_messages_of_chat=messages_manager.get_messages_of_chat,
         ),
     )
-    complete_chat = complete_chats[0]
 
     has_too_many_tokens, num_tokens, max_tokens = (
         cyris.do_chat_messages_have_too_many_tokens(complete_chat=complete_chat)
@@ -562,22 +550,16 @@ async def save_cyris_response_to_db(
 async def get_and_stream_cyris_response(
     user_id: int,
     chat_id: int,
-    complete_chat: list[ChatMessage],
+    complete_chat: list[ChatMessage | ModifiedChatMessage],
     background_tasks: BackgroundTasks,
 ) -> StreamingResponse:
-    unmodified_content = complete_chat[-1].get("unmodified_content")
-    if unmodified_content:
-        user_message = await messages_manager.save_client_message_to_db(
-            chat_id=chat_id,
-            user_id=user_id,
-            text=unmodified_content,
-        )
-    else:
-        user_message = await messages_manager.save_client_message_to_db(
-            chat_id=chat_id,
-            user_id=user_id,
-            text=complete_chat[-1]["content"],
-        )
+    user_message = await messages_manager.save_client_message_to_db(
+        chat_id=chat_id,
+        user_id=user_id,
+        text=complete_chat[-1].unmodified_content
+        if isinstance(complete_chat[-1], ModifiedChatMessage)
+        else complete_chat[-1].content,
+    )
 
     all_cyris_response_tokens: list[str] = []
 
@@ -611,29 +593,6 @@ async def get_and_stream_cyris_response(
         stream_response_and_async_write_to_db(),  # type: ignore[no-untyped-call]
         media_type="text/event-stream",
     )
-
-
-@app.websocket("/chat")  # type: ignore[misc]
-async def websocket_endpoint(
-    client_websocket: WebSocket,
-    current_user: NonAdminUser = Depends(get_current_active_non_admin_user_ws),
-) -> None:
-    user_id = current_user.user_id
-    session_id: UUID | None = None
-    try:
-        # Accept the connection from the client
-        session_id = await connection_manager.connect(client_websocket, user_id)
-        while True:
-            # Receive the message from the client
-            data = json.loads(await client_websocket.receive_text())
-            client_message = ClientMessage(**data)
-            await connection_manager.save_and_acknowledge_and_reply_to_client_message(
-                user_id, client_message
-            )
-    except WebSocketDisconnect:
-        # This means the user disconnected, e.g., closed the browser tab
-        if session_id:
-            await connection_manager.disconnect(user_id, session_id)
 
 
 def main() -> None:
