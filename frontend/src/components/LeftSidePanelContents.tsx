@@ -108,8 +108,8 @@ const ChatPreview = ({
 }) => {
     const previewText = (
         <div>
-            <span className="chat-preview-sender">Cyris:</span>
-            <br />
+            <span className="chat-preview-sender">Cyris: </span>
+            {/* <br /> */}
             <span className="chat-preview-message">
                 {chat.most_recent_message_in_db.text.length > 45
                     ? chat.most_recent_message_in_db.text.substring(0, 50) +
@@ -184,7 +184,13 @@ const LeftSidePanelContents = ({
     setChatPreviews: React.Dispatch<React.SetStateAction<ChatPreview[]>>;
 }) => {
     return (
-        <>
+        <div
+            style={{
+                overflowY: "scroll",
+                scrollbarWidth: "none",
+                maxHeight: "100%",
+            }}
+        >
             <CyrisLogo />
             <ChatsList
                 currentUser={currentUser}
@@ -195,7 +201,7 @@ const LeftSidePanelContents = ({
                 chatPreviews={chatPreviews}
                 setChatPreviews={setChatPreviews}
             />
-        </>
+        </div>
     );
 };
 
