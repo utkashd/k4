@@ -1,17 +1,17 @@
 import datetime
 import logging
 import os
-import types
 from asyncio import wait_for
 from contextlib import asynccontextmanager
-from importlib import util as importlib_util
-from typing import Literal
+from typing import Literal, Sequence
 
 import asyncpg  # type: ignore[import-untyped,unused-ignore]
-from extendables.get_complete_chat_for_llm import (
+from extendables import (
+    GetCompleteChatDefaultImplementation,
     ParamsForAlreadyExistingChat,
     get_complete_chat_for_llm,
-    replace_default_with_external_function,
+    plugin_manager,
+    replace_plugin_with_external_plugin,
 )
 from fastapi import (
     BackgroundTasks,
@@ -54,32 +54,13 @@ messages_manager = MessagesManager()
 cyris = Cyris()
 
 
-def load_external_plugin(
-    local_path: str = "/Users/utkash/src/infinite_chat",
-) -> types.ModuleType:
-    """Loads the external plugin dynamically from a local path."""
-
-    module_name = "get_complete_chat_for_llm"
-    module_path = os.path.join(
-        local_path, "src/infinite_chat/get_complete_chat_for_llm.py"
-    )
-
-    if not os.path.exists(module_path):
-        raise FileNotFoundError(f"Expected module {module_path} not found.")
-
-    spec = importlib_util.spec_from_file_location(module_name, module_path)
-    if not spec or not spec.loader:
-        raise ImportError(f"Could not load module {module_name} from {module_path}.")
-
-    module = importlib_util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-
-    return module
-
-
-external_module = load_external_plugin()
-replace_default_with_external_function(external_module)
-# pm.register(external_module)
+plugin_manager.register(
+    GetCompleteChatDefaultImplementation(), name="get_complete_chat_for_llm"
+)
+replace_plugin_with_external_plugin(
+    "get_complete_chat_for_llm",
+    "/Users/utkash/src/infinite_chat/src/infinite_chat/get_complete_chat_for_llm.py",
+)
 
 
 @asynccontextmanager
@@ -551,7 +532,7 @@ async def save_cyris_response_to_db(
 async def get_and_stream_cyris_response(
     user_id: int,
     chat_id: int,
-    complete_chat: list[ChatMessage],
+    complete_chat: Sequence[ChatMessage],
     background_tasks: BackgroundTasks,
 ) -> StreamingResponse:
     text = complete_chat[-1].get("unmodified_content")

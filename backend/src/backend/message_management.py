@@ -180,10 +180,14 @@ class MessagesManager(PostgresTableManager):  # type: ignore[misc]
         # TODO reverse-paginate
         async with self.get_connection() as connection:
             if limit:
-                query = f"SELECT * FROM messages WHERE chat_id=$1 ORDER BY inserted_at ASC LIMIT {limit}"
-            else:
-                query = (
-                    "SELECT * FROM messages WHERE chat_id=$1 ORDER BY inserted_at ASC"
+                records = await connection.fetch(
+                    "SELECT * FROM messages WHERE chat_id=$1 ORDER BY inserted_at DESC LIMIT $2",
+                    chat_id,
+                    limit,
                 )
-            records = await connection.fetch(query, chat_id)
-            return [MessageInDb(**record) for record in records]
+            else:
+                records = await connection.fetch(
+                    "SELECT * FROM messages WHERE chat_id=$1 ORDER BY inserted_at DESC",
+                    chat_id,
+                )
+            return [MessageInDb(**record) for record in reversed(records)]

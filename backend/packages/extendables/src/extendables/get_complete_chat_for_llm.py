@@ -1,10 +1,9 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Callable, Protocol
+from typing import Protocol, Sequence
 
 from backend_commons.messages import MessageInDb
-from extendables import hookspec, plugin_manager
-from pluggy._hooks import _Plugin
+from extendables import hookimpl, hookspec, plugin_manager
 
 from cyris import ChatMessage
 
@@ -33,7 +32,7 @@ class GetCompleteChatSpec:
         self,
         new_message_from_user: str,
         existing_chat_params: ParamsForAlreadyExistingChat | None,
-    ) -> list[ChatMessage]: ...
+    ) -> Sequence[ChatMessage]: ...
 
 
 def convert_messages_in_db_to_chat_messages(
@@ -48,86 +47,68 @@ def convert_messages_in_db_to_chat_messages(
     ]
 
 
-class GetCompleteChatAbstractImplementation(ABC):
+class GetCompleteChatImplementationAbstract(ABC):
     @abstractmethod
+    @hookimpl  # type: ignore[misc]
     async def get_complete_chat_for_llm(
         self,
         new_message_from_user: str,
         existing_chat_params: ParamsForAlreadyExistingChat | None,
-    ) -> list[ChatMessage]: ...
+    ) -> Sequence[ChatMessage]:
+        """
+        Retrieves chat messages and constructs a list of `ChatMessage` which can be passed
+        to the LLM.
+
+        Parameters
+        ----------
+        new_message_from_user : str
+            The new message that the user just sent
+        existing_chat_params : ParamsForAlreadyExistingChat | None
+            If this isn't a new chat, information necessary about the chat, otherwise None
+
+        Returns
+        -------
+        Sequence[ChatMessage]
+            The complete chat, which will be sent to the LLM for response. Last element is the latest message.
+        """
+        ...
 
 
-class GetCompleteChatDefaultImplementation(GetCompleteChatAbstractImplementation):
-    def __init__(self) -> None:
-        pass
+class GetCompleteChatDefaultImplementation(GetCompleteChatImplementationAbstract):
+    @hookimpl  # type: ignore[misc]
+    async def get_complete_chat_for_llm(
+        self,
+        new_message_from_user: str,
+        existing_chat_params: ParamsForAlreadyExistingChat | None,
+    ) -> Sequence[ChatMessage]:
+        if not existing_chat_params:
+            return [
+                ChatMessage(
+                    role="user",
+                    content=new_message_from_user,
+                )
+            ]
+        else:
+            chat_history = await existing_chat_params.get_messages_of_chat(
+                existing_chat_params.chat_id, None
+            )
 
-
-# class GetCompleteChatDefaultImplementation:
-#     @hookimpl  # type: ignore[misc]
-#     async def get_complete_chat_for_llm(
-#         self,
-#         new_message_from_user: str,
-#         existing_chat_params: ParamsForAlreadyExistingChat | None,
-#     ) -> list[ChatMessage]:
-#         """
-#         Retrieves chat messages and constructs a list of `ChatMessage` which can be passed
-#         to the LLM.
-
-#         Parameters
-#         ----------
-#         new_message_from_user : str
-#             The new message that the user just sent
-#         existing_chat_params : ParamsForAlreadyExistingChat | None, optional
-#             If this isn't a new chat, information necessary about the chat, by default None
-
-#         Returns
-#         -------
-#         list[ChatMessage]
-#             The complete chat, which will be sent to the LLM for response. 0th element is
-#             the earliest message, the last element is the latest message.
-#         """
-#         if not existing_chat_params:
-#             return [
-#                 ChatMessage(
-#                     role="user",
-#                     content=new_message_from_user,
-#                 )
-#             ]
-#         else:
-#             chat_history = await existing_chat_params.get_messages_of_chat(
-#                 existing_chat_params.chat_id, None
-#             )
-
-#             complete_chat = convert_messages_in_db_to_chat_messages(chat_history)
-#             complete_chat.append(
-#                 ChatMessage(
-#                     role="user",
-#                     content=new_message_from_user,
-#                 )
-#             )
-#             return complete_chat
-
-
-plugin_manager.add_hookspecs(GetCompleteChatSpec)
-DEFAULT_IMPLEMENTATION_NAME = "get_complete_chat_for_llm_default"
-plugin_manager.register(
-    GetCompleteChatDefaultImplementation, name=DEFAULT_IMPLEMENTATION_NAME
-)
-
-
-def replace_default_with_external_function(
-    plugin: _Plugin | Callable[[], _Plugin],
-) -> None:
-    plugin_manager.unregister(name=DEFAULT_IMPLEMENTATION_NAME)
-    plugin_manager.register(plugin)
+            complete_chat = convert_messages_in_db_to_chat_messages(chat_history)
+            complete_chat.append(
+                ChatMessage(
+                    role="user",
+                    content=new_message_from_user,
+                )
+            )
+            return complete_chat
 
 
 async def get_complete_chat_for_llm(
     new_message_from_user: str,
     existing_chat_params: ParamsForAlreadyExistingChat | None,
-) -> list[ChatMessage]:
+) -> Sequence[ChatMessage]:
     complete_chats: list[
-        list[ChatMessage]
+        Sequence[ChatMessage]
     ] = await plugin_manager.ahook.get_complete_chat_for_llm(
         new_message_from_user=new_message_from_user,
         existing_chat_params=existing_chat_params,
