@@ -1,5 +1,5 @@
 import os
-from typing import AsyncGenerator, Literal, NotRequired, Sequence, TypedDict
+from typing import AsyncGenerator, Literal, NotRequired, TypedDict
 
 from litellm import acompletion, get_max_tokens, token_counter
 from litellm.types.utils import ModelResponseStream
@@ -23,7 +23,7 @@ class Cyris:
 
     def do_chat_messages_have_too_many_tokens(
         self,
-        complete_chat: Sequence[ChatMessage],
+        complete_chat: list[ChatMessage],
     ) -> tuple[bool, int, int]:
         # this implementation is nice because we could easily overwrite it to, e.g.,
         # support "infinite" chat (FIFO queue)
@@ -37,7 +37,7 @@ class Cyris:
         )
 
     async def ask_stream(
-        self, messages: Sequence[ChatMessage]
+        self, messages: list[ChatMessage]
     ) -> AsyncGenerator[str | None, None]:
         async for chunk in await acompletion(
             model=self.model,

@@ -3,7 +3,7 @@ import logging
 import os
 from asyncio import wait_for
 from contextlib import asynccontextmanager
-from typing import Literal, Sequence
+from typing import Literal
 
 import asyncpg  # type: ignore[import-untyped,unused-ignore]
 from extendables import (
@@ -532,7 +532,7 @@ async def save_cyris_response_to_db(
 async def get_and_stream_cyris_response(
     user_id: int,
     chat_id: int,
-    complete_chat: Sequence[ChatMessage],
+    complete_chat: list[ChatMessage],
     background_tasks: BackgroundTasks,
 ) -> StreamingResponse:
     text = complete_chat[-1].get("unmodified_content")

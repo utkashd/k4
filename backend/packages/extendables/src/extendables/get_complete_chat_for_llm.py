@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Protocol, Sequence
+from typing import Protocol
 
 from backend_commons.messages import MessageInDb
 from extendables import hookimpl, hookspec, plugin_manager
@@ -32,7 +32,7 @@ class GetCompleteChatSpec:
         self,
         new_message_from_user: str,
         existing_chat_params: ParamsForAlreadyExistingChat | None,
-    ) -> Sequence[ChatMessage]: ...
+    ) -> list[ChatMessage]: ...
 
 
 def convert_messages_in_db_to_chat_messages(
@@ -54,7 +54,7 @@ class GetCompleteChatImplementationAbstract(ABC):
         self,
         new_message_from_user: str,
         existing_chat_params: ParamsForAlreadyExistingChat | None,
-    ) -> Sequence[ChatMessage]:
+    ) -> list[ChatMessage]:
         """
         Retrieves chat messages and constructs a list of `ChatMessage` which can be passed
         to the LLM.
@@ -68,7 +68,7 @@ class GetCompleteChatImplementationAbstract(ABC):
 
         Returns
         -------
-        Sequence[ChatMessage]
+        list[ChatMessage]
             The complete chat, which will be sent to the LLM for response. Last element is the latest message.
         """
         ...
@@ -80,7 +80,7 @@ class GetCompleteChatDefaultImplementation(GetCompleteChatImplementationAbstract
         self,
         new_message_from_user: str,
         existing_chat_params: ParamsForAlreadyExistingChat | None,
-    ) -> Sequence[ChatMessage]:
+    ) -> list[ChatMessage]:
         if not existing_chat_params:
             return [
                 ChatMessage(
@@ -106,9 +106,9 @@ class GetCompleteChatDefaultImplementation(GetCompleteChatImplementationAbstract
 async def get_complete_chat_for_llm(
     new_message_from_user: str,
     existing_chat_params: ParamsForAlreadyExistingChat | None,
-) -> Sequence[ChatMessage]:
+) -> list[ChatMessage]:
     complete_chats: list[
-        Sequence[ChatMessage]
+        list[ChatMessage]
     ] = await plugin_manager.ahook.get_complete_chat_for_llm(
         new_message_from_user=new_message_from_user,
         existing_chat_params=existing_chat_params,
