@@ -27,7 +27,7 @@ class RegisteredUser(BaseModel):
     # `exit` a couple times to return to your terminal
 
     user_id: int
-    user_email: EmailStr  # index, unique
+    user_email: EmailStr
     hashed_user_password: SecretStr
     human_name: str = Field(min_length=1, max_length=64)
     ai_name: str = Field(min_length=1, max_length=64)

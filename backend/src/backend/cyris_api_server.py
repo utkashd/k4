@@ -344,6 +344,9 @@ async def create_admin_user(
     hashed_desired_password = SecretStr(
         pwd_context.hash(new_user_details.desired_user_password.get_secret_value())
     )
+    log.info(
+        f"Admin `{current_admin_user.user_email}` is creating an admin user. {new_user_details.model_dump_json()}"
+    )
     return await users_manager.create_user(
         desired_user_email=new_user_details.desired_user_email,
         hashed_desired_user_password=hashed_desired_password,
@@ -360,6 +363,9 @@ async def create_user(
 ) -> RegisteredUser:
     hashed_desired_password = SecretStr(
         pwd_context.hash(new_user_details.desired_user_password.get_secret_value())
+    )
+    log.info(
+        f"Admin `{current_admin_user.user_email}` is creating a non-admin user. {new_user_details.model_dump_json()}"
     )
     return await users_manager.create_user(
         desired_user_email=new_user_details.desired_user_email,
@@ -387,6 +393,9 @@ async def reactivate_user(
     user_to_reactivate: RegisteredUser,
     current_admin_user: AdminUser = Depends(get_current_active_admin_user),
 ) -> None:
+    log.info(
+        f"Admin `{current_admin_user.user_email}` is reactivating a user. {user_to_reactivate.model_dump_json()}"
+    )
     await users_manager.reactivate_user(user_to_reactivate)
 
 
@@ -443,8 +452,7 @@ async def delete_chat(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can't delete someone else's chat.",
         )
-    else:
-        await messages_manager.delete_chat(chat_id=chat_id)
+    await messages_manager.delete_chat(chat_id=chat_id)
 
 
 class CreateNewChatRequestBody(BaseModel):

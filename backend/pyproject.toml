@@ -22,6 +22,7 @@ dependencies = [
     "async-property>=0.2.2",
     "gitpython>=3.1.44",
     "apluggy>=1.0.3",
+    "python-multipart>=0.0.20",
 ]
 
 [tool.uv.sources]
