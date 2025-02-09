@@ -1,11 +1,11 @@
 import datetime
-import logging
 import os
 from asyncio import wait_for
 from contextlib import asynccontextmanager
 from typing import Literal
 
 import asyncpg  # type: ignore[import-untyped,unused-ignore]
+from cyris_logger import log
 from extendables import (
     GetCompleteChatDefaultImplementation,
     ParamsForAlreadyExistingChat,
@@ -13,6 +13,7 @@ from extendables import (
     plugin_manager,
     replace_plugin_with_external_plugin,
 )
+from extension_management import ExtensionInDb, ExtensionsManager, GitUrl
 from fastapi import (
     BackgroundTasks,
     Cookie,
@@ -32,7 +33,6 @@ from passlib.context import (  # TODO remove passlib because it's not maintained
     CryptContext,
 )
 from pydantic import BaseModel, EmailStr, Field, SecretStr
-from rich.logging import RichHandler
 from user_management import (
     AdminUser,
     NonAdminUser,
@@ -43,14 +43,9 @@ from user_management import (
 
 from cyris import ChatMessage, Cyris
 
-FORMAT = "%(message)s"
-logging.basicConfig(
-    level="INFO", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
-)
-log = logging.getLogger("cyris")
-
 users_manager = UsersManager()
 messages_manager = MessagesManager()
+extensions_manager = ExtensionsManager()
 cyris = Cyris()
 
 
@@ -82,6 +77,7 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
         # TODO error handling if connection fails. retry?
         await users_manager.set_connection_pool_and_start(postgres_connection_pool)
         await messages_manager.set_connection_pool_and_start(postgres_connection_pool)
+        await extensions_manager.set_connection_pool_and_start(postgres_connection_pool)
         yield  # everything above the yield is for startup, everything after is for shutdown
     finally:
         await wait_for(
@@ -582,6 +578,15 @@ async def get_and_stream_cyris_response(
         stream_response_and_async_write_to_db(),  # type: ignore[no-untyped-call]
         media_type="text/event-stream",
     )
+
+
+@app.post("/extension")  # type: ignore[misc]
+async def add_extension(
+    git_repo_url: GitUrl,
+    current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
+) -> ExtensionInDb:
+    log.info(f"{current_user=} is adding an extension {git_repo_url=}")
+    return await extensions_manager.add_extension(git_repo_url)
 
 
 def main() -> None:

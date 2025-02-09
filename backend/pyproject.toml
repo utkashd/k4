@@ -9,8 +9,8 @@ dependencies = [
     "cyris",
     "utils",
     "extendables",
+    "cyris-logger",
     "pydantic[email]>=2.9.2",
-    "rich>=13.9.2",
     "fastapi>=0.111.1",
     "uvicorn[standard]>=0.22.0",
     "types-python-jose>=3.3.4.20240106",
@@ -30,6 +30,7 @@ backend_commons = { workspace = true }
 cyris = { workspace = true }
 utils = { workspace = true }
 extendables = { workspace = true }
+cyris-logger = { workspace = true }
 
 [tool.uv.workspace]
 members = ["packages/*"]

@@ -1,5 +1,3 @@
-import logging
-
 import asyncpg  # type: ignore[import-untyped,unused-ignore]
 from async_property import (  # type: ignore[import-untyped,unused-ignore]
     async_cached_property,
@@ -7,13 +5,6 @@ from async_property import (  # type: ignore[import-untyped,unused-ignore]
 from backend_commons import PostgresTableManager
 from fastapi import HTTPException, status
 from pydantic import BaseModel, EmailStr, Field, SecretStr
-from rich.logging import RichHandler
-
-FORMAT = "%(message)s"
-logging.basicConfig(
-    level="INFO", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
-)
-log = logging.getLogger("cyris")
 
 
 class RegisteredUser(BaseModel):
@@ -55,7 +46,7 @@ class RegistrationAttempt(BaseModel):
     desired_ai_name: str = Field(max_length=64)
 
 
-class UsersManager(PostgresTableManager):  # type: ignore[misc]
+class UsersManager(PostgresTableManager):
     """
     This class is intended to be instantiated like so:
 
@@ -171,10 +162,9 @@ class UsersManager(PostgresTableManager):  # type: ignore[misc]
                 if is_user_an_admin:
                     return AdminUser(**new_registered_user_row)
                 return NonAdminUser(**new_registered_user_row)
-            except asyncpg.exceptions.UniqueViolationError as e:
+            except asyncpg.exceptions.UniqueViolationError:
                 # This code means we attempted to insert a row that conflicted
                 # with another row. That only happens if the email address is already taken
-                log.error(e)
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Email address {desired_user_email} already in use.",

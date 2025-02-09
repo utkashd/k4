@@ -1,17 +1,13 @@
 [project]
-name = "backend-commons"
+name = "cyris-logger"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "cyris-logger",
-    "pydantic>=2.9.2",
+    "rich>=13.9.2",
 ]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-
-[tool.uv.sources]
-cyris-logger = { workspace = true }

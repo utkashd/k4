@@ -1,16 +1,9 @@
-import logging
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
 from typing import Iterable, cast
 
 import asyncpg  # type: ignore[import-untyped,unused-ignore]
-from rich.logging import RichHandler
-
-FORMAT = "%(message)s"
-logging.basicConfig(
-    level="INFO", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
-)
-log = logging.getLogger("cyris")
+from cyris_logger import log
 
 
 class PostgresTableManager(ABC):

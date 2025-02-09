@@ -6,6 +6,7 @@ members = [
     "backend-commons",
     "cyris",
     "cyris-backend",
+    "cyris-logger",
     "extendables",
     "utils",
 ]
@@ -173,11 +174,15 @@ name = "backend-commons"
 version = "0.1.0"
 source = { editable = "packages/backend_commons" }
 dependencies = [
+    { name = "cyris-logger" },
     { name = "pydantic" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "pydantic", specifier = ">=2.9.2" }]
+requires-dist = [
+    { name = "cyris-logger", editable = "packages/cyris_logger" },
+    { name = "pydantic", specifier = ">=2.9.2" },
+]
 
 [[package]]
 name = "bcrypt"
@@ -376,6 +381,7 @@ dependencies = [
     { name = "asyncpg" },
     { name = "backend-commons" },
     { name = "cyris" },
+    { name = "cyris-logger" },
     { name = "extendables" },
     { name = "fastapi" },
     { name = "gitpython" },
@@ -383,7 +389,6 @@ dependencies = [
     { name = "pydantic", extra = ["email"] },
     { name = "python-jose", extra = ["cryptography"] },
     { name = "python-multipart" },
-    { name = "rich" },
     { name = "sentry-sdk", extra = ["fastapi"] },
     { name = "types-passlib" },
     { name = "types-python-jose" },
@@ -406,6 +411,7 @@ requires-dist = [
     { name = "asyncpg", specifier = ">=0.29.0" },
     { name = "backend-commons", editable = "packages/backend_commons" },
     { name = "cyris", editable = "packages/cyris" },
+    { name = "cyris-logger", editable = "packages/cyris_logger" },
     { name = "extendables", editable = "packages/extendables" },
     { name = "fastapi", specifier = ">=0.111.1" },
     { name = "gitpython", specifier = ">=3.1.44" },
@@ -413,7 +419,6 @@ requires-dist = [
     { name = "pydantic", extras = ["email"], specifier = ">=2.9.2" },
     { name = "python-jose", extras = ["cryptography"], specifier = ">=3.3.0" },
     { name = "python-multipart", specifier = ">=0.0.20" },
-    { name = "rich", specifier = ">=13.9.2" },
     { name = "sentry-sdk", extras = ["fastapi"], specifier = ">=2.20.0" },
     { name = "types-passlib", specifier = ">=1.7.7.20240819" },
     { name = "types-python-jose", specifier = ">=3.3.4.20240106" },
@@ -428,6 +433,17 @@ dev = [
     { name = "pre-commit", specifier = ">=4.1.0" },
     { name = "ruff", specifier = ">=0.6.9" },
 ]
+
+[[package]]
+name = "cyris-logger"
+version = "0.1.0"
+source = { editable = "packages/cyris_logger" }
+dependencies = [
+    { name = "rich" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "rich", specifier = ">=13.9.2" }]
 
 [[package]]
 name = "decorator"

@@ -1,17 +1,9 @@
 import datetime
-import logging
 from typing import Iterable
 
 from backend_commons import PostgresTableManager
 from backend_commons.messages import MessageInDb
 from pydantic import BaseModel, Field
-from rich.logging import RichHandler
-
-FORMAT = "%(message)s"
-logging.basicConfig(
-    level="INFO", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
-)
-log = logging.getLogger("cyris")
 
 
 class ChatInDb(BaseModel):
@@ -32,7 +24,7 @@ class ChatPreview(BaseModel):
     most_recent_message_in_db: MessageInDb
 
 
-class MessagesManager(PostgresTableManager):  # type: ignore[misc]
+class MessagesManager(PostgresTableManager):
     @property
     def create_table_queries(self) -> list[str]:
         # If you're changing the tables, you'll need to drop the existing table
