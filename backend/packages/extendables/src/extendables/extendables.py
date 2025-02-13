@@ -1,24 +1,43 @@
 import inspect
-import os
 import uuid
 from importlib import util as importlib_util
+from pathlib import Path
+from typing import Literal
 
 import apluggy  # type: ignore[import-untyped,unused-ignore]
+from cyris_logger import log
 
 hookspec = apluggy.HookspecMarker("cyris")
 hookimpl = apluggy.HookimplMarker("cyris")
 plugin_manager = apluggy.PluginManager("cyris")
 
+# src/infinite_chat/get_complete_chat_for_llm.py
+
 
 def replace_plugin_with_external_plugin(
-    existing_plugin_name: str,
-    external_module_path: str,
+    existing_plugin_name: Literal["get_complete_chat_for_llm"],
+    external_module_path: Path,
 ) -> None:
-    module_name = str(uuid.uuid4())
-
-    if not os.path.exists(external_module_path):
+    if not external_module_path.exists():
         raise FileNotFoundError(f"Expected module {external_module_path} not found.")
 
+    if external_module_path.is_dir():
+        code_directory = list(
+            filter(
+                lambda path: path.is_dir(),
+                external_module_path.joinpath("src").iterdir(),
+            )
+        )[0]
+        external_module_path = list(
+            filter(
+                lambda path: path.is_file()
+                and str(path).endswith(existing_plugin_name + ".py"),
+                code_directory.iterdir(),
+            )
+        )[0]
+    log.info(external_module_path)
+
+    module_name = str(uuid.uuid4())
     spec = importlib_util.spec_from_file_location(module_name, external_module_path)
     if not spec or not spec.loader:
         raise ImportError(

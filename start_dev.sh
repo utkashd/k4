@@ -49,5 +49,11 @@ fi
 
 printf "\t${GREEN}postgres docker container is running.${END_COLOR}\n"
 
+printf "3.\tEnsuring environment variables are set...\n"
+if [[ -z "$CYRIS_ENVIRONMENT" ]]; then
+    printf "\t${RED}Environment variable CYRIS_ENVIRONMENT is not set. Please set it in your .zshenv or equivalent. ${END_COLOR}\n"
+    exit 1
+fi
+
 
 printf "\n${GREEN}All set! Ready to develop 😎${END_COLOR}\n"

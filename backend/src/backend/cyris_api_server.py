@@ -5,14 +5,9 @@ from contextlib import asynccontextmanager
 from typing import Literal
 
 import asyncpg  # type: ignore[import-untyped,unused-ignore]
+from backend_commons import is_production_environment
 from cyris_logger import log
-from extendables import (
-    GetCompleteChatDefaultImplementation,
-    ParamsForAlreadyExistingChat,
-    get_complete_chat_for_llm,
-    plugin_manager,
-    replace_plugin_with_external_plugin,
-)
+from extendables import ParamsForAlreadyExistingChat, get_complete_chat_for_llm
 from extension_management import ExtensionInDb, ExtensionsManager, GitUrl
 from fastapi import (
     BackgroundTasks,
@@ -21,7 +16,6 @@ from fastapi import (
     FastAPI,
     HTTPException,
     Request,
-    WebSocket,
     status,
 )
 from fastapi.middleware.cors import CORSMiddleware
@@ -47,15 +41,6 @@ users_manager = UsersManager()
 messages_manager = MessagesManager()
 extensions_manager = ExtensionsManager()
 cyris = Cyris()
-
-
-plugin_manager.register(
-    GetCompleteChatDefaultImplementation(), name="get_complete_chat_for_llm"
-)
-replace_plugin_with_external_plugin(
-    "get_complete_chat_for_llm",
-    "/Users/utkash/src/infinite_chat/src/infinite_chat/get_complete_chat_for_llm.py",
-)
 
 
 @asynccontextmanager
@@ -86,7 +71,7 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
         # TODO I think I actually want to wait for requests to finish. do that instead
 
 
-if os.environ.get("CYRIS_SENTRY_DSN"):
+if is_production_environment() and os.environ.get("CYRIS_SENTRY_DSN"):
     import sentry_sdk
 
     sentry_sdk.init(
@@ -159,16 +144,6 @@ async def get_current_active_admin_user(request: Request) -> AdminUser:
 
 async def get_current_active_non_admin_user(request: Request) -> NonAdminUser:
     current_user = await get_current_active_user(request.cookies.get("authToken"))
-    if not isinstance(current_user, NonAdminUser):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"User {current_user.user_email} is an administrator.",
-        )
-    return current_user
-
-
-async def get_current_active_non_admin_user_ws(websocket: WebSocket) -> NonAdminUser:
-    current_user = await get_current_active_user(websocket.cookies.get("authToken"))
     if not isinstance(current_user, NonAdminUser):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -587,16 +562,3 @@ async def add_extension(
 ) -> ExtensionInDb:
     log.info(f"{current_user=} is adding an extension {git_repo_url=}")
     return await extensions_manager.add_extension(git_repo_url)
-
-
-def main() -> None:
-    """
-    This function needs to be beneath all the endpoint definitions.
-    """
-    import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)
-
-
-if __name__ == "__main__":
-    main()

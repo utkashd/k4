@@ -18,6 +18,11 @@ class ParamsForAlreadyExistingChat:
     """
 
     class GetMessagesOfChatFunctionType(Protocol):
+        """
+            An async function that accepts a `chat_id` and an optional `limit`, which
+        returns a list of chat messages in the DB
+        """
+
         async def __call__(
             self, chat_id: int, limit: int | None = None
         ) -> list[MessageInDb]: ...
