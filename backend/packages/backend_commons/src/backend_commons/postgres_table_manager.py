@@ -50,9 +50,11 @@ class PostgresTableManager(ABC):
 
     async def _ensure_table_is_created_in_db(self) -> None:
         log.info(
-            f"""Creating the {self.__class__.__name__} table if it doesn't already exist. You
-             may see a warning from aiomysql that the table already exists, this is
-             expected and harmless."""
+            (
+                f"Creating the {self.__class__.__name__} table if it doesn't already "
+                "exist. You may see a warning from aiomysql that the table already exists, "
+                "this is expected and harmless."
+            )
         )
         async with self.get_transaction_connection() as connection:
             # TODO should have a script or something for modifying tables elegantly

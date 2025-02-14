@@ -11,8 +11,6 @@ hookspec = apluggy.HookspecMarker("cyris")
 hookimpl = apluggy.HookimplMarker("cyris")
 plugin_manager = apluggy.PluginManager("cyris")
 
-# src/infinite_chat/get_complete_chat_for_llm.py
-
 
 def replace_plugin_with_external_plugin(
     existing_plugin_name: Literal["get_complete_chat_for_llm"],
@@ -35,7 +33,6 @@ def replace_plugin_with_external_plugin(
                 code_directory.iterdir(),
             )
         )[0]
-    log.info(external_module_path)
 
     module_name = str(uuid.uuid4())
     spec = importlib_util.spec_from_file_location(module_name, external_module_path)
@@ -47,8 +44,12 @@ def replace_plugin_with_external_plugin(
     module = importlib_util.module_from_spec(spec)
     spec.loader.exec_module(module)
 
+    # TODO this logic sucks, improve it
     for _, class_object in reversed(inspect.getmembers(module, inspect.isclass)):
         if class_object.__module__ == module_name:
+            log.info(
+                f"Installing an extension for {existing_plugin_name=} from {external_module_path=}"
+            )
             plugin_manager.unregister(name=existing_plugin_name)
             plugin_manager.register(class_object, name=existing_plugin_name)
             break

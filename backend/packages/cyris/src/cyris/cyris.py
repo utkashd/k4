@@ -1,7 +1,12 @@
 import os
 from typing import AsyncGenerator, Literal, NotRequired, TypedDict
 
-from litellm import acompletion, get_max_tokens, token_counter
+from litellm import (
+    acompletion,
+    get_max_tokens,
+    supports_function_calling,
+    token_counter,
+)
 from litellm.types.utils import ModelResponseStream
 
 
@@ -19,6 +24,7 @@ class Cyris:
 
         os.environ["OPENAI_API_KEY"] = openai_api_key
         self.model = "gpt-4o-mini"
+        assert supports_function_calling(model=self.model)
         self.max_tokens = get_max_tokens(self.model)
 
     def do_chat_messages_have_too_many_tokens(
@@ -51,3 +57,11 @@ class Cyris:
             if not isinstance(chunk.choices[0].delta.content, str | None):
                 raise Exception("Unexpected content type", chunk)
             yield chunk.choices[0].delta.content
+
+    async def ask(self, messages: list[ChatMessage]) -> str:
+        response = await acompletion(model=self.model, messages=messages)
+        if not isinstance(response.choices[0].message.content, str):
+            raise Exception(
+                f"unexpected response type: {response.choices[0].message.content=}"
+            )
+        return response.choices[0].message.content

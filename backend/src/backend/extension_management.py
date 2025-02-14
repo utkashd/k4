@@ -87,9 +87,7 @@ class ExtensionsManager(PostgresTableManager):
 
     async def get_installed_extensions(self) -> list[ExtensionInDb]:
         async with self.get_connection() as connection:
-            extensions = await connection.fetch(
-                "SELECT local_path FROM extensions LIMIT 10"
-            )
+            extensions = await connection.fetch("SELECT * FROM extensions LIMIT 10")
             return [ExtensionInDb(**extension) for extension in extensions]
 
     async def download_extension_to_file_system_if_necessary_and_get_local_path(

@@ -6,6 +6,7 @@ from typing import Literal
 
 import asyncpg  # type: ignore[import-untyped,unused-ignore]
 from backend_commons import is_production_environment
+from backend_commons.messages import MessageInDb
 from cyris_logger import log
 from extendables import ParamsForAlreadyExistingChat, get_complete_chat_for_llm
 from extension_management import ExtensionInDb, ExtensionsManager, GitUrl
@@ -46,10 +47,8 @@ cyris = Cyris()
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
     try:
-        """
-        we do this because the `finally` clause will *always* be run, even if there's an
-        error somewhere during the `yield`
-        """
+        # we do this because the `finally` clause will *always* be run, even if there's an
+        # error somewhere during the `yield`
         postgres_connection_pool: asyncpg.Pool = await asyncpg.create_pool(
             host="localhost",
             port=5432,
@@ -430,8 +429,34 @@ class CreateNewChatRequestBody(BaseModel):
     message: str
 
 
+@app.post("/chat_no_stream")  # type: ignore[misc]
+async def create_new_chat_with_message_no_stream(
+    create_new_chat_request_body: CreateNewChatRequestBody,
+    current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
+) -> list[MessageInDb]:
+    chat_in_db = await messages_manager.create_new_chat(
+        user_id=current_user.user_id, title=""
+    )
+    user_message_in_db = await messages_manager.save_client_message_to_db(
+        chat_id=chat_in_db.chat_id,
+        user_id=current_user.user_id,
+        text=create_new_chat_request_body.message,
+    )
+    messages_newly_in_db = [user_message_in_db]
+    complete_chat = await get_complete_chat_for_llm(
+        new_message_from_user=create_new_chat_request_body.message,
+        existing_chat_params=None,
+    )
+    cyris_response = await cyris.ask(messages=complete_chat)
+    cyris_message_in_db = await messages_manager.save_cyris_message_to_db(
+        chat_id=chat_in_db.chat_id, text=cyris_response
+    )
+    messages_newly_in_db.append(cyris_message_in_db)
+    return messages_newly_in_db
+
+
 @app.post("/chat")  # type: ignore[misc]
-async def create_new_chat_with_message(
+async def create_new_chat_with_message_stream(
     create_new_chat_request_body: CreateNewChatRequestBody,
     background_tasks: BackgroundTasks,
     current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
@@ -451,7 +476,7 @@ async def create_new_chat_with_message(
     chat_in_db = await messages_manager.create_new_chat(
         user_id=current_user.user_id, title=""
     )
-    return await get_and_stream_cyris_response(
+    return await get_and_stream_and_store_cyris_response(
         user_id=current_user.user_id,
         chat_id=chat_in_db.chat_id,
         complete_chat=complete_chat,
@@ -491,7 +516,7 @@ async def send_message_to_cyris_stream(
             detail=f"Your message + chat history was too large for the model: {cyris.model=}, {num_tokens=}, {max_tokens}",
         )
 
-    return await get_and_stream_cyris_response(
+    return await get_and_stream_and_store_cyris_response(
         user_id=current_user.user_id,
         chat_id=send_message_request_body.chat_id,
         complete_chat=complete_chat,
@@ -508,7 +533,7 @@ async def save_cyris_response_to_db(
     )
 
 
-async def get_and_stream_cyris_response(
+async def get_and_stream_and_store_cyris_response(
     user_id: int,
     chat_id: int,
     complete_chat: list[ChatMessage],
