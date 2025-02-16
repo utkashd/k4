@@ -57,6 +57,21 @@ class biter(Generic[_T]):
         return next(self)
 
     def filter(self, func: Callable[[_T], bool]) -> "biter[_T]":
+        """
+        Example:
+
+        ```
+        from utils import biter
+
+        my_list = [1, 2, 3]
+        filtered = biter(my_list).filter(lambda value: value > 1)
+        for value in filtered:
+            print(value)
+        # 2
+        # 3
+        ```
+        """
+
         def filter_values_generator() -> Generator[_T, Any, None]:
             for value in self:
                 if func(value):
