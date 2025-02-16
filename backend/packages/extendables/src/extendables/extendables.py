@@ -6,6 +6,7 @@ from typing import Literal
 
 import apluggy  # type: ignore[import-untyped,unused-ignore]
 from cyris_logger import log
+from utils import biter
 
 hookspec = apluggy.HookspecMarker("cyris")
 hookimpl = apluggy.HookimplMarker("cyris")
@@ -20,19 +21,18 @@ def replace_plugin_with_external_plugin(
         raise FileNotFoundError(f"Expected module {external_module_path} not found.")
 
     if external_module_path.is_dir():
-        code_directory = list(
-            filter(
-                lambda path: path.is_dir(),
-                external_module_path.joinpath("src").iterdir(),
-            )
-        )[0]
-        external_module_path = list(
-            filter(
+        paths_in_src_dir = external_module_path.joinpath("src").iterdir()
+        code_directory = (
+            biter(paths_in_src_dir).filter(lambda path: path.is_dir()).next()
+        )
+        external_module_path = (
+            biter(code_directory.iterdir())
+            .filter(
                 lambda path: path.is_file()
-                and str(path).endswith(existing_plugin_name + ".py"),
-                code_directory.iterdir(),
+                and str(path).endswith(existing_plugin_name + ".py")
             )
-        )[0]
+            .next()
+        )
 
     module_name = str(uuid.uuid4())
     spec = importlib_util.spec_from_file_location(module_name, external_module_path)

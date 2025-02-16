@@ -5,7 +5,6 @@ from contextlib import asynccontextmanager
 from typing import Literal
 
 import asyncpg  # type: ignore[import-untyped,unused-ignore]
-from backend_commons import is_production_environment
 from backend_commons.messages import MessageInDb
 from cyris_logger import log
 from extendables import ParamsForAlreadyExistingChat, get_complete_chat_for_llm
@@ -35,6 +34,7 @@ from user_management import (
     RegistrationAttempt,
     UsersManager,
 )
+from utils.utils import is_production_environment
 
 from cyris import ChatMessage, Cyris
 
