@@ -1,10 +1,11 @@
 import os
+from abc import ABC, abstractmethod
 from enum import Enum
 from functools import cache
 from typing import Any, Callable, Generator, Generic, Iterable, Iterator, TypeVar
 
 
-class AsyncObject:
+class AsyncObject(ABC):
     """
     Taken from
     https://stackoverflow.com/questions/33128325/how-to-set-class-attribute-with-await-in-init
@@ -14,13 +15,14 @@ class AsyncObject:
     So you can create objects with `await MyClass(params)`
     """
 
-    async def __new__(cls, *a, **kw):  # type: ignore[no-untyped-def]
+    async def __new__(cls, *args, **kwargs):  # type: ignore[no-untyped-def]
         instance = super().__new__(cls)
-        await instance.__init__(*a, **kw)  # type: ignore[misc]
+        await instance.__init__(*args, **kwargs)  # type: ignore[misc]
         return instance
 
+    @abstractmethod
     async def __init__(self):  # type: ignore[no-untyped-def]
-        pass
+        ...
 
 
 class CyrisEnvironment(Enum):
@@ -34,7 +36,7 @@ _ReturnType = TypeVar("_ReturnType")
 
 class biter(Generic[_T]):
     """
-    Intentionally terrible name.
+    Intentionally terrible name. "Better Iterable" except it's short
 
     You can wrap an iterable with `biter` and then method-chain `.filter()` and `.map()`
 
