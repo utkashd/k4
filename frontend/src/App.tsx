@@ -100,7 +100,7 @@ function App() {
                     path="/admin_panel"
                     element={
                         <AdminPanel
-                            currentAdminUser={currentUser}
+                            currentUser={currentUser}
                             server={server}
                             setCurrentUserAndCookie={setCurrentUserAndCookie}
                         />

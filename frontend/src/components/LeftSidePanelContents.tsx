@@ -4,7 +4,7 @@ import "../assets/LeftSidePanelContents.css";
 import { BsTrash3Fill } from "react-icons/bs";
 import Server from "../model/Server";
 
-const CyrisLogo = () => {
+export const CyrisLogo = () => {
     return <img src="/gh.png" className="logo-test" alt="logo"></img>;
 };
 

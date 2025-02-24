@@ -19,12 +19,16 @@ export const CurrentUserAndLogoutButton = ({
         window.location.reload(); // TODO need to fix underlying issue so this isn't necessary
     };
     return (
-        <>
-            You're logged in as {currentUser.user_email}
-            <br />
+        <div
+            style={{
+                padding: 10,
+                overflowWrap: "break-word",
+            }}
+        >
+            Logged in as {currentUser.user_email}
             <br />
             <a onClick={logout}>logout</a>
-        </>
+        </div>
     );
 };
 

@@ -26,13 +26,13 @@ div.left-side-panel {
     background-color: rgb(38, 41, 42);
     color: white;
     height: 100%;
-    width: 15vw;
+    width: 18vw;
 }
 
 div.main-panel {
     background-color: #000000;
     height: 100%;
-    width: 75vw;
+    width: 72vw;
 }
 
 div.right-side-panel {

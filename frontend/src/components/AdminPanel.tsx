@@ -4,6 +4,9 @@ import { FaTrash, FaTrashRestore } from "react-icons/fa";
 import Server from "../model/Server";
 import { useNavigate } from "react-router-dom";
 import { CurrentUserAndLogoutButton } from "./RightSidePanelContents";
+import { CyrisLogo } from "./LeftSidePanelContents";
+import Tabs from "@mui/material/Tabs";
+import Tab from "@mui/material/Tab";
 
 function ManageUsers({
     server,
@@ -317,43 +320,92 @@ function UsersList({
     );
 }
 
-export const AdminPanel = ({
+const AdminPanelMainContent = ({
+    server,
     currentAdminUser,
+}: {
+    server: Server;
+    currentAdminUser: AdminUser;
+}) => {
+    type tabId = "manage_users" | "manage_extensions";
+    const [selectedTab, setSelectedTab] = useState<tabId>("manage_users");
+
+    const handleTabChange = (event: React.SyntheticEvent, newValue: tabId) => {
+        setSelectedTab(newValue);
+        (event.target as HTMLElement).blur(); // remove focus from the tab
+    };
+
+    return (
+        <>
+            <Tabs
+                onChange={handleTabChange}
+                value={selectedTab}
+                textColor="inherit"
+            >
+                <Tab label="Users" value={"manage_users"} />
+                <Tab label="Extensions" value={"manage_extensions"} />
+            </Tabs>
+            <div hidden={selectedTab !== "manage_users"} role="tabpanel">
+                <ManageUsers
+                    server={server}
+                    currentAdminUser={currentAdminUser}
+                />
+            </div>
+            <div hidden={selectedTab !== "manage_extensions"} role="tabpanel">
+                extensions here
+            </div>
+        </>
+    );
+};
+
+const AdminPanel = ({
+    currentUser,
     server,
     setCurrentUserAndCookie,
 }: {
-    currentAdminUser: User | null;
+    currentUser: User | null;
     server: Server | null;
     setCurrentUserAndCookie: (user: User | null) => void;
 }) => {
     const navigate = useNavigate();
     useEffect(() => {
-        if (
-            !server ||
-            !currentAdminUser ||
-            !currentAdminUser.is_user_an_admin
-        ) {
+        if (!server || !currentUser || !currentUser.is_user_an_admin) {
             navigate("/"); // TODO put this in useEffect
             return;
         }
-    }, [navigate, currentAdminUser, server]);
-    if (!currentAdminUser || !server) {
+    }, [navigate, currentUser, server]);
+
+    function isUserAnAdminUser(user: User | null): user is AdminUser {
+        return user ? user.is_user_an_admin : false;
+    }
+
+    if (!isUserAnAdminUser(currentUser) || !server) {
         return;
     }
 
     return (
-        <>
-            Welcome Admin {currentAdminUser.user_email}. Here you may create and
-            deactivate users.
-            <br />
-            <CurrentUserAndLogoutButton
-                currentUser={currentAdminUser}
-                server={server}
-                setCurrentUserAndCookie={setCurrentUserAndCookie}
-            />
-            <br />
-            <ManageUsers server={server} currentAdminUser={currentAdminUser} />
-        </>
+        <div className="app-container">
+            <div className="left-side-panel">
+                <CyrisLogo />
+                <div>
+                    Welcome Admin {currentUser.user_email}. Here you may manage
+                    users and extensions.
+                </div>
+            </div>
+            <div className="main-panel">
+                <AdminPanelMainContent
+                    currentAdminUser={currentUser}
+                    server={server}
+                />
+            </div>
+            <div className="right-side-panel">
+                <CurrentUserAndLogoutButton
+                    currentUser={currentUser}
+                    server={server}
+                    setCurrentUserAndCookie={setCurrentUserAndCookie}
+                />
+            </div>
+        </div>
     );
 };
 
