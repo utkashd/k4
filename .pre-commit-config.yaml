@@ -19,7 +19,12 @@ repos:
           - id: mypy
             args:
                 # if you modify the args, make sure you modify them in backend/pyproject.toml too
-                ["--strict", "--ignore-missing-imports", "--check-untyped-defs"]
+                [
+                    "--strict",
+                    "--ignore-missing-imports",
+                    "--incremental",
+                    "--check-untyped-defs",
+                ]
             additional_dependencies:
                 - pydantic
                 - pydantic-settings
