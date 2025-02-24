@@ -117,18 +117,15 @@ class SendMessageRequestBody(BaseModel):
     message: str
 
 
-class LlmStreamingResponse(BaseModel):
-    chunk_type: Literal["text"] | Literal["msg_start"]
+class LlmStreamingStart(BaseModel):
     chat_id: int
-
-
-class LlmStreamingStart(LlmStreamingResponse):
     chunk_type: Literal["msg_start"] = "msg_start"
 
 
-class LlmStreamingChunk(LlmStreamingResponse):
-    chunk: str
+class LlmStreamingChunk(BaseModel):
+    chat_id: int
     chunk_type: Literal["text"] = "text"
+    chunk: str
 
 
 async def get_current_active_admin_user(request: Request) -> AdminUser:
@@ -580,6 +577,13 @@ async def get_and_stream_and_store_cyris_response(
     )
 
 
+@app.get("/extension")  # type: ignore[misc]
+async def get_extensions(
+    current_admin_user: AdminUser = Depends(get_current_active_admin_user),
+) -> list[ExtensionInDb]:
+    return await extensions_manager.get_installed_extensions()
+
+
 @app.post("/extension")  # type: ignore[misc]
 async def add_extension(
     git_repo_url: GitUrl,
@@ -587,3 +591,12 @@ async def add_extension(
 ) -> ExtensionInDb:
     log.info(f"{current_user=} is adding an extension {git_repo_url=}")
     return await extensions_manager.add_extension(git_repo_url)
+
+
+@app.delete("/extension")  # type: ignore[misc]
+async def uninstall_extension(
+    extension_id: int,
+    current_admin_user: AdminUser = Depends(get_current_active_admin_user),
+) -> None:
+    log.info(f"{current_admin_user=} is uninstalling an extension {extension_id=}")
+    await extensions_manager.remove_extension(extension_id=extension_id)

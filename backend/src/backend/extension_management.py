@@ -132,6 +132,7 @@ class ExtensionsManager(PostgresTableManager):
             )
 
     async def remove_extension(self, extension_id: int) -> ExtensionInDb:
+        # TODO this method is not completely implemented!!
         async with self.get_transaction_connection() as connection:
             query_result = await connection.fetchrow(
                 "SELECT * FROM extensions WHERE extension_id=$1", extension_id
@@ -144,6 +145,7 @@ class ExtensionsManager(PostgresTableManager):
                 f"Would have deleted this directory: {extension_in_db.local_path=}"
             )
             # extension_in_db.local_path.rmdir()
+            # remove the plugin and replace with the default function
             return extension_in_db
 
 

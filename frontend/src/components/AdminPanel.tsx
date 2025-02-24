@@ -43,7 +43,6 @@ function ManageUsers({
     );
     return (
         <>
-            <CreateUsers server={server} refreshUsers={refreshUsers} />
             <UsersList
                 users={users}
                 handleRowSelected={handleRowSelected}
@@ -56,6 +55,112 @@ function ManageUsers({
                 selectedUsers={selectedUsers}
                 clearSelection={clearSelection}
             />
+            <CreateUsers server={server} refreshUsers={refreshUsers} />
+        </>
+    );
+}
+
+function ManageExtensions({ server }: { server: Server }) {
+    const [extensions, setExtensions] = useState<Extension[]>([]);
+    const refreshExtensions = async () => {
+        const response = await server.api.get<Extension[]>("/extension", {
+            withCredentials: true,
+        });
+        setExtensions(response.data);
+    };
+    useEffect(() => {
+        refreshExtensions();
+    }, []);
+
+    const columns = [
+        {
+            name: "extension_id",
+            selector: (extension: Extension) => extension.extension_id,
+            sortable: true,
+        },
+        {
+            name: "Name",
+            selector: (extension: Extension) => extension.name,
+            sortable: true,
+        },
+        {
+            name: "Version",
+            selector: (extension: Extension) =>
+                extension.metadata.installed_version,
+            sortable: false,
+        },
+    ];
+
+    const [selectedExtensions, setSelectedExtensions] = useState<Extension[]>(
+        []
+    );
+    const [toggleClearSelectedExtensions, setToggleClearSelectedExtensions] =
+        useState<boolean>(false);
+
+    const uninstallSelectedExtensions = async () => {
+        const confirmAndUninstallExtensions = async () => {
+            const extensionNames = selectedExtensions.map(
+                (extension: Extension) => {
+                    return extension.name;
+                }
+            );
+            const doesAdminWantToUninstallExtensions = confirm(
+                `Uninstall the following extensions? ${extensionNames.join(
+                    "\n"
+                )}`
+            );
+            if (doesAdminWantToUninstallExtensions) {
+                for (const extension of selectedExtensions) {
+                    await server.api.delete("/extension", {
+                        withCredentials: true,
+                        params: { extension_id: extension.extension_id },
+                    });
+                }
+                setSelectedExtensions([]);
+                setToggleClearSelectedExtensions(true);
+                refreshExtensions();
+            }
+        };
+        await confirmAndUninstallExtensions();
+    };
+
+    return (
+        <>
+            <div style={{ padding: "20px" }}>
+                <DataTable
+                    columns={columns}
+                    data={extensions}
+                    keyField="Name"
+                    striped
+                    highlightOnHover
+                    theme="dark"
+                    pagination
+                    selectableRows
+                    clearSelectedRows={toggleClearSelectedExtensions}
+                    onSelectedRowsChange={({
+                        selectedRows,
+                    }: {
+                        selectedRows: Extension[];
+                    }) => {
+                        setSelectedExtensions(selectedRows);
+                    }}
+                />
+                <div hidden={selectedExtensions.length == 0}>
+                    <a
+                        href=""
+                        onClick={(event) => {
+                            event.preventDefault();
+                        }}
+                    >
+                        <FaTrash
+                            onClick={(event) => {
+                                event.preventDefault();
+                                uninstallSelectedExtensions();
+                            }}
+                        />
+                    </a>
+                </div>
+            </div>
         </>
     );
 }
@@ -336,7 +441,7 @@ const AdminPanelMainContent = ({
     };
 
     return (
-        <>
+        <div className="admin-panel">
             <Tabs
                 onChange={handleTabChange}
                 value={selectedTab}
@@ -352,9 +457,9 @@ const AdminPanelMainContent = ({
                 />
             </div>
             <div hidden={selectedTab !== "manage_extensions"} role="tabpanel">
-                extensions here
+                <ManageExtensions server={server} />
             </div>
-        </>
+        </div>
     );
 };
 

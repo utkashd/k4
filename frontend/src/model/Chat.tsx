@@ -24,16 +24,13 @@ interface Chat {
     messages: MessageInDb[];
 }
 
-interface LlmStreamingResponse {
-    chunk_type: "text" | "msg_start";
+interface LlmStreamingStart {
     chat_id: number;
-}
-
-interface LlmStreamingStart extends LlmStreamingResponse {
     chunk_type: "msg_start";
 }
 
-interface LlmStreamingChunk extends LlmStreamingResponse {
+interface LlmStreamingChunk {
+    chat_id: number;
     chunk_type: "text";
     chunk: string;
 }

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
-from typing import Iterable, cast
+from typing import Any, AsyncGenerator, Iterable, cast
 
 import asyncpg  # type: ignore[import-untyped,unused-ignore]
 from cyris_logger import log
@@ -64,8 +64,8 @@ class PostgresTableManager(ABC):
                 await connection.execute(create_index_query)
         log.info(f"Finished ensuring the {self.__class__.__name__} table is created")
 
-    @asynccontextmanager  # type: ignore[no-untyped-def]
-    async def get_connection(self):
+    @asynccontextmanager
+    async def get_connection(self) -> AsyncGenerator[asyncpg.Connection, Any]:
         """
         Acquire a Postgres connection
 
@@ -75,8 +75,10 @@ class PostgresTableManager(ABC):
             connection = cast(asyncpg.Connection, connection)
             yield connection
 
-    @asynccontextmanager  # type: ignore[no-untyped-def]
-    async def get_transaction_connection(self):
+    @asynccontextmanager
+    async def get_transaction_connection(
+        self,
+    ) -> AsyncGenerator[asyncpg.Connection, Any]:
         """
         Acquire a Postgres connection and execute a transaction
 

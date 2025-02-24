@@ -35,6 +35,11 @@ div.main-panel {
     width: 72vw;
 }
 
+div.admin-panel {
+    text-align: left;
+    padding: 20px;
+}
+
 div.right-side-panel {
     background-color: rgb(38, 41, 42);
     color: white;
