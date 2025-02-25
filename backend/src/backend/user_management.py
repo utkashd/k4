@@ -81,7 +81,7 @@ class UsersManager(PostgresTableManager):
         return ("CREATE INDEX IF NOT EXISTS idx_user_email ON users(user_email)",)
 
     # TODO need to cache this more intelligently
-    @async_cached_property  # type: ignore[misc]
+    @async_cached_property
     async def does_at_least_one_active_admin_user_exist(self) -> bool:
         async with self.get_connection() as connection:
             admin_user_or_none = await connection.fetchrow(
@@ -159,6 +159,11 @@ class UsersManager(PostgresTableManager):
                 new_registered_user_row = await connection.fetchrow(
                     query, *user_row_params.values()
                 )
+                if not new_registered_user_row:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Unexpectedly could not insert a new user {user.user_email=} into the database.",
+                    )
                 if is_user_an_admin:
                     return AdminUser(**new_registered_user_row)
                 return NonAdminUser(**new_registered_user_row)

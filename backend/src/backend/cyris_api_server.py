@@ -46,10 +46,9 @@ cyris = Cyris()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
-    try:
-        # we do this because the `finally` clause will *always* be run, even if there's an
-        # error somewhere during the `yield`
-        postgres_connection_pool: asyncpg.Pool = await asyncpg.create_pool(
+    async def create_postgres_connection_pool() -> asyncpg.Pool[asyncpg.Record]:
+        # TODO error handling if connection fails. retry?
+        postgres_connection_pool_or_none = await asyncpg.create_pool(
             host="localhost",
             port=5432,
             user="postgres",
@@ -58,7 +57,13 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
             min_size=1,
             max_size=5,
         )
-        # TODO error handling if connection fails. retry?
+        assert postgres_connection_pool_or_none is not None
+        return postgres_connection_pool_or_none
+
+    try:
+        # we do this because the `finally` clause will *always* be run, even if there's an
+        # error somewhere during the `yield`
+        postgres_connection_pool = await create_postgres_connection_pool()
         await users_manager.set_connection_pool_and_start(postgres_connection_pool)
         await messages_manager.set_connection_pool_and_start(postgres_connection_pool)
         await extensions_manager.set_connection_pool_and_start(postgres_connection_pool)
@@ -183,12 +188,12 @@ async def get_current_active_user(
     return user
 
 
-@app.get("/")  # type: ignore[misc]
+@app.get("/")
 async def am_i_alive() -> Literal[True]:
     return True
 
 
-@app.post("/token")  # type: ignore[misc]
+@app.post("/token")
 async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> JSONResponse:
@@ -254,7 +259,7 @@ async def login_for_access_token(
     return response
 
 
-@app.post("/logout")  # type: ignore[misc]
+@app.post("/logout")
 async def logout() -> JSONResponse:
     response = JSONResponse(content={"msg": "Logout succcessful"})
     # Overwrite the client's existing `authToken` cookie with an empty/expired one
@@ -274,12 +279,12 @@ class FirstAdminDetails(BaseModel):
     desired_user_password: SecretStr = Field(max_length=32)
 
 
-@app.get("/is_setup_required")  # type: ignore[misc]
+@app.get("/is_setup_required")
 async def does_initial_setup_need_to_be_completed() -> bool:
     return not await users_manager.does_at_least_one_active_admin_user_exist
 
 
-@app.post("/first_admin")  # type: ignore[misc]
+@app.post("/first_admin")
 async def create_first_admin_user(
     first_admin_details: FirstAdminDetails,
 ) -> RegisteredUser:
@@ -303,7 +308,7 @@ async def create_first_admin_user(
         )
 
 
-@app.post("/admin")  # type: ignore[misc]
+@app.post("/admin")
 async def create_admin_user(
     new_user_details: RegistrationAttempt,
     current_admin_user: AdminUser = Depends(get_current_active_admin_user),
@@ -323,7 +328,7 @@ async def create_admin_user(
     )
 
 
-@app.post("/user")  # type: ignore[misc]
+@app.post("/user")
 async def create_user(
     new_user_details: RegistrationAttempt,
     current_admin_user: AdminUser = Depends(get_current_active_admin_user),
@@ -342,7 +347,7 @@ async def create_user(
     )
 
 
-@app.delete("/user")  # type: ignore[misc]
+@app.delete("/user")
 async def deactivate_user(
     user_to_deactivate: RegisteredUser,
     current_admin_user: AdminUser = Depends(get_current_active_admin_user),
@@ -355,7 +360,7 @@ async def deactivate_user(
     await users_manager.deactivate_user(user_to_deactivate)
 
 
-@app.put("/user")  # type: ignore[misc]
+@app.put("/user")
 async def reactivate_user(
     user_to_reactivate: RegisteredUser,
     current_admin_user: AdminUser = Depends(get_current_active_admin_user),
@@ -366,14 +371,14 @@ async def reactivate_user(
     await users_manager.reactivate_user(user_to_reactivate)
 
 
-@app.get("/user")  # type: ignore[misc]
+@app.get("/user")
 async def get_users(
     current_admin_user: AdminUser = Depends(get_current_active_admin_user),
 ) -> list[RegisteredUser]:
     return await users_manager.get_users()
 
 
-@app.get("/user/me")  # type: ignore[misc]
+@app.get("/user/me")
 async def get_current_user_info(
     current_user: RegisteredUser = Depends(get_current_active_user),
 ) -> RegisteredUser:
@@ -385,7 +390,7 @@ class ChatPreviewsRequestParams(BaseModel):
     num_chats: int = 10
 
 
-@app.get("/chat")  # type: ignore[misc]
+@app.get("/chat")
 async def get_chat_by_chat_id(
     chat_id: int,
     current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
@@ -400,14 +405,14 @@ async def get_chat_by_chat_id(
     return await messages_manager.get_chat(chat_id=chat_id)
 
 
-@app.get("/chat_previews")  # type: ignore[misc]
+@app.get("/chat_previews")
 async def get_chat_previews(
     current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
 ) -> list[ChatPreview]:
     return await messages_manager.get_user_chat_previews(current_user.user_id, 20)
 
 
-@app.delete("/chat")  # type: ignore[misc]
+@app.delete("/chat")
 async def delete_chat(
     chat_id: int,
     current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
@@ -426,7 +431,7 @@ class CreateNewChatRequestBody(BaseModel):
     message: str
 
 
-@app.post("/chat_no_stream")  # type: ignore[misc]
+@app.post("/chat_no_stream")
 async def create_new_chat_with_message_no_stream(
     create_new_chat_request_body: CreateNewChatRequestBody,
     current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
@@ -452,7 +457,7 @@ async def create_new_chat_with_message_no_stream(
     return messages_newly_in_db
 
 
-@app.post("/chat")  # type: ignore[misc]
+@app.post("/chat")
 async def create_new_chat_with_message_stream(
     create_new_chat_request_body: CreateNewChatRequestBody,
     background_tasks: BackgroundTasks,
@@ -481,7 +486,7 @@ async def create_new_chat_with_message_stream(
     )
 
 
-@app.post("/message")  # type: ignore[misc]
+@app.post("/message")
 async def send_message_to_cyris_stream(
     send_message_request_body: SendMessageRequestBody,
     background_tasks: BackgroundTasks,
@@ -577,14 +582,14 @@ async def get_and_stream_and_store_cyris_response(
     )
 
 
-@app.get("/extension")  # type: ignore[misc]
+@app.get("/extension")
 async def get_extensions(
     current_admin_user: AdminUser = Depends(get_current_active_admin_user),
 ) -> list[ExtensionInDb]:
     return await extensions_manager.get_installed_extensions()
 
 
-@app.post("/extension")  # type: ignore[misc]
+@app.post("/extension")
 async def add_extension(
     git_repo_url: GitUrl,
     current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
@@ -593,7 +598,7 @@ async def add_extension(
     return await extensions_manager.add_extension(git_repo_url)
 
 
-@app.delete("/extension")  # type: ignore[misc]
+@app.delete("/extension")
 async def uninstall_extension(
     extension_id: int,
     current_admin_user: AdminUser = Depends(get_current_active_admin_user),

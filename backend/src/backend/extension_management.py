@@ -73,7 +73,7 @@ class ExtensionsManager(PostgresTableManager):
         return []
 
     async def set_connection_pool_and_start(
-        self, connection_pool: asyncpg.Pool
+        self, connection_pool: asyncpg.Pool[asyncpg.Record]
     ) -> None:
         await super().set_connection_pool_and_start(connection_pool)
         plugin_manager.register(
@@ -121,6 +121,11 @@ class ExtensionsManager(PostgresTableManager):
                         installed_version="0.0.1", git_repo_url=git_repo_url
                     ).model_dump_json(),
                 )
+                if not new_row:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Unexpectedly could not add extension to the database.",
+                    )
                 replace_plugin_with_external_plugin(
                     "get_complete_chat_for_llm", local_path_of_extension
                 )
@@ -137,6 +142,11 @@ class ExtensionsManager(PostgresTableManager):
             query_result = await connection.fetchrow(
                 "SELECT * FROM extensions WHERE extension_id=$1", extension_id
             )
+            if not query_result:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"No extension with {extension_id=} was found in the database.",
+                )
             extension_in_db = ExtensionInDb(**query_result)
             await connection.execute(
                 "DELETE FROM extensions WHERE extension_id=$1", extension_id

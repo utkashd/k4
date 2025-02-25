@@ -3,6 +3,7 @@ from typing import Iterable
 
 from backend_commons import PostgresTableManager
 from backend_commons.messages import MessageInDb
+from fastapi import HTTPException, status
 from pydantic import BaseModel, Field
 
 
@@ -78,6 +79,11 @@ class MessagesManager(PostgresTableManager):
                 title,
                 False,
             )
+            if not new_chat:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Unexpectedly could not add the chat to the database.",
+                )
             return ChatInDb(**new_chat)
 
     async def delete_chat(self, chat_id: int) -> None:
@@ -101,6 +107,11 @@ class MessagesManager(PostgresTableManager):
                 user_id,
                 text,
             )
+            if not new_message:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Unexpectedly could not save the message to the database. {chat_id=} {user_id=}",
+                )
             new_message_in_db = MessageInDb(**new_message)
             await connection.execute(
                 "UPDATE chats SET last_message_timestamp=$1 WHERE chat_id=$2",
@@ -138,6 +149,11 @@ class MessagesManager(PostgresTableManager):
                     "SELECT * FROM messages WHERE chat_id=$1 ORDER BY inserted_at DESC LIMIT 1",
                     chat_id,
                 )
+                if not latest_message:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"No messages found in the database for chat {chat_id=}",
+                    )
                 chat_previews.append(
                     ChatPreview(
                         chat_in_db=ChatInDb(**chat),
@@ -164,6 +180,11 @@ class MessagesManager(PostgresTableManager):
             chat = await connection.fetchrow(
                 "SELECT * FROM chats WHERE chat_id=$1", chat_id
             )
+            if not chat:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"No chat with {chat_id=} was found in the database.",
+                )
             return ChatInDb(**chat)
 
     async def get_messages_of_chat(
