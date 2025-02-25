@@ -73,7 +73,7 @@ class ExtensionsManager(PostgresTableManager):
         return []
 
     async def set_connection_pool_and_start(
-        self, connection_pool: asyncpg.Pool[asyncpg.Record]
+        self, connection_pool: "asyncpg.Pool[asyncpg.Record]"
     ) -> None:
         await super().set_connection_pool_and_start(connection_pool)
         plugin_manager.register(

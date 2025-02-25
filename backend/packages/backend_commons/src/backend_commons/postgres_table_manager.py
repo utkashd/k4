@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
-from typing import Any, AsyncGenerator, Iterable, cast
+from typing import Any, AsyncGenerator, Iterable
 
 import asyncpg  # type: ignore[import-untyped,unused-ignore]
 from cyris_logger import log
@@ -25,7 +25,7 @@ class PostgresTableManager(ABC):
     """
 
     def __init__(self) -> None:
-        self.postgres_connection_pool: asyncpg.Pool | None = None
+        self.postgres_connection_pool: "asyncpg.Pool[asyncpg.Record]" | None = None
 
     @property
     @abstractmethod
@@ -35,7 +35,7 @@ class PostgresTableManager(ABC):
     @abstractmethod
     def create_indexes_queries(self) -> Iterable[str]: ...
 
-    def _get_connection_pool(self) -> asyncpg.Pool:
+    def _get_connection_pool(self) -> "asyncpg.Pool[asyncpg.Record]":
         if self.postgres_connection_pool:
             return self.postgres_connection_pool
         raise NotImplementedError(
@@ -43,7 +43,7 @@ class PostgresTableManager(ABC):
         )
 
     async def set_connection_pool_and_start(
-        self, connection_pool: asyncpg.Pool
+        self, connection_pool: "asyncpg.Pool[asyncpg.Record]"
     ) -> None:
         self.postgres_connection_pool = connection_pool
         await self._ensure_table_is_created_in_db()
@@ -65,26 +65,26 @@ class PostgresTableManager(ABC):
         log.info(f"Finished ensuring the {self.__class__.__name__} table is created")
 
     @asynccontextmanager
-    async def get_connection(self) -> AsyncGenerator[asyncpg.Connection, Any]:
+    async def get_connection(
+        self,
+    ) -> AsyncGenerator["asyncpg.pool.PoolConnectionProxy[asyncpg.Record]", Any]:
         """
         Acquire a Postgres connection
 
         Better for `SELECT` and other read methods
         """
         async with self._get_connection_pool().acquire() as connection:
-            connection = cast(asyncpg.Connection, connection)
             yield connection
 
     @asynccontextmanager
     async def get_transaction_connection(
         self,
-    ) -> AsyncGenerator[asyncpg.Connection, Any]:
+    ) -> AsyncGenerator["asyncpg.pool.PoolConnectionProxy[asyncpg.Record]", Any]:
         """
         Acquire a Postgres connection and execute a transaction
 
         Better for `INSERT` and other write methods
         """
         async with self._get_connection_pool().acquire() as connection:
-            connection = cast(asyncpg.Connection, connection)
             async with connection.transaction():
                 yield connection

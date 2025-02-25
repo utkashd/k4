@@ -46,7 +46,7 @@ cyris = Cyris()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
-    async def create_postgres_connection_pool() -> asyncpg.Pool[asyncpg.Record]:
+    async def create_postgres_connection_pool() -> "asyncpg.Pool[asyncpg.Record]":
         # TODO error handling if connection fails. retry?
         postgres_connection_pool_or_none = await asyncpg.create_pool(
             host="localhost",
