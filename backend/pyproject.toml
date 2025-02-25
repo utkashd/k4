@@ -47,7 +47,6 @@ package = false
 
 [tool.mypy]
 strict = true
-# ignore_missing_imports = true
 incremental = true
 check_untyped_defs = true
 disallow_untyped_decorators = false
