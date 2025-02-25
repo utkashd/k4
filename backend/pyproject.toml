@@ -39,7 +39,7 @@ members = ["packages/*"]
 [tool.uv]
 dev-dependencies = [
     "ipdb>=0.13.13",
-    "mypy>=1.14.1",
+    "mypy>=1.15.0",
     "ruff>=0.6.9",
     "pre-commit>=4.1.0",
 ]
