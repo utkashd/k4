@@ -75,7 +75,7 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
         # TODO I think I actually want to wait for requests to finish. do that instead
 
 
-if is_production_environment() and os.environ.get("CYRIS_SENTRY_DSN"):
+if is_production_environment() and os.environ.get("CYRIS_NTRY_DSN"):
     import sentry_sdk
 
     sentry_sdk.init(
