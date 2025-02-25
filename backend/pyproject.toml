@@ -53,4 +53,4 @@ check_untyped_defs = true
 disallow_untyped_decorators = false
 follow_untyped_imports = true
 namespace_packages = true
-python_executable = "backend/.venv/bin/python"
+python_executable = "$CYRIS_REPO_ROOT/backend/.venv/bin/python"
