@@ -17,13 +17,13 @@ dependencies = [
     "types-passlib>=1.7.7.20240819",
     "passlib[bcrypt]>=1.7.4",
     "asyncpg>=0.29.0",
+    "asyncpg-stubs>=0.30.0",
     "python-jose[cryptography]>=3.3.0",
     "sentry-sdk[fastapi]>=2.20.0",
     "async-property>=0.2.2",
     "gitpython>=3.1.44",
     "apluggy>=1.0.3",
     "python-multipart>=0.0.20",
-    "asyncpg-stubs>=0.30.0",
 ]
 
 [tool.uv.sources]
