@@ -41,3 +41,7 @@ Things I've learned
 - python package management (with uv)
 - basics of auth, jwts vs sessions, how to implement at scale
 - basics of websockets, server-side-events (SSE)
+
+## Links I need to save
+
+- tasks: <https://airtable.com/apphjIzh1mzWDyADG/tblUjxp0uPnVUhPiE/viw3X4w9qcK4VPNcq?blocks=hide>
