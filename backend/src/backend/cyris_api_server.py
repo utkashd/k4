@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from typing import Literal
 
 import asyncpg  # type: ignore[import-untyped,unused-ignore]
+import bcrypt
 from backend_commons.messages import MessageInDb
 from cyris_logger import log
 from extendables import ParamsForAlreadyExistingChat, get_complete_chat_for_llm
@@ -23,9 +24,6 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from message_management import Chat, ChatPreview, MessagesManager
-from passlib.context import (  # TODO remove passlib because it's not maintained anymore https://github.com/pyca/bcrypt/issues/684
-    CryptContext,
-)
 from pydantic import BaseModel, EmailStr, Field, SecretStr
 from user_management import (
     AdminUser,
@@ -113,7 +111,20 @@ class TokenData(BaseModel):
     user_email: EmailStr
 
 
-pwd_context = CryptContext(schemes=["bcrypt"])
+def hash_password(password: str) -> str:
+    pwd_bytes = password.encode("utf-8")
+    salt = bcrypt.gensalt()
+    hashed_password = bcrypt.hashpw(password=pwd_bytes, salt=salt)
+    return hashed_password.decode(encoding="utf-8")
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return bcrypt.checkpw(
+        password=plain_password.encode("utf-8"),
+        hashed_password=hashed_password.encode("utf-8"),
+    )
+
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
@@ -215,11 +226,10 @@ async def login_for_access_token(
     def is_password_correct(
         unhashed_user_password: SecretStr, hashed_user_password: SecretStr
     ) -> bool:
-        is_correct: bool = pwd_context.verify(  # doing this because mypy complains
+        return verify_password(
             unhashed_user_password.get_secret_value(),
             hashed_user_password.get_secret_value(),
         )
-        return is_correct
 
     if not is_password_correct(
         unhashed_user_password=unhashed_user_password,
@@ -295,9 +305,7 @@ async def create_first_admin_user(
         )
     else:
         hashed_desired_password = SecretStr(
-            pwd_context.hash(
-                first_admin_details.desired_user_password.get_secret_value()
-            )
+            hash_password(first_admin_details.desired_user_password.get_secret_value())
         )
         return await users_manager.create_user(
             desired_user_email=first_admin_details.desired_user_email,
@@ -314,7 +322,7 @@ async def create_admin_user(
     current_admin_user: AdminUser = Depends(get_current_active_admin_user),
 ) -> RegisteredUser:
     hashed_desired_password = SecretStr(
-        pwd_context.hash(new_user_details.desired_user_password.get_secret_value())
+        hash_password(new_user_details.desired_user_password.get_secret_value())
     )
     log.info(
         f"Admin `{current_admin_user.user_email}` is creating an admin user. {new_user_details.model_dump_json()}"
@@ -334,7 +342,7 @@ async def create_user(
     current_admin_user: AdminUser = Depends(get_current_active_admin_user),
 ) -> RegisteredUser:
     hashed_desired_password = SecretStr(
-        pwd_context.hash(new_user_details.desired_user_password.get_secret_value())
+        hash_password(new_user_details.desired_user_password.get_secret_value())
     )
     log.info(
         f"Admin `{current_admin_user.user_email}` is creating a non-admin user. {new_user_details.model_dump_json()}"
