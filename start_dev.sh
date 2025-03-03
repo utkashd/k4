@@ -1,16 +1,11 @@
 #!/bin/bash
+# shellcheck disable=SC2059
 set -euo pipefail # What this does: https://gist.github.com/mohanpedala/1e2ff5661761d3abd0385e8223e16425
 
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
 GREEN='\033[0;32m'
 END_COLOR='\033[0m' # No Color
-
-# source /usr/local/bin/virtualenvwrapper.sh
-# set +u # the "workon" command does a lot and we don't need to see it (+x) and uses some unbound variables (+u)
-# echo "Activating the Python virtual environment cyris_backend"
-# workon cyris_backend # activate the python environment. TODO set it up if doesn't exist
-# set -u
 
 printf "1.\tEnsuring Docker Desktop (/Applications/Docker.app) is running...\n"
 if (! docker stats --no-stream > /dev/null 2>&1 ); then # if docker is not running
@@ -24,7 +19,7 @@ if (! docker stats --no-stream > /dev/null 2>&1 ); then # if docker is not runni
     done
 fi
 
-printf "\t${GREEN}Docker Desktop is running.${END_COLOR}\n"
+printf "\t%sDocker Desktop is running.%s\n" "${GREEN}" "${END_COLOR}"
 
 
 printf "2.\tEnsuring the postgres container is running...\n"
