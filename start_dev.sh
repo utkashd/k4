@@ -19,7 +19,7 @@ if (! docker stats --no-stream > /dev/null 2>&1 ); then # if docker is not runni
     done
 fi
 
-printf "\t%sDocker Desktop is running.%s\n" "${GREEN}" "${END_COLOR}"
+printf "\t${GREEN}Docker Desktop is running.${END_COLOR}\n"
 
 
 printf "2.\tEnsuring the postgres container is running...\n"
