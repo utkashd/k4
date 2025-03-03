@@ -34,7 +34,8 @@ Authentication
 Things I've learned
 
 - docker: more comfortable with command line, better understanding of containers,
-    images, etc. more comfortable with writing dockerfiles
+    images, etc. more comfortable with writing dockerfiles, multi-stage builds, docker
+    secrets
 - SQL: prepared statements, connection pools
 - FastAPI + Uvicorn, async-await w python
 - Basic React webapp

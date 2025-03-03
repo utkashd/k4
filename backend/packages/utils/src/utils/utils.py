@@ -1,7 +1,8 @@
 import os
+import time
 from abc import ABC, abstractmethod
 from enum import Enum
-from functools import cache
+from functools import cache, lru_cache, wraps
 from typing import Any, Callable, Generator, Generic, Iterable, Iterator, TypeVar
 
 
@@ -111,3 +112,22 @@ def is_development_environment() -> bool:
 
 def is_production_environment() -> bool:
     return get_environment() == CyrisEnvironment.PRODUCTION
+
+
+def time_expiring_lru_cache(max_age_seconds: int, max_size: int = 5, **kwargs):  # type: ignore[no-untyped-def]
+    """
+    A decorator to cache function call return values, except they expire after `max_age_seconds`
+    """
+
+    def decorator(fxn):  # type: ignore[no-untyped-def]
+        @lru_cache(maxsize=max_size, **kwargs)
+        def _new(*args, time_salt: int, **kwargs):  # type: ignore[no-untyped-def]
+            return fxn(*args, **kwargs)
+
+        @wraps(fxn)
+        def _wrapped(*args, **kwargs):  # type: ignore[no-untyped-def]
+            return _new(*args, **kwargs, time_salt=int(time.time() / max_age_seconds))
+
+        return _wrapped
+
+    return decorator
