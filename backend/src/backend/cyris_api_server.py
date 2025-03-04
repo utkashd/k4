@@ -7,6 +7,7 @@ from typing import Literal
 import asyncpg  # type: ignore[import-untyped,unused-ignore]
 import bcrypt
 from backend_commons.messages import MessageInDb
+from cyris.llm_provider_management import CyrisLlmProvider, LlmProviderManager
 from cyris_logger import log
 from extendables import ParamsForAlreadyExistingChat, get_complete_chat_for_llm
 from extension_management import ExtensionInDb, ExtensionsManager, GitUrl
@@ -39,6 +40,7 @@ from cyris import ChatMessage, Cyris
 users_manager = UsersManager()
 messages_manager = MessagesManager()
 extensions_manager = ExtensionsManager()
+llm_providers_manager = LlmProviderManager()
 cyris = Cyris()
 
 
@@ -126,11 +128,6 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
-
-class SendMessageRequestBody(BaseModel):
-    chat_id: int
-    message: str
 
 
 class LlmStreamingStart(BaseModel):
@@ -437,6 +434,8 @@ async def delete_chat(
 
 class CreateNewChatRequestBody(BaseModel):
     message: str
+    model_provider: CyrisLlmProvider
+    model: str
 
 
 @app.post("/chat_no_stream")
@@ -481,7 +480,7 @@ async def create_new_chat_with_message_stream(
     if has_too_many_tokens:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Your message was too large for the model: {cyris.model=}, {num_tokens=}, {max_tokens}",
+            detail=f"Your message was too large for the model: {create_new_chat_request_body.model=}, {num_tokens=}, {max_tokens}",
         )
     chat_in_db = await messages_manager.create_new_chat(
         user_id=current_user.user_id, title=""
@@ -492,6 +491,13 @@ async def create_new_chat_with_message_stream(
         complete_chat=complete_chat,
         background_tasks=background_tasks,
     )
+
+
+class SendMessageRequestBody(BaseModel):
+    chat_id: int
+    message: str
+    model_provider: CyrisLlmProvider
+    model: str
 
 
 @app.post("/message")
@@ -523,7 +529,7 @@ async def send_message_to_cyris_stream(
     if has_too_many_tokens:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Your message + chat history was too large for the model: {cyris.model=}, {num_tokens=}, {max_tokens}",
+            detail=f"Your message + chat history was too large for the model: {send_message_request_body.model=}, {num_tokens=}, {max_tokens}",
         )
 
     return await get_and_stream_and_store_cyris_response(

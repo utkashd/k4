@@ -93,10 +93,11 @@ class ExtensionsManager(PostgresTableManager):
     async def download_extension_to_file_system_if_necessary_and_get_local_path(
         self, git_repo_url: GitUrl
     ) -> Path:
-        cyris_extensions_directory_path = Path.home().joinpath(".cyris_extensions/")
+        cyris_extensions_directory_path = Path.home().joinpath(".cyris/extensions")
         cyris_extensions_directory_path.mkdir(
-            exist_ok=True
-        )  # create the dir if it doesn't already exist
+            exist_ok=True,
+            parents=True,
+        )  # create the directories if they don't already exist
         repo_name = str(git_repo_url).split("/")[-1]
         local_path_of_extension = cyris_extensions_directory_path.joinpath(repo_name)
         if local_path_of_extension.exists():
