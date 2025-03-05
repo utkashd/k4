@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 from typing import AsyncGenerator, Literal, NamedTuple, NotRequired, TypedDict
 
@@ -5,6 +6,7 @@ from cyris.llm_provider_management import CyrisLlmProvider, LlmProviderManager
 from litellm import (  # type: ignore[attr-defined]
     acompletion,
     get_max_tokens,
+    moderation,
     token_counter,
 )
 from litellm.types.utils import ModelResponseStream
@@ -57,17 +59,30 @@ class Cyris:
             return ChatValidityInformation(
                 will_ask_succeed=True,
             )
-        else:
-            num_tokens = token_counter(model=model, messages=list(complete_chat))
-            if num_tokens <= max_tokens:
-                return ChatValidityInformation(
-                    will_ask_succeed=True,
-                )
-            else:
+
+        num_tokens = token_counter(model=model, messages=list(complete_chat))
+        if num_tokens <= max_tokens:
+            return ChatValidityInformation(
+                will_ask_succeed=True,
+            )
+
+        if os.environ.get("OPENAI_API_KEY"):
+            flagged_values = (
+                result.flagged
+                for result in moderation(
+                    input=complete_chat[-1]["content"], model="omni-moderation-latest"
+                ).results
+            )
+            if any(flagged_values):
                 return ChatValidityInformation(
                     will_ask_succeed=False,
-                    failure_detail=f"Chat exceeds maximum allowed context window for this model: {num_tokens=} {max_tokens=}",
+                    failure_detail=f"Your input `{complete_chat[-1]['content']}` was flagged for harmful content by OpenAI's moderation endpoint",
                 )
+
+        return ChatValidityInformation(
+            will_ask_succeed=False,
+            failure_detail=f"Chat exceeds maximum allowed context window for this model: {num_tokens=} {max_tokens=}",
+        )
 
     async def ask_stream(
         self,
