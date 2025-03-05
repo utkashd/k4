@@ -61,9 +61,10 @@ class Cyris:
             )
 
         num_tokens = token_counter(model=model, messages=list(complete_chat))
-        if num_tokens <= max_tokens:
+        if num_tokens > max_tokens:
             return ChatValidityInformation(
-                will_ask_succeed=True,
+                will_ask_succeed=False,
+                failure_detail=f"Chat exceeds maximum allowed context window for this model: {num_tokens=} {max_tokens=}",
             )
 
         if os.environ.get("OPENAI_API_KEY"):
@@ -80,8 +81,7 @@ class Cyris:
                 )
 
         return ChatValidityInformation(
-            will_ask_succeed=False,
-            failure_detail=f"Chat exceeds maximum allowed context window for this model: {num_tokens=} {max_tokens=}",
+            will_ask_succeed=True,
         )
 
     async def ask_stream(
