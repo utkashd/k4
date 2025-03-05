@@ -32,7 +32,7 @@ class ParamsForAlreadyExistingChat:
 
 
 class GetCompleteChatSpec:
-    @hookspec  # type: ignore[misc]
+    @hookspec
     async def get_complete_chat_for_llm(  # type: ignore[empty-body]
         self,
         new_message_from_user: str,
@@ -54,7 +54,7 @@ def convert_messages_in_db_to_chat_messages(
 
 class GetCompleteChatImplementationAbstract(ABC):
     @abstractmethod
-    @hookimpl  # type: ignore[misc]
+    @hookimpl
     async def get_complete_chat_for_llm(
         self,
         new_message_from_user: str,
@@ -80,7 +80,7 @@ class GetCompleteChatImplementationAbstract(ABC):
 
 
 class GetCompleteChatDefaultImplementation(GetCompleteChatImplementationAbstract):
-    @hookimpl  # type: ignore[misc]
+    @hookimpl
     async def get_complete_chat_for_llm(
         self,
         new_message_from_user: str,

@@ -1,12 +1,12 @@
+import json
+import os
 from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum
 from functools import lru_cache
-import json
-import os
 from pathlib import Path
-from litellm import get_model_cost_map, model_cost_map_url
 
+from litellm import get_model_cost_map, model_cost_map_url  # type: ignore[attr-defined]
 from pydantic import BaseModel
 from utils import time_expiring_lru_cache
 
@@ -43,6 +43,16 @@ class CyrisLlmProvidersConfig(BaseModel):
     anthropic: AnthropicProviderConfig | None = None
     ollama: OllamaProviderConfig | None = None
 
+    def get_llm_provider_config(
+        self, llm_provider: CyrisLlmProvider
+    ) -> LlmProviderConfig | None:
+        config_or_none = self.__getattribute__(llm_provider.value)
+        if not isinstance(config_or_none, LlmProviderConfig | None):
+            raise KeyError(
+                f"Unexpected input to this convenience function: {llm_provider=}"
+            )
+        return config_or_none
+
 
 class LlmProviderManager:
     def __init__(self) -> None:
@@ -60,31 +70,27 @@ class LlmProviderManager:
                 preferred_provider=CyrisLlmProvider.OPENAI
             )
 
-    @property
-    def preferred_provider(self):
-        return self.providers.preferred_provider
-
-    def save_providers_to_file(self):
+    def save_providers_to_file(self) -> None:
         with open(self.providers_file_path, mode="w") as providers_file:
             providers_file.write(self.providers.model_dump_json())
 
     def add_or_update_openai_provider(
         self, openai_provider_config: OpenAiProviderConfig
-    ):
+    ) -> None:
         self.providers.openai = openai_provider_config
         os.environ["OPENAI_API_KEY"] = openai_provider_config.openai_api_key
         self.save_providers_to_file()
 
     def add_or_update_anthropic_provider(
         self, anthropic_provider_config: AnthropicProviderConfig
-    ):
+    ) -> None:
         self.providers.anthropic = anthropic_provider_config
         os.environ["ANTHROPIC_API_KEY"] = anthropic_provider_config.anthropic_api_key
         self.save_providers_to_file()
 
     def add_or_update_ollama_provider(
         self, anthropic_provider_config: AnthropicProviderConfig
-    ):
+    ) -> None:
         self.providers.anthropic = anthropic_provider_config
         self.save_providers_to_file()
 
@@ -92,7 +98,7 @@ class LlmProviderManager:
         self,
         llm_provider_name: CyrisLlmProvider,
         llm_provider_config: LlmProviderConfig,
-    ):
+    ) -> None:
         match llm_provider_name:
             case CyrisLlmProvider.OPENAI:
                 assert isinstance(llm_provider_config, OpenAiProviderConfig)
@@ -109,6 +115,10 @@ class LlmProviderManager:
                 )
 
         self.providers.preferred_provider = llm_provider_name
+
+    @lru_cache(maxsize=5)
+    def is_provider_configured(self, llm_provider: CyrisLlmProvider) -> bool:
+        return self.providers.get_llm_provider_config(llm_provider) is not None
 
     @staticmethod
     @time_expiring_lru_cache(max_age_seconds=60 * 10, max_size=1)

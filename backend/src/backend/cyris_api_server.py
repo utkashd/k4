@@ -6,8 +6,7 @@ from typing import Literal
 
 import asyncpg  # type: ignore[import-untyped,unused-ignore]
 import bcrypt
-from backend_commons.messages import MessageInDb
-from cyris.llm_provider_management import CyrisLlmProvider, LlmProviderManager
+from cyris.llm_provider_management import CyrisLlmProvider
 from cyris_logger import log
 from extendables import ParamsForAlreadyExistingChat, get_complete_chat_for_llm
 from extension_management import ExtensionInDb, ExtensionsManager, GitUrl
@@ -40,7 +39,6 @@ from cyris import ChatMessage, Cyris
 users_manager = UsersManager()
 messages_manager = MessagesManager()
 extensions_manager = ExtensionsManager()
-llm_providers_manager = LlmProviderManager()
 cyris = Cyris()
 
 
@@ -434,34 +432,39 @@ async def delete_chat(
 
 class CreateNewChatRequestBody(BaseModel):
     message: str
-    model_provider: CyrisLlmProvider
-    model: str
+    llm_provider: CyrisLlmProvider
+    llm_model_name: str
 
 
-@app.post("/chat_no_stream")
-async def create_new_chat_with_message_no_stream(
-    create_new_chat_request_body: CreateNewChatRequestBody,
-    current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
-) -> list[MessageInDb]:
-    chat_in_db = await messages_manager.create_new_chat(
-        user_id=current_user.user_id, title=""
-    )
-    user_message_in_db = await messages_manager.save_client_message_to_db(
-        chat_id=chat_in_db.chat_id,
-        user_id=current_user.user_id,
-        text=create_new_chat_request_body.message,
-    )
-    messages_newly_in_db = [user_message_in_db]
-    complete_chat = await get_complete_chat_for_llm(
-        new_message_from_user=create_new_chat_request_body.message,
-        existing_chat_params=None,
-    )
-    cyris_response = await cyris.ask(messages=complete_chat)
-    cyris_message_in_db = await messages_manager.save_cyris_message_to_db(
-        chat_id=chat_in_db.chat_id, text=cyris_response
-    )
-    messages_newly_in_db.append(cyris_message_in_db)
-    return messages_newly_in_db
+# # TODO 4587: figure out if this is worth keeping
+# @app.post("/chat_no_stream")
+# async def create_new_chat_with_message_no_stream(
+#     create_new_chat_request_body: CreateNewChatRequestBody,
+#     current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
+# ) -> list[MessageInDb]:
+#     chat_in_db = await messages_manager.create_new_chat(
+#         user_id=current_user.user_id, title=""
+#     )
+#     user_message_in_db = await messages_manager.save_client_message_to_db(
+#         chat_id=chat_in_db.chat_id,
+#         user_id=current_user.user_id,
+#         text=create_new_chat_request_body.message,
+#     )
+#     messages_newly_in_db = [user_message_in_db]
+#     complete_chat = await get_complete_chat_for_llm(
+#         new_message_from_user=create_new_chat_request_body.message,
+#         existing_chat_params=None,
+#     )
+#     cyris_response = await cyris.ask(
+#         messages=complete_chat,
+#         llm_provider=create_new_chat_request_body.llm_provider,
+#         model=create_new_chat_request_body.llm_model_name,
+#     )
+#     cyris_message_in_db = await messages_manager.save_cyris_message_to_db(
+#         chat_id=chat_in_db.chat_id, text=cyris_response
+#     )
+#     messages_newly_in_db.append(cyris_message_in_db)
+#     return messages_newly_in_db
 
 
 @app.post("/chat")
@@ -474,13 +477,15 @@ async def create_new_chat_with_message_stream(
         new_message_from_user=create_new_chat_request_body.message,
         existing_chat_params=None,
     )
-    has_too_many_tokens, num_tokens, max_tokens = (
-        cyris.do_chat_messages_have_too_many_tokens(complete_chat)
+    will_ask_succeed, failure_detail = cyris.will_ask_succeed_with_detail(
+        complete_chat=complete_chat,
+        llm_provider=create_new_chat_request_body.llm_provider,
+        model=create_new_chat_request_body.llm_model_name,
     )
-    if has_too_many_tokens:
+    if not will_ask_succeed:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Your message was too large for the model: {create_new_chat_request_body.model=}, {num_tokens=}, {max_tokens}",
+            detail=failure_detail,
         )
     chat_in_db = await messages_manager.create_new_chat(
         user_id=current_user.user_id, title=""
@@ -489,6 +494,7 @@ async def create_new_chat_with_message_stream(
         user_id=current_user.user_id,
         chat_id=chat_in_db.chat_id,
         complete_chat=complete_chat,
+        llm_model_name=create_new_chat_request_body.llm_model_name,
         background_tasks=background_tasks,
     )
 
@@ -496,8 +502,8 @@ async def create_new_chat_with_message_stream(
 class SendMessageRequestBody(BaseModel):
     chat_id: int
     message: str
-    model_provider: CyrisLlmProvider
-    model: str
+    llm_provider: CyrisLlmProvider
+    llm_model_name: str
 
 
 @app.post("/message")
@@ -523,19 +529,21 @@ async def send_message_to_cyris_stream(
         ),
     )
 
-    has_too_many_tokens, num_tokens, max_tokens = (
-        cyris.do_chat_messages_have_too_many_tokens(complete_chat=complete_chat)
+    will_ask_succeed, failure_detail = cyris.will_ask_succeed_with_detail(
+        complete_chat=complete_chat,
+        llm_provider=send_message_request_body.llm_provider,
+        model=send_message_request_body.llm_model_name,
     )
-    if has_too_many_tokens:
+    if not will_ask_succeed:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Your message + chat history was too large for the model: {send_message_request_body.model=}, {num_tokens=}, {max_tokens}",
+            status_code=status.HTTP_400_BAD_REQUEST, detail=failure_detail
         )
 
     return await get_and_stream_and_store_cyris_response(
         user_id=current_user.user_id,
         chat_id=send_message_request_body.chat_id,
         complete_chat=complete_chat,
+        llm_model_name=send_message_request_body.llm_model_name,
         background_tasks=background_tasks,
     )
 
@@ -553,6 +561,7 @@ async def get_and_stream_and_store_cyris_response(
     user_id: int,
     chat_id: int,
     complete_chat: list[ChatMessage],
+    llm_model_name: str,
     background_tasks: BackgroundTasks,
 ) -> StreamingResponse:
     text = complete_chat[-1].get("unmodified_content")
@@ -574,7 +583,10 @@ async def get_and_stream_and_store_cyris_response(
         yield _format_pydantic_instance_for_stream_response(
             LlmStreamingStart(chat_id=chat_id)
         )
-        async for response_token in cyris.ask_stream(messages=complete_chat):
+        async for response_token in cyris.ask_stream(
+            messages=complete_chat,
+            model=llm_model_name,
+        ):
             if isinstance(response_token, str):
                 # ignore the final chunk, which is `None`
                 yield _format_pydantic_instance_for_stream_response(
