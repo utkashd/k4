@@ -55,13 +55,8 @@ class Cyris:
             )
 
         max_tokens = get_max_tokens_cached(model)
-        if not max_tokens:
-            return ChatValidityInformation(
-                will_ask_succeed=True,
-            )
-
         num_tokens = token_counter(model=model, messages=list(complete_chat))
-        if num_tokens > max_tokens:
+        if max_tokens and num_tokens > max_tokens:
             return ChatValidityInformation(
                 will_ask_succeed=False,
                 failure_detail=f"Chat exceeds maximum allowed context window for this model: {num_tokens=} {max_tokens=}",
