@@ -6,6 +6,7 @@ from cyris.llm_provider_management import CyrisLlmProvider, LlmProviderManager
 from litellm import (  # type: ignore[attr-defined]
     acompletion,
     get_max_tokens,
+    models_by_provider,
     moderation,
     token_counter,
 )
@@ -33,6 +34,16 @@ def get_max_tokens_cached(model: str) -> int | None:
     `None` indicates the model has an unlimited context window, I guess?
     """
     return get_max_tokens(model)
+
+
+@lru_cache(maxsize=20)
+def get_llm_provider_by_model_name(model: str) -> CyrisLlmProvider:
+    for llm_provider in CyrisLlmProvider:
+        models_of_provider = models_by_provider.get(llm_provider.value)
+        assert isinstance(models_of_provider, list)
+        if model in models_of_provider:
+            return llm_provider
+    raise ValueError(f"Invalid model? {model=}")
 
 
 class Cyris:
@@ -85,10 +96,17 @@ class Cyris:
         messages: list[ChatMessage],
         model: str,
     ) -> AsyncGenerator[str | None, None]:
+        if get_llm_provider_by_model_name(model=model) is CyrisLlmProvider.OLLAMA:
+            assert self.llm_provider_manager.is_provider_configured(
+                CyrisLlmProvider.OLLAMA
+            )
+            extra_args = {
+                "api_base": self.llm_provider_manager.providers[
+                    CyrisLlmProvider.OLLAMA
+                ].environment_variable_value
+            }
         async for chunk in await acompletion(
-            model=model,
-            messages=messages,
-            stream=True,
+            model=model, messages=messages, stream=True, **extra_args
         ):
             if not isinstance(chunk, ModelResponseStream):
                 raise Exception("Unexpected response type", chunk)

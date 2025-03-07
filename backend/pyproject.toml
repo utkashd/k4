@@ -3,7 +3,7 @@ name = "cyris_backend"
 version = "0.0.1"
 description = "I need to think of an appropriate description"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.13.1"
 dependencies = [
     "backend_commons",
     "cyris",
