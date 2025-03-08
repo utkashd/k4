@@ -2,14 +2,8 @@ import os
 from functools import lru_cache
 from typing import AsyncGenerator, Literal, NamedTuple, NotRequired, TypedDict
 
+import litellm
 from cyris.llm_provider_management import CyrisLlmProvider, LlmProviderManager
-from litellm import (  # type: ignore[attr-defined]
-    acompletion,
-    get_max_tokens,
-    models_by_provider,
-    moderation,
-    token_counter,
-)
 from litellm.types.utils import ModelResponseStream
 
 
@@ -33,13 +27,13 @@ def get_max_tokens_cached(model: str) -> int | None:
     """
     `None` indicates the model has an unlimited context window, I guess?
     """
-    return get_max_tokens(model)
+    return litellm.get_max_tokens(model)  # type: ignore[attr-defined]
 
 
 @lru_cache(maxsize=20)
 def get_llm_provider_by_model_name(model: str) -> CyrisLlmProvider:
     for llm_provider in CyrisLlmProvider:
-        models_of_provider = models_by_provider.get(llm_provider.value)
+        models_of_provider = litellm.models_by_provider.get(llm_provider.value)
         assert isinstance(models_of_provider, list)
         if model in models_of_provider:
             return llm_provider
@@ -67,17 +61,19 @@ class Cyris:
 
         max_tokens = get_max_tokens_cached(model)
         if max_tokens:
-            num_tokens = token_counter(model=model, messages=list(complete_chat))
+            num_tokens = litellm.token_counter(  # type: ignore[attr-defined]
+                model=model, messages=list(complete_chat)
+            )
             if num_tokens > max_tokens:
                 return ChatValidityInformation(
                     will_ask_succeed=False,
                     failure_detail=f"Chat exceeds maximum allowed context window for this model: {num_tokens=} {max_tokens=}",
                 )
 
-        if os.environ.get("OPENAI_API_KEY"):
+        if os.environ.get("OPENAI_API_KEY") or litellm.openai_key:
             flagged_values = (
                 result.flagged
-                for result in moderation(
+                for result in litellm.moderation(
                     input=complete_chat[-1]["content"], model="omni-moderation-latest"
                 ).results
             )
@@ -105,7 +101,7 @@ class Cyris:
                     CyrisLlmProvider.OLLAMA
                 ].environment_variable_value
             }
-        async for chunk in await acompletion(
+        async for chunk in await litellm.acompletion(
             model=model, messages=messages, stream=True, **extra_args
         ):
             if not isinstance(chunk, ModelResponseStream):
