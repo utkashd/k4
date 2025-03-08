@@ -23,19 +23,19 @@ printf "\t${GREEN}Docker Desktop is running.${END_COLOR}\n"
 
 
 printf "2.\tEnsuring the postgres container is running...\n"
-if [[ ! $( docker image ls postgres ) ]] ; then
+if ! docker image ls postgres --format '{{.Repository}}' | grep -q '^postgres$' ; then
     printf "\t${YELLOW}No postgres docker image found. Pulling the image and starting a container now.${END_COLOR}\n"
     set -x
     docker pull postgres:latest # TODO pin the postgres container version?
     docker run --name cyris-dev-postgres -e POSTGRES_PASSWORD=postgres -v postgresql-data:/var/lib/postgresql/data -p 5432:5432 -d postgres
     { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
     # TODO create the volume if it doesn't already exist
-elif [[ ! $( docker ps -a -f name=cyris-dev-postgres ) ]] ; then
+elif ! docker container ls --filter 'name=cyris-dev-postgres' --format '{{.Names}}' -a | grep -q '^cyris-dev-postgres$' ; then
     printf "\t${YELLOW}No postgres container found. Creating a container and starting it now.${END_COLOR}\n"
     set -x
     docker run --name cyris-dev-postgres -e POSTGRES_PASSWORD=postgres -e PAGER="less -S" -v postgresql-data:/var/lib/postgresql/data -p 5432:5432 -d postgres
     { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
-elif [[ ! $( docker ps -f name=cyris-dev-postgres ) ]] ; then
+elif ! docker container ls --filter 'name=cyris-dev-postgres' --filter 'status=running' --format '{{.Names}}' | grep -q '^cyris-dev-postgres$' ; then
     printf "\t${YELLOW}postgres docker container found, but the container is not running. Starting it now.${END_COLOR}\n"
     set -x
     docker container start cyris-dev-postgres > /dev/null 2>&1 # TODO loop until the container is ready?
