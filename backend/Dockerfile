@@ -1,16 +1,13 @@
-FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS builder
 
-WORKDIR /app
-
-# Enable bytecode compilation
-ENV UV_COMPILE_BYTECODE=1
-
-# Copy from the cache instead of linking since it's a mounted volume
-ENV UV_LINK_MODE=copy
+# Enable bytecode compilation, Copy from the cache instead of linking since it's a mounted volume
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 
 RUN apt-get update && \
-    apt-get upgrade -y && \
-    apt-get install -y git
+apt-get upgrade -y && \
+apt-get install -y git
+
+WORKDIR /app
 
 # Install the project's dependencies using the lockfile and settings
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -19,12 +16,15 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 uv sync --frozen --no-install-project --no-install-workspace --no-dev
 
 ADD . /app
+
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
+FROM python:3.13-slim-bookworm
+
+COPY --from=builder --chown=app:app /app /app
+
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Reset the entrypoint, don't invoke `uv`
-ENTRYPOINT []
-
-CMD ["uv", "run", "src/backend/main.py"]
+EXPOSE 8000
+ENTRYPOINT ["python", "/app/src/backend/main.py"]
