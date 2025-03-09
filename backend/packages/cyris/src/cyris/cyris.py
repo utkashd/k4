@@ -1,4 +1,3 @@
-import os
 from functools import lru_cache
 from typing import AsyncGenerator, Literal, NamedTuple, NotRequired, TypedDict
 
@@ -70,7 +69,7 @@ class Cyris:
                     failure_detail=f"Chat exceeds maximum allowed context window for this model: {num_tokens=} {max_tokens=}",
                 )
 
-        if os.environ.get("OPENAI_API_KEY") or litellm.openai_key:
+        if self.llm_provider_manager.is_provider_configured(CyrisLlmProvider.OPENAI):
             flagged_values = (
                 result.flagged
                 for result in litellm.moderation(
@@ -97,9 +96,9 @@ class Cyris:
                 CyrisLlmProvider.OLLAMA
             )
             extra_args = {
-                "api_base": self.llm_provider_manager.providers[
+                "api_base": self.llm_provider_manager.get_provider_config_else_raise(
                     CyrisLlmProvider.OLLAMA
-                ].environment_variable_value
+                ).environment_variable_value
             }
         async for chunk in await litellm.acompletion(
             model=model, messages=messages, stream=True, **extra_args

@@ -16,21 +16,34 @@ class CyrisLlmProvider(Enum):
 
 
 @dataclass
-class LlmProviderConfig:
+class LlmProviderMetadata:
     environment_variable_name: str
+
+
+@dataclass
+class LlmProviderConfig:
     environment_variable_value: str
 
 
-LLM_PROVIDER_INFO_BY_LLM_PROVIDER: dict[CyrisLlmProvider, LlmProviderConfig] = {
-    # this garbage is what vibe coding looks like 😭
-    CyrisLlmProvider.OPENAI: LlmProviderConfig(
-        environment_variable_name="OPENAI_API_KEY", environment_variable_value=""
+@dataclass
+class LlmProviderInfo:
+    metadata: LlmProviderMetadata
+    config: LlmProviderConfig | None
+
+
+LLM_PROVIDER_INFO_BY_LLM_PROVIDER: dict[CyrisLlmProvider, LlmProviderInfo] = {
+    # TODO write a test that ensures every llm provider is in this dict
+    CyrisLlmProvider.OPENAI: LlmProviderInfo(
+        metadata=LlmProviderMetadata(environment_variable_name="OPENAI_API_KEY"),
+        config=None,
     ),
-    CyrisLlmProvider.ANTHROPIC: LlmProviderConfig(
-        environment_variable_name="ANTHROPIC_API_KEY", environment_variable_value=""
+    CyrisLlmProvider.ANTHROPIC: LlmProviderInfo(
+        metadata=LlmProviderMetadata(environment_variable_name="ANTHROPIC_API_KEY"),
+        config=None,
     ),
-    CyrisLlmProvider.OLLAMA: LlmProviderConfig(
-        environment_variable_name="OLLAMA_BASE_URL", environment_variable_value=""
+    CyrisLlmProvider.OLLAMA: LlmProviderInfo(
+        metadata=LlmProviderMetadata(environment_variable_name="OLLAMA_BASE_URL"),
+        config=None,
     ),
 }
 
@@ -42,9 +55,25 @@ class LlmProviderManager:
 
         self.providers = LLM_PROVIDER_INFO_BY_LLM_PROVIDER
 
-    @lru_cache(maxsize=5)
+    async def _save_providers_to_disk(self) -> None:
+        pass
+
+    async def configure_provider(
+        self, llm_provider: CyrisLlmProvider, llm_provider_config: LlmProviderConfig
+    ) -> None:
+        self.providers[llm_provider].config = llm_provider_config
+        await self._save_providers_to_disk()
+
     def is_provider_configured(self, llm_provider: CyrisLlmProvider) -> bool:
-        return bool(self.providers[llm_provider].environment_variable_value)
+        return self.providers[llm_provider].config is not None
+
+    def get_provider_config_else_raise(
+        self, llm_provider: CyrisLlmProvider
+    ) -> LlmProviderConfig:
+        config = self.providers[llm_provider].config
+        if config:
+            return config
+        raise KeyError(f"LLM Provider {llm_provider=} is not configured.")
 
     @staticmethod
     @time_expiring_lru_cache(max_age_seconds=60 * 10, max_size=1)
