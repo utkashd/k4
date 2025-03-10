@@ -12,6 +12,15 @@ members = [
 ]
 
 [[package]]
+name = "aiofiles"
+version = "24.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/0b/03/a88171e277e8caa88a4c77808c20ebb04ba74cc4681bf1e9416c862de237/aiofiles-24.1.0.tar.gz", hash = "sha256:22a075c9e5a3810f0c2e48f3008c94d68c65d763b9b03857924c99e57355166c", size = 30247 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a5/45/30bb92d442636f570cb5651bc661f52b610e2eec3f891a5dc3a4c3667db0/aiofiles-24.1.0-py3-none-any.whl", hash = "sha256:b4ec55f4195e3eb5d7abd1bf7e061763e864dd4954231fb8539a0ef8bb8260e5", size = 15896 },
+]
+
+[[package]]
 name = "aiohappyeyeballs"
 version = "2.4.4"
 source = { registry = "https://pypi.org/simple" }
@@ -108,6 +117,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/4a/e7/82da0a03e7ba5141f05cce0d302e6eed121ae055e0456ca228bf693984bc/asttokens-3.0.0.tar.gz", hash = "sha256:0dcd8baa8d62b0c1d118b399b2ddba3c4aff271d0d7a9e0d4c1681c79035bbc7", size = 61978 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/25/8a/c46dcc25341b5bce5472c718902eb3d38600a903b14fa6aeecef3f21a46f/asttokens-3.0.0-py3-none-any.whl", hash = "sha256:e3078351a059199dd5138cb1c706e6430c05eff2ff136af5eb4790f9d28932e2", size = 26918 },
+]
+
+[[package]]
+name = "async-generator"
+version = "1.10"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ce/b6/6fa6b3b598a03cba5e80f829e0dadbb49d7645f523d209b2fb7ea0bbb02a/async_generator-1.10.tar.gz", hash = "sha256:6ebb3d106c12920aaae42ccb6f787ef5eefdcdd166ea3d628fa8476abe712144", size = 29870 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/71/52/39d20e03abd0ac9159c162ec24b93fbcaa111e8400308f2465432495ca2b/async_generator-1.10-py3-none-any.whl", hash = "sha256:01c7bf666359b4967d2cda0000cc2e4af16a0ae098cbffcb8472fb9e8ad6585b", size = 18857 },
 ]
 
 [[package]]
@@ -364,7 +382,9 @@ name = "cyris-backend"
 version = "0.0.1"
 source = { virtual = "." }
 dependencies = [
+    { name = "aiofiles" },
     { name = "apluggy" },
+    { name = "async-generator" },
     { name = "async-property" },
     { name = "asyncpg" },
     { name = "asyncpg-stubs" },
@@ -375,10 +395,12 @@ dependencies = [
     { name = "extendables" },
     { name = "fastapi" },
     { name = "gitpython" },
+    { name = "ipython" },
     { name = "pydantic", extra = ["email"] },
     { name = "python-jose", extra = ["cryptography"] },
     { name = "python-multipart" },
     { name = "sentry-sdk", extra = ["fastapi"] },
+    { name = "types-aiofiles" },
     { name = "types-python-jose" },
     { name = "utils" },
     { name = "uvicorn", extra = ["standard"] },
@@ -394,7 +416,9 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiofiles", specifier = ">=24.1.0" },
     { name = "apluggy", specifier = ">=1.0.3" },
+    { name = "async-generator", specifier = ">=1.10" },
     { name = "async-property", specifier = ">=0.2.2" },
     { name = "asyncpg", specifier = ">=0.29.0" },
     { name = "asyncpg-stubs", specifier = ">=0.30.0" },
@@ -405,10 +429,12 @@ requires-dist = [
     { name = "extendables", editable = "packages/extendables" },
     { name = "fastapi", specifier = ">=0.111.1" },
     { name = "gitpython", specifier = ">=3.1.44" },
+    { name = "ipython", specifier = ">=8.32.0" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.9.2" },
     { name = "python-jose", extras = ["cryptography"], specifier = ">=3.3.0" },
     { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "sentry-sdk", extras = ["fastapi"], specifier = ">=2.20.0" },
+    { name = "types-aiofiles", specifier = ">=24.1.0.20241221" },
     { name = "types-python-jose", specifier = ">=3.3.4.20240106" },
     { name = "utils", editable = "packages/utils" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.22.0" },
@@ -1482,6 +1508,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/eb/79/72064e6a701c2183016abbbfedaba506d81e30e232a68c9f0d6f6fcd1574/traitlets-5.14.3.tar.gz", hash = "sha256:9ed0579d3502c94b4b3732ac120375cda96f923114522847de4b3bb98b96b6b7", size = 161621 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/00/c0/8f5d070730d7836adc9c9b6408dec68c6ced86b304a9b26a14df072a6e8c/traitlets-5.14.3-py3-none-any.whl", hash = "sha256:b74e89e397b1ed28cc831db7aea759ba6640cb3de13090ca145426688ff1ac4f", size = 85359 },
+]
+
+[[package]]
+name = "types-aiofiles"
+version = "24.1.0.20241221"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ab/5e/f984b9ddc7eecdf31e683e692d933f3672276ed95aad6adb9aea9ecbdc29/types_aiofiles-24.1.0.20241221.tar.gz", hash = "sha256:c40f6c290b0af9e902f7f3fa91213cf5bb67f37086fb21dc0ff458253586ad55", size = 14081 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ff/da/77902220df98ce920444cf3611fa0b1cf0dc2cfa5a137c55e93829aa458e/types_aiofiles-24.1.0.20241221-py3-none-any.whl", hash = "sha256:11d4e102af0627c02e8c1d17736caa3c39de1058bea37e2f4de6ef11a5b652ab", size = 14162 },
 ]
 
 [[package]]

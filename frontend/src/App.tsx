@@ -84,7 +84,15 @@ function App() {
                         />
                     }
                 />
-                <Route path="/setup" element={<Setup server={server} />} />
+                <Route
+                    path="/setup"
+                    element={
+                        <Setup
+                            server={server}
+                            setCurrentUserAndCookie={setCurrentUserAndCookie}
+                        />
+                    }
+                />
                 <Route
                     path="/login"
                     element={
@@ -124,13 +132,6 @@ function Home({
             navigate("/set_server");
             return;
         }
-        if (!currentUser) {
-            navigate("/login");
-            return;
-        } else if (currentUser.is_user_an_admin) {
-            navigate("/admin_panel");
-            return;
-        }
         async function setupIfNecessary(server: Server) {
             const response = await server.api.get<boolean>(
                 "/is_setup_required"
@@ -143,6 +144,13 @@ function Home({
         }
         if (server) {
             setupIfNecessary(server);
+        }
+        if (!currentUser) {
+            navigate("/login");
+            return;
+        } else if (currentUser.is_user_an_admin) {
+            navigate("/admin_panel");
+            return;
         }
         navigate("/chats");
         return;

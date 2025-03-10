@@ -64,7 +64,13 @@ export function SetServer({
     );
 }
 
-export const Setup = ({ server }: { server: Server | null }) => {
+export const Setup = ({
+    server,
+    setCurrentUserAndCookie,
+}: {
+    server: Server | null;
+    setCurrentUserAndCookie: (user: User | null) => void;
+}) => {
     const navigate = useNavigate();
     useEffect(() => {
         if (!server) {
@@ -78,11 +84,26 @@ export const Setup = ({ server }: { server: Server | null }) => {
     const [firstAdminUsernameInput, setFirstAdminUsernameInput] = useState("");
     const [firstAdminPasswordInput, setFirstAdminPasswordInput] = useState("");
 
-    const submitLogin = async () => {
+    const createFirstAdmin = async () => {
         await server.api.post("/first_admin", {
             desired_user_email: firstAdminUsernameInput,
             desired_user_password: firstAdminPasswordInput,
         });
+        // TODO this is a copy/paste of the login code. maybe don't do that lol
+        await server.api.post(
+            "/token",
+            new URLSearchParams({
+                username: firstAdminUsernameInput,
+                password: firstAdminPasswordInput,
+            }),
+            { withCredentials: true }
+        );
+        const currentUserRequestResponse = await server.api.get<User>(
+            "/user/me",
+            { withCredentials: true }
+        );
+        setCurrentUserAndCookie(currentUserRequestResponse.data);
+        navigate("/");
     };
     return (
         <>
@@ -111,7 +132,7 @@ export const Setup = ({ server }: { server: Server | null }) => {
             <div className="submitLogin">
                 <button
                     onClick={(_event) => {
-                        submitLogin();
+                        createFirstAdmin();
                     }}
                 >
                     Create Admin

@@ -65,6 +65,7 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
         await users_manager.set_connection_pool_and_start(postgres_connection_pool)
         await messages_manager.set_connection_pool_and_start(postgres_connection_pool)
         await extensions_manager.set_connection_pool_and_start(postgres_connection_pool)
+        await cyris.setup_llm_providers_from_disk()
         yield  # everything above the yield is for startup, everything after is for shutdown
     finally:
         await wait_for(
@@ -286,14 +287,14 @@ class FirstAdminDetails(BaseModel):
 
 @app.get("/is_setup_required")
 async def does_initial_setup_need_to_be_completed() -> bool:
-    return not await users_manager.does_at_least_one_active_admin_user_exist
+    return not await users_manager.does_at_least_one_active_admin_user_exist()
 
 
 @app.post("/first_admin")
 async def create_first_admin_user(
     first_admin_details: FirstAdminDetails,
 ) -> RegisteredUser:
-    if await users_manager.does_at_least_one_active_admin_user_exist:
+    if await users_manager.does_at_least_one_active_admin_user_exist():
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can't try to create a user through this endpoint because an admin user has already been created.",
@@ -431,6 +432,7 @@ async def delete_chat(
 
 
 class CreateNewChatRequestBody(BaseModel):
+    # TODO can I use a dataclass here instead?
     message: str
     llm_provider: CyrisLlmProvider
     llm_model_name: str
@@ -499,11 +501,8 @@ async def create_new_chat_with_message_stream(
     )
 
 
-class SendMessageRequestBody(BaseModel):
+class SendMessageRequestBody(CreateNewChatRequestBody):
     chat_id: int
-    message: str
-    llm_provider: CyrisLlmProvider
-    llm_model_name: str
 
 
 @app.post("/message")

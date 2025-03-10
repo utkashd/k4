@@ -43,6 +43,9 @@ class Cyris:
     def __init__(self) -> None:
         self.llm_provider_manager = LlmProviderManager()
 
+    async def setup_llm_providers_from_disk(self) -> None:
+        await self.llm_provider_manager.read_and_configure_providers_from_disk_if_file_exists()
+
     def will_ask_succeed_with_detail(
         self,
         complete_chat: list[ChatMessage],
@@ -91,17 +94,34 @@ class Cyris:
         messages: list[ChatMessage],
         model: str,
     ) -> AsyncGenerator[str | None, None]:
-        if get_llm_provider_by_model_name(model=model) is CyrisLlmProvider.OLLAMA:
-            assert self.llm_provider_manager.is_provider_configured(
-                CyrisLlmProvider.OLLAMA
-            )
-            extra_args = {
-                "api_base": self.llm_provider_manager.get_provider_config_else_raise(
+        def _get_extra_args_for_ollama_or_huggingface() -> dict[str, str]:
+            extra_args_for_ollama_or_huggingface: dict[str, str] = {}
+            llm_provider = get_llm_provider_by_model_name(model)
+            if llm_provider is CyrisLlmProvider.OLLAMA:
+                assert self.llm_provider_manager.is_provider_configured(
                     CyrisLlmProvider.OLLAMA
-                ).environment_variable_value
-            }
+                )
+                extra_args_for_ollama_or_huggingface["api_base"] = (
+                    self.llm_provider_manager.get_provider_config_else_raise(
+                        CyrisLlmProvider.OLLAMA
+                    ).environment_variable_value
+                )
+            elif llm_provider is CyrisLlmProvider.HUGGINGFACE:
+                assert self.llm_provider_manager.is_provider_configured(
+                    CyrisLlmProvider.HUGGINGFACE
+                )
+                extra_args_for_ollama_or_huggingface["api_base"] = (
+                    self.llm_provider_manager.get_provider_config_else_raise(
+                        CyrisLlmProvider.HUGGINGFACE
+                    ).environment_variable_value
+                )
+            return extra_args_for_ollama_or_huggingface
+
         async for chunk in await litellm.acompletion(
-            model=model, messages=messages, stream=True, **extra_args
+            model=model,
+            messages=messages,
+            stream=True,
+            **_get_extra_args_for_ollama_or_huggingface(),
         ):
             if not isinstance(chunk, ModelResponseStream):
                 raise Exception("Unexpected response type", chunk)

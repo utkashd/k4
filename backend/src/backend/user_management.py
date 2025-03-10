@@ -1,7 +1,8 @@
 import asyncpg  # type: ignore[import-untyped,unused-ignore]
-from async_property import (  # type: ignore[import-untyped,unused-ignore]
-    async_cached_property,
-)
+
+# from async_property import (  # type: ignore[import-untyped,unused-ignore]
+#     async_cached_property,
+# )
 from backend_commons import PostgresTableManager
 from fastapi import HTTPException, status
 from pydantic import BaseModel, EmailStr, Field, SecretStr
@@ -80,8 +81,7 @@ class UsersManager(PostgresTableManager):
     def create_indexes_queries(self) -> tuple[str]:
         return ("CREATE INDEX IF NOT EXISTS idx_user_email ON users(user_email)",)
 
-    # TODO need to cache this more intelligently
-    @async_cached_property
+    # TODO need to cache this more intelligently. Cache only if true?
     async def does_at_least_one_active_admin_user_exist(self) -> bool:
         async with self.get_connection() as connection:
             admin_user_or_none = await connection.fetchrow(

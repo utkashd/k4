@@ -23,6 +23,10 @@ dependencies = [
     "gitpython>=3.1.44",
     "apluggy>=1.0.3",
     "python-multipart>=0.0.20",
+    "aiofiles>=24.1.0",
+    "types-aiofiles>=24.1.0.20241221",
+    "async-generator>=1.10", # needed for ollama via litellm: https://docs.litellm.ai/docs/providers/ollama#example-usage---streaming--acompletion
+    "ipython>=8.32.0",
 ]
 
 [tool.uv.sources]

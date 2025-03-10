@@ -99,6 +99,8 @@ function ChatBox({
                         body: JSON.stringify({
                             chat_id: chatId,
                             message: humanInputSaved,
+                            llm_model_name: "gpt-4o-mini",
+                            llm_provider: "openai",
                         }),
                     }
                 );
@@ -113,7 +115,11 @@ function ChatBox({
                         headers: {
                             "Content-Type": "application/json",
                         },
-                        body: JSON.stringify({ message: humanInputSaved }),
+                        body: JSON.stringify({
+                            message: humanInputSaved,
+                            llm_model_name: "gpt-4o-mini",
+                            llm_provider: "openai",
+                        }),
                     }
                 );
             }
