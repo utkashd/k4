@@ -117,6 +117,9 @@ class Cyris:
                 )
             return extra_args_for_ollama_or_huggingface
 
+        # for char in messages[-1]["content"]:
+        #     yield char
+
         async for chunk in await litellm.acompletion(
             model=model,
             messages=messages,

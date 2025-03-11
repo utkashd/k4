@@ -5,31 +5,14 @@ description = "I need to think of an appropriate description"
 readme = "README.md"
 requires-python = ">=3.13.1"
 dependencies = [
-    "backend_commons",
-    "cyris",
-    "utils",
-    "extendables",
-    "cyris-logger",
+    "api",
     "sentry-sdk[fastapi]>=2.20.0",
-    "pydantic[email]>=2.9.2",
     "fastapi>=0.111.1",
     "uvicorn[standard]>=0.22.0",
-    "python-jose[cryptography]>=3.3.0",
-    "types-python-jose>=3.3.4.20240106",
-    "bcrypt>=4.3.0",
-    "asyncpg>=0.29.0",
-    "asyncpg-stubs>=0.30.0",
-    "async-property>=0.2.2",
-    "gitpython>=3.1.44",
-    "apluggy>=1.0.3",
-    "python-multipart>=0.0.20",
-    "aiofiles>=24.1.0",
-    "types-aiofiles>=24.1.0.20241221",
-    "async-generator>=1.10", # needed for ollama via litellm: https://docs.litellm.ai/docs/providers/ollama#example-usage---streaming--acompletion
-    "ipython>=8.32.0",
 ]
 
 [tool.uv.sources]
+api = { workspace = true }
 backend_commons = { workspace = true }
 cyris = { workspace = true }
 utils = { workspace = true }
