@@ -1,0 +1,17 @@
+[project]
+name = "backend-commons"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "k4-logger",
+    "pydantic>=2.9.2",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv.sources]
+k4-logger = { workspace = true }

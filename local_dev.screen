@@ -1,0 +1,4 @@
+screen ./local_dev.frontend
+split
+focus
+screen ./local_dev.backend

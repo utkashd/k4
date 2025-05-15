@@ -1,0 +1,46 @@
+div.chats-list {
+    display: flex;
+    flex-direction: column;
+}
+
+div.chat-preview,
+div.chat-preview-selected {
+    text-align: left;
+    padding-left: 10%;
+    padding-bottom: 8px;
+    padding-top: 8px;
+    border-top: 1px solid black;
+    border-bottom: 1px solid black;
+}
+
+div.chat-preview {
+    background-color: rgb(49, 49, 49);
+    width: 80%;
+    padding-right: 20%;
+}
+
+div.chat-preview-selected {
+    /* background-color: rgb(59, 59, 59); */
+    background-color: black;
+    width: 80%;
+    padding-right: 20%;
+}
+
+span.chat-preview-sender {
+    font-size: large;
+    color: blanchedalmond;
+}
+
+span.chat-preview-message {
+    font-size: medium;
+    color: mediumslateblue;
+}
+
+button.delete-chat-button {
+    width: 18%;
+}
+
+button.new-chat-button {
+    width: 75%;
+    margin-bottom: 35px;
+}

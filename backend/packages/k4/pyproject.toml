@@ -1,0 +1,23 @@
+[project]
+name = "k4"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "backend-commons",
+    "litellm>=1.58.2",
+    "rich>=13.9.2",
+    "async-generator>=1.10", # needed for ollama via litellm: https://docs.litellm.ai/docs/providers/ollama#example-usage---streaming--acompletion
+    "utils",
+    "aiofiles>=24.1.0",
+    "types-aiofiles>=24.1.0.20241221",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv.sources]
+utils = { workspace = true }
+backend-commons = { workspace = true }

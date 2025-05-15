@@ -1,0 +1,150 @@
+div.k4-chatbox {
+    height: 100%;
+    /* width: 100%; */
+    /* overflow-y: scroll; */
+}
+
+div.k4-chatbox-padded {
+    --rad: 20px;
+    --rad-sm: 3px;
+    font: 16px/1.5 sans-serif;
+    display: flex;
+    flex-direction: column;
+    padding: 23px;
+    /* max-width: 500px; */
+    margin: auto;
+    height: 90%;
+    overflow-y: scroll;
+    /* border: 3px solid gray; */
+    box-sizing: border-box;
+}
+
+div.k4-chatbox-message-sender {
+    height: 10%;
+    padding: 3px;
+    /* border: 3px solid gray; */
+    box-sizing: border-box;
+    display: flex;
+}
+
+/*div.chat-message-left {
+    text-align: left;
+    margin-left: auto;
+    position: absolute;
+}
+
+div.chat-message-right {
+    text-align: right;
+    margin-right: auto;
+    position: absolute;
+} */
+
+/* Got the below from https://stackoverflow.com/questions/71154905/css-for-chat-room-speech-bubble-position#:~:text=Chat%20messages%20using%20CSS%20Flex
+ */
+
+.msg {
+    position: relative;
+    max-width: 100%;
+    padding-left: 15px;
+    padding-right: 15px;
+    padding-bottom: 0px;
+    padding-top: 0px;
+    margin-bottom: 12px;
+    text-align: left;
+}
+
+.msg.sent {
+    border-radius: var(--rad) var(--rad-sm) var(--rad-sm) var(--rad);
+    box-sizing: border-box;
+    background: rgb(9, 93, 162);
+    color: #fff;
+    max-width: 75%;
+    /* moves it to the right */
+    margin-left: auto;
+}
+
+.msg.received {
+    border-radius: var(--rad-sm) var(--rad) var(--rad) var(--rad-sm);
+    box-sizing: border-box;
+    background: rgb(32, 35, 36);
+    color: rgb(178, 172, 162);
+    max-width: 80%;
+    /* moves it to the left */
+    margin-right: auto;
+}
+
+div.system-message {
+    margin-right: auto;
+    text-align: left;
+}
+
+/* Improve radius for messages group */
+
+.msg.sent:first-child,
+.msg.rcvd + .msg.sent {
+    border-top-right-radius: var(--rad);
+}
+
+.msg.rcvd:first-child,
+.msg.sent + .msg.rcvd {
+    border-top-left-radius: var(--rad);
+    box-sizing: border-box;
+}
+
+/* time */
+
+/*
+.msg::before {
+    content: attr(data-time);
+    font-size: 0.8rem;
+    position: absolute;
+    bottom: 100%;
+    color: #888;
+    white-space: nowrap;
+    /* Hidden by default *\/
+    display: none;
+}
+
+.msg.sent::before {
+    right: 15px;
+}
+
+.msg.rcvd::before {
+    left: 15px;
+}
+
+/* Show time only for first message in group *\/
+
+.msg:first-child::before,
+.msg.sent + .msg.rcvd::before,
+.msg.rcvd + .msg.sent::before {
+    /* Show only for first message in group *\/
+    display: block;
+}
+*/
+
+.chat-input {
+    flex: 1;
+    height: 40px;
+    padding: 0 5px;
+    border: none;
+    border-radius: 5px;
+    color: #fff;
+    font-size: 14px;
+    box-sizing: border-box;
+    outline: none;
+}
+
+.chat-input-textarea {
+    /* height: 37px; */
+    padding: 10px 5px;
+    resize: none;
+    width: 60%;
+    height: 100%;
+}
+
+button.chatbox-send-button {
+    box-sizing: border-box;
+    margin-left: 5px;
+    margin-right: 5px;
+}

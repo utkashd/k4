@@ -1,0 +1,64 @@
+repos:
+    - repo: https://github.com/astral-sh/ruff-pre-commit
+      rev: v0.9.3
+      hooks:
+          - id: ruff
+            args: [--fix]
+            files: \.py$
+
+    - repo: https://github.com/timothycrosley/isort
+      rev: 5.13.2
+      hooks:
+          - id: isort
+            args: ["--profile", "black"]
+            files: \.py$
+
+    - repo: https://github.com/pre-commit/mirrors-mypy
+      rev: v1.15.0
+      hooks:
+          - id: mypy
+            args: ["--config-file", "backend/pyproject.toml"]
+            files: \.py$
+
+    - repo: https://github.com/igorshubovych/markdownlint-cli
+      rev: v0.44.0
+      hooks:
+          - id: markdownlint
+            files: \.(md|markdown)$
+
+    - repo: https://github.com/pre-commit/pre-commit-hooks
+      rev: v5.0.0
+      hooks:
+          - id: end-of-file-fixer
+          - id: trailing-whitespace
+            files: \.py$
+
+    - repo: https://github.com/pre-commit/pre-commit-hooks
+      rev: v5.0.0
+      hooks:
+          - id: check-added-large-files
+          - id: check-yaml
+
+    - repo: https://github.com/koalaman/shellcheck-precommit
+      rev: v0.10.0
+      hooks:
+          - id: shellcheck
+
+    - repo: local
+      hooks:
+          - id: eslint
+            name: npm run lint
+            entry: bash -c "cd frontend && npm run lint"
+            language: system
+            pass_filenames: false
+            files: ^frontend/.*$
+
+    - repo: local
+      hooks:
+          - id: pytest
+            name: pytest
+            # >- means "strip out line breaks, don't add a line break at the end"
+            entry: ./backend/.venv/bin/pytest
+            language: system
+            pass_filenames: true
+            files: ^backend/tests/.*\.py$

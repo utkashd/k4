@@ -1,0 +1,197 @@
+#!/bin/bash
+# shellcheck disable=SC2059
+
+########################################################################################
+# If you don't include the above "shellcheck disable..." then you get a few of these
+# from shellcheck (pre-commit step):
+#    In shmake line 21:
+#        printf "${RED}$1${END_COLOR}\n"
+#               ^----------------------^ SC2059 (info): Don't use variables in the 
+#                                                       printf format string. Use 
+#                                                       printf '..%s..' "$foo".
+########################################################################################
+
+set -euo pipefail
+# What this does: https://gist.github.com/mohanpedala/1e2ff5661761d3abd0385e8223e16425
+
+########################################################################################
+# Utilities
+########################################################################################
+
+_printlnRed() {
+    RED='\033[0;31m'
+    END_COLOR='\033[0m'
+    printf "${RED}$1${END_COLOR}\n"
+}
+
+_printlnYellow() {
+    YELLOW='\033[1;33m'
+    END_COLOR='\033[0m'
+    printf "${YELLOW}$1${END_COLOR}\n"
+}
+
+_printlnGreen() {
+    GREEN='\033[0;32m'
+    END_COLOR='\033[0m'
+    printf "${GREEN}$1${END_COLOR}\n"
+}
+
+K4_REPO_ROOT="$(dirname "$(realpath "$0")")" # assumes this script is in the root directory of this repository
+
+########################################################################################
+# Recipes
+########################################################################################
+
+startDockerDesktop() {
+    printf "\tEnsuring Docker Desktop is running...\n"
+    if ! docker info > /dev/null 2>&1 ; then # if docker is not running
+        _printlnYellow "\tDocker Desktop not running. Starting it now."
+        _printlnYellow "\tIf a Docker Desktop window opens, you can close it."
+        open /Applications/Docker.app
+        while ! docker stats --no-stream > /dev/null 2>&1 ; do # while docker isn't yet running
+            printf "\tWaiting for Docker Desktop to start...\n"
+            sleep 1
+        done
+    fi
+    _printlnGreen "\tDocker Desktop is running."
+}
+
+buildAndRunApplication() {
+    printf "\tBuilding and running the application...\n"
+
+    OLD_BACKEND_IMAGE_ID_ELSE_EMPTY_STRING="$(docker image ls --format json | jq -rs '.[] | select(.Repository == "k4-backend") | .ID')"
+    OLD_FRONTEND_IMAGE_ID_ELSE_EMPTY_STRING="$(docker image ls --format json | jq -rs '.[] | select(.Repository == "k4-frontend") | .ID')"
+
+    set -x
+    K4_ENVIRONMENT=development \
+        K4_FRONTEND_SENTRY_DSN="" \
+        K4_SENTRY_DSN="" \
+        docker compose --project-directory "${K4_REPO_ROOT}" up --build -d
+    { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
+
+    NEW_BACKEND_IMAGE_ID="$(docker image ls --format json | jq -rs '.[] | select(.Repository == "k4-backend") | .ID')"
+    if [ "${OLD_BACKEND_IMAGE_ID_ELSE_EMPTY_STRING}" != "" ] ; then
+        if [ "${OLD_BACKEND_IMAGE_ID_ELSE_EMPTY_STRING}" != "${NEW_BACKEND_IMAGE_ID}" ] ; then
+            _printlnYellow "\tFYI: Deleting the old dangling image (backend)."
+            set -x
+            docker image rm "${OLD_BACKEND_IMAGE_ID_ELSE_EMPTY_STRING}"
+            { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
+        fi
+    fi
+
+    NEW_FRONTEND_IMAGE_ID="$(docker image ls --format json | jq -rs '.[] | select(.Repository == "k4-frontend") | .ID')"
+    if [ "${OLD_FRONTEND_IMAGE_ID_ELSE_EMPTY_STRING}" != "" ] ; then
+        if [ "${OLD_FRONTEND_IMAGE_ID_ELSE_EMPTY_STRING}" != "${NEW_FRONTEND_IMAGE_ID}" ] ; then
+            _printlnYellow "\tFYI: Deleting the old dangling image (frontend)."
+            set -x
+            docker image rm "${OLD_FRONTEND_IMAGE_ID_ELSE_EMPTY_STRING}"
+            { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
+        fi
+    fi
+    _printlnGreen "\tApplication is running."
+}
+
+buildForPersonalProduction() {
+    set -x
+    K4_ENVIRONMENT=production \
+        K4_FRONTEND_SENTRY_DSN="${K4_FRONTEND_SENTRY_DSN}" \
+        K4_SENTRY_DSN="${K4_SENTRY_DSN}" \
+        DOCKER_DEFAULT_PLATFORM=linux/amd64 \
+        docker compose --project-directory "${K4_REPO_ROOT}" build
+    { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
+
+    _printlnYellow "You'll need to manually delete any dangling images"
+}
+
+startDev() {
+    startDockerDesktop
+    buildAndRunApplication
+    _printlnGreen "All set! Ready to use the app at http://localhost:5173, http://localhost:8000/docs 😎"
+}
+
+startDevOnHostMachine() {
+    startDockerDesktop
+
+    docker compose up postgres -d
+
+    screen -c local_dev.screen
+}
+
+stopDev() {
+    if docker stats --no-stream > /dev/null 2>&1 ; then # if docker is running
+        printf "Stopping the containers.\n"
+        set -x
+        K4_ENVIRONMENT=development docker compose stop
+        { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
+
+        _printlnGreen "Containers have been stopped."
+    fi
+    _printlnGreen "All set! Ready to chill 😎"
+}
+
+stopAndQuitDockerDesktop() {
+    stopDev
+    if docker stats --no-stream > /dev/null 2>&1 ; then # if docker is running
+        printf "Quitting Docker Desktop...\n"
+        set -x
+        osascript -e 'quit app "Docker Desktop"'
+        { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
+    fi
+    _printlnGreen "Docker Desktop has (probably) been quitted."
+}
+
+########################################################################################
+# Usage
+########################################################################################
+
+usage() {
+    echo "Usage: $0 [dev|stop|stopAndQuitDockerDesktop|buildPersonal|startDevOnHostMachine]" 1>&2
+    exit 1
+}
+
+########################################################################################
+# Exposed recipes
+########################################################################################
+
+if [[ $# -eq 0 ]] ; then
+    usage
+fi
+
+for arg in "$@"; do
+    case $arg in
+        --help)
+            usage
+            ;;
+        -h)
+            usage
+            ;;
+        help)
+            usage
+            ;;
+        h)
+            usage
+            ;;
+        dev)
+            startDev
+            ;;
+        stop)
+            stopDev
+            _printlnYellow "FYI: Did not quit Docker Desktop. Do that with:"
+            _printlnYellow ""
+            _printlnYellow "$0 stopAndQuitDockerDesktop"
+            ;;
+        stopAndQuitDockerDesktop)
+            stopAndQuitDockerDesktop
+            ;;
+        buildPersonal)
+            buildForPersonalProduction
+            ;;
+        startDevOnHostMachine)
+            startDevOnHostMachine
+            ;;
+        *)
+            echo "Unknown option: $arg" >&2
+            usage
+            ;;
+    esac
+done

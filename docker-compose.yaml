@@ -1,0 +1,49 @@
+name: k4
+services:
+    postgres:
+        image: postgres:17.4-bookworm
+        container_name: k4-postgres
+        environment:
+            POSTGRES_PASSWORD: postgres
+            PAGER: "less -S" # makes queries made in the container more readable
+        volumes:
+            - postgresql-data:/var/lib/postgresql/data
+        ports:
+            - "5432:5432"
+        restart: unless-stopped
+
+    backend:
+        build:
+            context: ./backend # directory
+            dockerfile: Dockerfile
+        container_name: k4-backend
+        environment:
+            K4_ENVIRONMENT: "${K4_ENVIRONMENT}"
+            K4_SENTRY_DSN: "${K4_SENTRY_DSN}"
+            IN_CONTAINER: true
+        volumes:
+            - backend-data:/k4_data
+        ports:
+            - "8000:8000"
+        depends_on:
+            - postgres
+        restart: unless-stopped
+
+    frontend:
+        build:
+            context: ./frontend # directory
+            dockerfile: Dockerfile
+            args:
+                K4_ENVIRONMENT: "${K4_ENVIRONMENT}"
+                K4_FRONTEND_SENTRY_DSN: "${K4_FRONTEND_SENTRY_DSN}"
+                IN_CONTAINER: true
+        container_name: k4-frontend
+        ports:
+            - "5173:80"
+        depends_on:
+            - backend
+        restart: unless-stopped
+
+volumes:
+    postgresql-data:
+    backend-data:

@@ -1,0 +1,31 @@
+[project]
+name = "api"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "k4",
+    "extendables",
+    "fastapi>=0.111.1",
+    "pydantic[email]>=2.9.2",
+    "asyncpg>=0.29.0",
+    "asyncpg-stubs>=0.30.0",
+    "python-jose[cryptography]>=3.3.0",
+    "types-python-jose>=3.3.4.20240106",
+    "bcrypt>=4.3.0",
+    "async-property>=0.2.2",
+    "gitpython>=3.1.44",
+    "apluggy>=1.0.3",
+    "python-multipart>=0.0.20",
+    "hvac>=2.3.0",
+    "types-hvac>=2.3.0.20240621",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv.sources]
+k4 = { workspace = true }
+extendables = { workspace = true }

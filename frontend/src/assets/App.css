@@ -1,0 +1,58 @@
+#root {
+    /* max-width: 1280px; */
+    /* margin: 0 auto; */
+    /* padding: 2rem; */
+    text-align: center;
+    height: 100vh;
+    width: 100vw;
+}
+
+body {
+    margin: 0;
+    display: flex;
+    place-items: center;
+    min-width: 320px;
+    width: 100%;
+    height: 100vh;
+}
+
+div.app-container {
+    display: flex;
+    width: 100%;
+    height: 100%;
+}
+
+div.left-side-panel {
+    background-color: rgb(38, 41, 42);
+    color: white;
+    height: 100%;
+    width: 18vw;
+}
+
+div.main-panel {
+    background-color: #000000;
+    height: 100%;
+    width: 72vw;
+}
+
+div.admin-panel {
+    text-align: left;
+    padding: 20px;
+}
+
+div.right-side-panel {
+    background-color: rgb(38, 41, 42);
+    color: white;
+    height: 100%;
+    width: 10vw;
+}
+
+img.logo-test {
+    width: 66%;
+    height: auto;
+    box-sizing: border-box;
+    padding-top: 40px;
+    padding-left: 20px;
+    padding-right: 20px;
+    padding-bottom: 20px;
+}

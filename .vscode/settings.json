@@ -1,0 +1,46 @@
+{
+    "editor.formatOnSave": true,
+    "editor.rulers": [88],
+    "[json]": {
+        "editor.defaultFormatter": "vscode.json-language-features"
+    },
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff"
+    },
+    "[markdown]": {
+        "editor.defaultFormatter": "DavidAnson.vscode-markdownlint",
+        "editor.rulers": [80]
+    },
+    "[javascript]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[typescript]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[typescriptreact]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "rewrap.autoWrap.enabled": true,
+    "autoDocstring.docstringFormat": "numpy",
+    "autoDocstring.startOnNewLine": true,
+    "files.exclude": {
+        "**/.git": true,
+        "**/.svn": true,
+        "**/.hg": true,
+        "**/CVS": true,
+        "**/.DS_Store": true,
+        "**/Thumbs.db": true,
+        "**/.mypy_cache/**": true,
+        "**/.ruff_cache/**": true,
+        "**/__pycache__/**": true,
+        ".venv": true
+    },
+    "mypy-type-checker.ignorePatterns": [
+        "**/site-packages/**/*.py",
+        ".vscode/*.py",
+        "**/.mypy_cache/**",
+        "**/.ruff_cache/**",
+        "**/__pycache__/**"
+    ],
+    "python.defaultInterpreterPath": "backend/.venv/bin/python"
+}

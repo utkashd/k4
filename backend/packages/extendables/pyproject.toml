@@ -1,0 +1,22 @@
+[project]
+name = "extendables"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "apluggy>=1.0.3",
+    "backend-commons",
+    "k4",
+]
+
+[project.scripts]
+extendables = "extendables:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv.sources]
+backend-commons = { workspace = true }
+k4 = { workspace = true }

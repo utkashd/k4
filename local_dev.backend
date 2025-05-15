@@ -1,0 +1,4 @@
+#!/bin/bash
+
+K4_REPO_ROOT="$(dirname "$(realpath "$0")")"
+cd "${K4_REPO_ROOT}/backend" && uv run src/backend/main.py
