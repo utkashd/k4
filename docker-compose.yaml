@@ -17,6 +17,7 @@ services:
             context: ./backend # directory
             dockerfile: Dockerfile
         container_name: k4-backend
+        env_file: .env
         environment:
             K4_ENVIRONMENT: "${K4_ENVIRONMENT}"
             K4_SENTRY_DSN: "${K4_SENTRY_DSN}"

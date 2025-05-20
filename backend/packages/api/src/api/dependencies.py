@@ -1,3 +1,4 @@
+import os
 from asyncio import wait_for
 from contextlib import asynccontextmanager
 
@@ -14,6 +15,8 @@ from k4 import K4
 from .extension_management import ExtensionsManager
 from .message_management import MessagesManager
 from .user_management import AdminUser, NonAdminUser, UsersManager
+
+SECRET_KEY = os.environ["K4_BACKEND_SECRET_KEY"]
 
 users_manager = UsersManager()
 messages_manager = MessagesManager()
@@ -53,11 +56,6 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
             postgres_connection_pool.close(), 60
         )  # wait 60 seconds for the connections to complete whatever they're doing and close
         # TODO I think I actually want to wait for requests to finish. do that instead
-
-
-SECRET_KEY = "12345"
-# TODO generate this when we start for the first time and save it to local machine
-# Generate with `openssl rand -hex 32`
 
 
 class TokenData(BaseModel):
@@ -113,7 +111,7 @@ async def get_current_active_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        payload = jwt.decode(token=token, key=SECRET_KEY, algorithms=["HS256"])
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
