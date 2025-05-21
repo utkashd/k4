@@ -3,7 +3,8 @@ Thumbs.db
 *.pyc
 *.egg-info/
 __pycache__/
-.venv/*
+.pytest_cache/
+.venv/
 
 tmp/*
 
