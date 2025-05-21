@@ -20,7 +20,6 @@ services:
         env_file: .env
         environment:
             K4_ENVIRONMENT: "${K4_ENVIRONMENT}"
-            K4_SENTRY_DSN: "${K4_SENTRY_DSN}"
             IN_CONTAINER: true
         volumes:
             - backend-data:/k4_data
@@ -36,7 +35,6 @@ services:
             dockerfile: Dockerfile
             args:
                 K4_ENVIRONMENT: "${K4_ENVIRONMENT}"
-                K4_FRONTEND_SENTRY_DSN: "${K4_FRONTEND_SENTRY_DSN}"
                 IN_CONTAINER: true
         container_name: k4-frontend
         ports:

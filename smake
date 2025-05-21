@@ -64,8 +64,6 @@ buildAndRunApplication() {
 
     set -x
     K4_ENVIRONMENT=development \
-        K4_FRONTEND_SENTRY_DSN="" \
-        K4_SENTRY_DSN="" \
         docker compose --project-directory "${K4_REPO_ROOT}" up --build -d
     { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
 
@@ -94,8 +92,6 @@ buildAndRunApplication() {
 buildForPersonalProduction() {
     set -x
     K4_ENVIRONMENT=production \
-        K4_FRONTEND_SENTRY_DSN="${K4_FRONTEND_SENTRY_DSN}" \
-        K4_SENTRY_DSN="${K4_SENTRY_DSN}" \
         DOCKER_DEFAULT_PLATFORM=linux/amd64 \
         docker compose --project-directory "${K4_REPO_ROOT}" build
     { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed

@@ -1,4 +1,3 @@
-import os
 from typing import Literal
 
 import uvicorn
@@ -13,28 +12,7 @@ from api import (
 )
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from utils.environment import (
-    is_development_environment,
-    is_production_environment,
-    is_running_in_docker_container,
-)
-
-if is_production_environment() and os.getenv("K4_SENTRY_DSN"):
-    import sentry_sdk
-
-    sentry_sdk.init(
-        # THIS MUST HAPPEN BEFORE app = `FastAPI()`
-        dsn=os.getenv("K4_SENTRY_DSN"),
-        # Set traces_sample_rate to 1.0 to capture 100%
-        # of transactions for tracing.
-        traces_sample_rate=1.0,
-        _experiments={
-            # Set continuous_profiling_auto_start to True
-            # to automatically start the profiler on when
-            # possible.
-            "continuous_profiling_auto_start": True,
-        },
-    )
+from utils.environment import is_development_environment, is_running_in_docker_container
 
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(

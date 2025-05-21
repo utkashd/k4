@@ -113,26 +113,8 @@ function App() {
                         />
                     }
                 />
-                <Route path="/test_sentry" element={<SentryTest />} />
             </Routes>
         </Router>
-    );
-}
-
-function SentryTest() {
-    return (
-        <>
-            This page exists for testing Sentry.
-            <br />
-            <button
-                onClick={(event) => {
-                    event.preventDefault();
-                    throw new Error("Intentional error from the frontend!");
-                }}
-            >
-                Click me to raise an error that *should* get captured by Sentry
-            </button>
-        </>
     );
 }
 
