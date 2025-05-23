@@ -1,5 +1,4 @@
 from .chats import chats_router
-from .debug import debug_router
 from .dependencies import lifespan
 from .extensions import extensions_router
 from .providers import providers_router
@@ -13,5 +12,4 @@ __all__ = [
     "users_router",
     "providers_router",
     "lifespan",
-    "debug_router",
 ]
