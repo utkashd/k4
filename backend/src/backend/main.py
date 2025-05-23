@@ -3,7 +3,6 @@ from typing import Literal
 import uvicorn
 from api import (
     chats_router,
-    debug_router,
     extensions_router,
     lifespan,
     providers_router,
@@ -32,7 +31,6 @@ app.include_router(users_router)
 app.include_router(chats_router)
 app.include_router(extensions_router)
 app.include_router(providers_router)
-app.include_router(debug_router)
 
 
 @app.get("/")
