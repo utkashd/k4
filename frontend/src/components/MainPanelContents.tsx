@@ -92,7 +92,7 @@ export const Setup = ({
         });
         // TODO this is a copy/paste of the login code. maybe don't do that lol
         await server.api.post(
-            "/token",
+            "/login",
             new URLSearchParams({
                 username: firstAdminUsernameInput,
                 password: firstAdminPasswordInput,
@@ -180,7 +180,7 @@ export const Login = ({
         e.preventDefault();
         e.stopPropagation();
         await server.api.post(
-            "/token",
+            "/login",
             new URLSearchParams({
                 username: usernameInput,
                 password: passwordInput,

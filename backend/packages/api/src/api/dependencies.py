@@ -1,11 +1,12 @@
+import datetime
 import os
 from asyncio import wait_for
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 
 import asyncpg
 import bcrypt
 from fastapi import Cookie, FastAPI, HTTPException, Request, status
-from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel, EmailStr
 from utils.environment import is_running_in_docker_container
@@ -14,7 +15,7 @@ from k4 import K4
 
 from .extension_management import ExtensionsManager
 from .message_management import MessagesManager
-from .user_management import AdminUser, NonAdminUser, UsersManager
+from .user_management import AdminUser, NonAdminUser, RegisteredUser, UsersManager
 
 SECRET_KEY = os.environ["K4_BACKEND_SECRET_KEY"]
 
@@ -76,7 +77,60 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     )
 
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+@dataclass
+class Days:
+    days_after_which_token_expires: int
+
+
+@dataclass
+class Minutes:
+    minutes_after_which_token_expires: int
+
+
+def create_token(
+    data_to_encode: dict[str, EmailStr | datetime.datetime],
+    time_after_which_token_expires: Days | Minutes,
+) -> str:
+    if isinstance(time_after_which_token_expires, Days):
+        time_access_token_expires = datetime.datetime.now(
+            datetime.UTC
+        ) + datetime.timedelta(
+            days=time_after_which_token_expires.days_after_which_token_expires
+        )
+    else:
+        time_access_token_expires = datetime.datetime.now(
+            datetime.UTC
+        ) + datetime.timedelta(
+            minutes=time_after_which_token_expires.minutes_after_which_token_expires
+        )
+
+    data_to_encode.update({"exp": time_access_token_expires})
+    encoded_jwt: str = jwt.encode(data_to_encode, SECRET_KEY, algorithm="HS256")
+    return encoded_jwt
+
+
+def create_short_lived_access_token(
+    data_to_encode: dict[str, EmailStr | datetime.datetime],
+    minutes_after_which_access_token_expires: int,
+) -> str:
+    return create_token(
+        data_to_encode=data_to_encode,
+        time_after_which_token_expires=Minutes(
+            minutes_after_which_token_expires=minutes_after_which_access_token_expires
+        ),
+    )
+
+
+def create_long_lived_refresh_token(
+    data_to_encode: dict[str, EmailStr | datetime.datetime],
+    days_after_which_refresh_token_expires: int,
+) -> str:
+    return create_token(
+        data_to_encode=data_to_encode,
+        time_after_which_token_expires=Days(
+            days_after_which_token_expires=days_after_which_refresh_token_expires
+        ),
+    )
 
 
 async def get_current_active_admin_user(request: Request) -> AdminUser:
@@ -119,16 +173,12 @@ async def get_current_active_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    user_email = payload.get("user_email")
-    if not user_email or not isinstance(user_email, str):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Unexpected issue encountered when attempting to validate credentials.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    user_cookie_val = payload.get("user")
+    assert isinstance(user_cookie_val, str)
 
-    user = await users_manager.get_active_user_by_email(
-        user_email
-    )  # TODO get by user id which will be much faster
+    user = RegisteredUser.model_validate_json(json_data=user_cookie_val)
 
-    return user
+    if user.is_user_an_admin:
+        return AdminUser.model_validate_json(json_data=user_cookie_val)
+    else:
+        return NonAdminUser.model_validate_json(json_data=user_cookie_val)
