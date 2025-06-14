@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, Iterable
 
-import asyncpg  # type: ignore[import-untyped,unused-ignore]
+import asyncpg
 from k4_logger import log
 
 
@@ -25,7 +25,7 @@ class PostgresTableManager(ABC):
     """
 
     def __init__(self) -> None:
-        self.postgres_connection_pool: "asyncpg.Pool[asyncpg.Record]" | None = None
+        self.postgres_connection_pool: "asyncpg.Pool[asyncpg.Record] | None" = None
 
     @property
     @abstractmethod

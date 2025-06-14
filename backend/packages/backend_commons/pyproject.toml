@@ -6,6 +6,8 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "k4-logger",
+    "asyncpg>=0.29.0",
+    "asyncpg-stubs>=0.30.0",
     "pydantic>=2.9.2",
 ]
 

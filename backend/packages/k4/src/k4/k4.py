@@ -85,40 +85,49 @@ class K4:
             will_ask_succeed=True,
         )
 
-    def _get_extra_args_for_ollama_or_huggingface(self, model: str) -> dict[str, str]:
-        extra_args_for_ollama_or_huggingface: dict[str, str] = {}
-        llm_provider = get_llm_provider_by_model_name(model)
-        if llm_provider is K4LlmProvider.OLLAMA:
-            assert self.llm_provider_manager.is_provider_configured(
-                K4LlmProvider.OLLAMA
-            )
-            extra_args_for_ollama_or_huggingface["api_base"] = (
-                self.llm_provider_manager.get_provider_config_else_raise(
-                    K4LlmProvider.OLLAMA
-                ).environment_variable_value.get_secret_value()
-            )
-        elif llm_provider is K4LlmProvider.HUGGINGFACE:
-            assert self.llm_provider_manager.is_provider_configured(
-                K4LlmProvider.HUGGINGFACE
-            )
-            extra_args_for_ollama_or_huggingface["api_base"] = (
-                self.llm_provider_manager.get_provider_config_else_raise(
-                    K4LlmProvider.HUGGINGFACE
-                ).environment_variable_value.get_secret_value()
-            )
-        return extra_args_for_ollama_or_huggingface
-
     async def ask_stream(
         self,
         messages: list[ChatMessage],
         model: str,
     ) -> AsyncGenerator[str | None, None]:
-        async for chunk in await litellm.acompletion(
+        class ExtraArgs(TypedDict, total=False):
+            """
+            This class is needed for Pylance type checking to be happy :(
+            """
+
+            api_base: str
+
+        def _get_extra_args_for_ollama_or_huggingface(model: str) -> ExtraArgs:
+            extra_args_for_ollama_or_huggingface = ExtraArgs()
+            llm_provider = get_llm_provider_by_model_name(model)
+            if llm_provider is K4LlmProvider.OLLAMA:
+                assert self.llm_provider_manager.is_provider_configured(
+                    K4LlmProvider.OLLAMA
+                )
+                extra_args_for_ollama_or_huggingface["api_base"] = (
+                    self.llm_provider_manager.get_provider_config_else_raise(
+                        K4LlmProvider.OLLAMA
+                    ).environment_variable_value.get_secret_value()
+                )
+            elif llm_provider is K4LlmProvider.HUGGINGFACE:
+                assert self.llm_provider_manager.is_provider_configured(
+                    K4LlmProvider.HUGGINGFACE
+                )
+                extra_args_for_ollama_or_huggingface["api_base"] = (
+                    self.llm_provider_manager.get_provider_config_else_raise(
+                        K4LlmProvider.HUGGINGFACE
+                    ).environment_variable_value.get_secret_value()
+                )
+            return extra_args_for_ollama_or_huggingface
+
+        async_generator_completion = await litellm.acompletion(
             model=model,
             messages=messages,
             stream=True,
-            **self._get_extra_args_for_ollama_or_huggingface(model),
-        ):
+            **_get_extra_args_for_ollama_or_huggingface(model),
+        )
+        assert isinstance(async_generator_completion, litellm.CustomStreamWrapper)  # type: ignore[attr-defined]
+        async for chunk in async_generator_completion:
             if not isinstance(chunk, ModelResponseStream):
                 raise Exception("Unexpected response type", chunk)
             if len(chunk.choices) != 1:

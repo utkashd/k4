@@ -43,6 +43,7 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
         assert postgres_connection_pool_or_none is not None
         return postgres_connection_pool_or_none
 
+    postgres_connection_pool = None
     try:
         # we do this because the `finally` clause will *always* be run, even if there's an
         # error somewhere during the `yield`
@@ -53,10 +54,11 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
         await k4.setup_llm_providers_from_disk()
         yield  # everything above the yield is for startup, everything after is for shutdown
     finally:
-        await wait_for(
-            postgres_connection_pool.close(), 60
-        )  # wait 60 seconds for the connections to complete whatever they're doing and close
-        # TODO I think I actually want to wait for requests to finish. do that instead
+        if postgres_connection_pool:
+            await wait_for(
+                postgres_connection_pool.close(), 60
+            )  # wait 60 seconds for the connections to complete whatever they're doing and close
+            # TODO I think I actually want to wait for requests to finish. do that instead
 
 
 class TokenData(BaseModel):

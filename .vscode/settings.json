@@ -42,5 +42,6 @@
         "**/.ruff_cache/**",
         "**/__pycache__/**"
     ],
-    "python.defaultInterpreterPath": "backend/.venv/bin/python"
+    "python.defaultInterpreterPath": "backend/.venv/bin/python",
+    "python.analysis.typeCheckingMode": "standard"
 }
