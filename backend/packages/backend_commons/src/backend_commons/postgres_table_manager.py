@@ -27,10 +27,12 @@ class PostgresTableManager(ABC):
     def __init__(self) -> None:
         self.postgres_connection_pool: "asyncpg.Pool[asyncpg.Record] | None" = None
 
+    # I believe the order of property(abstractmethod(function)) matters here
     @property
     @abstractmethod
     def create_table_queries(self) -> Iterable[str]: ...
 
+    # I believe the order of property(abstractmethod(function)) matters here
     @property
     @abstractmethod
     def create_indexes_queries(self) -> Iterable[str]: ...

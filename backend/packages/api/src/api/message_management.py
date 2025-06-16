@@ -45,7 +45,7 @@ class MessagesManager(PostgresTableManager):
             """
         CREATE TABLE IF NOT EXISTS chats (
             chat_id SERIAL PRIMARY KEY,
-            user_id INT NOT NULL REFERENCES users (user_id),
+            user_id INT NOT NULL REFERENCES users (user_id) ON DELETE CASCADE,
             title VARCHAR(32) NOT NULL,
             last_message_timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             is_archived BOOLEAN NOT NULL
@@ -54,8 +54,8 @@ class MessagesManager(PostgresTableManager):
             """
         CREATE TABLE IF NOT EXISTS messages (
             message_id SERIAL PRIMARY KEY,
-            chat_id INT NOT NULL REFERENCES chats (chat_id),
-            user_id INT REFERENCES users (user_id),
+            chat_id INT NOT NULL REFERENCES chats (chat_id) ON DELETE CASCADE,
+            user_id INT REFERENCES users (user_id) ON DELETE CASCADE,
             text TEXT NOT NULL,
             inserted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         )
@@ -142,7 +142,7 @@ class MessagesManager(PostgresTableManager):
                 user_id,
                 num_chats,
             )
-            chat_previews = []
+            chat_previews: list[ChatPreview] = []
             for chat in chats:
                 chat_id = ChatInDb(**chat).chat_id
                 latest_message = await connection.fetchrow(
