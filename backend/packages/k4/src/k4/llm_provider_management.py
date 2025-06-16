@@ -35,7 +35,6 @@ class LlmProviderInfo(BaseModel):
 
 
 LLM_PROVIDER_INFO_BY_LLM_PROVIDER_DEFAULT: dict[K4LlmProvider, LlmProviderInfo] = {
-    # TODO write a test that ensures every llm provider is in this dict
     K4LlmProvider.OPENAI: LlmProviderInfo(
         llm_provider_name=K4LlmProvider.OPENAI,
         metadata=LlmProviderMetadata(environment_variable_name="OPENAI_API_KEY"),
