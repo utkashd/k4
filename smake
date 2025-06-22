@@ -23,17 +23,32 @@ _printlnRed() {
     END_COLOR='\033[0m'
     printf "${RED}$1${END_COLOR}\n"
 }
+_printRed() {
+    RED='\033[0;31m'
+    END_COLOR='\033[0m'
+    printf "${RED}$1${END_COLOR}"
+}
 
 _printlnYellow() {
     YELLOW='\033[1;33m'
     END_COLOR='\033[0m'
     printf "${YELLOW}$1${END_COLOR}\n"
 }
+_printYellow() {
+    YELLOW='\033[1;33m'
+    END_COLOR='\033[0m'
+    printf "${YELLOW}$1${END_COLOR}"
+}
 
 _printlnGreen() {
     GREEN='\033[0;32m'
     END_COLOR='\033[0m'
     printf "${GREEN}$1${END_COLOR}\n"
+}
+_printGreen() {
+    GREEN='\033[0;32m'
+    END_COLOR='\033[0m'
+    printf "${GREEN}$1${END_COLOR}"
 }
 
 K4_REPO_ROOT="$(dirname "$(realpath "$0")")" # assumes this script is in the root directory of this repository
@@ -108,9 +123,38 @@ startDev() {
 startDevOnHostMachine() {
     startDockerDesktop
 
-    docker compose up postgres -d
+    K4_ENVIRONMENT=development docker compose up postgres -d
 
     screen -c local_dev.screen
+}
+
+getShellToContainerPostgres() {
+
+    _printlnGreen "********************"
+
+    printf "Get in with:\n"
+    _printYellow "root@abcdefghijkl:/# "
+    _printlnGreen "psql -U postgres"
+
+    printf "\nConnect to the database: \n"
+    _printYellow "postgres=# "
+    _printlnGreen "\c postgres"
+
+    printf "\nShow tables: \n"
+    _printYellow "postgres=# "
+    _printlnGreen "\d"
+
+    printf "\nExample query: \n"
+    _printYellow "postgres=# "
+    _printlnGreen "select * from users limit 5;"
+
+    printf "\nUse "
+    _printYellow "exit"
+    printf " to, uh, exit.\n"
+
+    _printlnGreen "********************"
+
+    docker exec -it k4-postgres bash
 }
 
 stopDev() {
@@ -141,7 +185,7 @@ stopAndQuitDockerDesktop() {
 ########################################################################################
 
 usage() {
-    echo "Usage: $0 [dev|stop|stopAndQuitDockerDesktop|buildPersonal|startDevOnHostMachine]" 1>&2
+    echo "Usage: smake [dev|getShellToContainerPostgres|stop|stopAndQuitDockerDesktop|buildPersonal|startDevOnHostMachine]" 1>&2
     exit 1
 }
 
@@ -170,11 +214,14 @@ for arg in "$@"; do
         dev)
             startDev
             ;;
+        getShellToContainerPostgres)
+            getShellToContainerPostgres
+            ;;
         stop)
             stopDev
             _printlnYellow "FYI: Did not quit Docker Desktop. Do that with:"
             _printlnYellow ""
-            _printlnYellow "$0 stopAndQuitDockerDesktop"
+            _printlnYellow "smake stopAndQuitDockerDesktop"
             ;;
         stopAndQuitDockerDesktop)
             stopAndQuitDockerDesktop
