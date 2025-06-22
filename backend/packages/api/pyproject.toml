@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "k4",
-    "extendables",
+    "extensibles",
     "fastapi>=0.111.1",
     "pydantic[email]>=2.9.2",
     "asyncpg>=0.29.0",
@@ -28,4 +28,4 @@ build-backend = "hatchling.build"
 
 [tool.uv.sources]
 k4 = { workspace = true }
-extendables = { workspace = true }
+extensibles = { workspace = true }

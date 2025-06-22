@@ -1,6 +1,6 @@
 from typing import Literal
 
-from extendables import ParamsForAlreadyExistingChat, get_complete_chat_for_llm
+from extensibles import ParamsForAlreadyExistingChat, get_complete_chat_for_llm
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from k4.llm_provider_management import K4LlmProvider

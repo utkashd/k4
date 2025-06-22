@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from backend_commons.messages import MessageInDb
-from extendables import hookimpl, hookspec, plugin_manager
+from extensibles import hookimpl, hookspec, plugin_manager
 
 from k4 import ChatMessage
 

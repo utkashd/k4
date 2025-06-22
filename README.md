@@ -1,6 +1,6 @@
 # K4
 
-A ChatGPT-style interface built for extendability.
+A ChatGPT-style interface built for extensibility.
 
 ## Setup
 

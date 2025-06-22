@@ -6,7 +6,7 @@ requires-python = ">=3.13"
 members = [
     "api",
     "backend-commons",
-    "extendables",
+    "extensibles",
     "k4",
     "k4-backend",
     "k4-logger",
@@ -109,7 +109,7 @@ dependencies = [
     { name = "asyncpg" },
     { name = "asyncpg-stubs" },
     { name = "bcrypt" },
-    { name = "extendables" },
+    { name = "extensibles" },
     { name = "fastapi" },
     { name = "gitpython" },
     { name = "hvac" },
@@ -128,7 +128,7 @@ requires-dist = [
     { name = "asyncpg", specifier = ">=0.29.0" },
     { name = "asyncpg-stubs", specifier = ">=0.30.0" },
     { name = "bcrypt", specifier = ">=4.3.0" },
-    { name = "extendables", editable = "packages/extendables" },
+    { name = "extensibles", editable = "packages/extensibles" },
     { name = "fastapi", specifier = ">=0.111.1" },
     { name = "gitpython", specifier = ">=3.1.44" },
     { name = "hvac", specifier = ">=2.3.0" },
@@ -476,9 +476,9 @@ wheels = [
 ]
 
 [[package]]
-name = "extendables"
+name = "extensibles"
 version = "0.1.0"
-source = { editable = "packages/extendables" }
+source = { editable = "packages/extensibles" }
 dependencies = [
     { name = "apluggy" },
     { name = "backend-commons" },

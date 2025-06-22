@@ -13,7 +13,7 @@ dependencies = [
 [tool.uv.sources]
 api = { workspace = true }
 backend_commons = { workspace = true }
-extendables = { workspace = true }
+extensibles = { workspace = true }
 k4 = { workspace = true }
 k4-logger = { workspace = true }
 utils = { workspace = true }

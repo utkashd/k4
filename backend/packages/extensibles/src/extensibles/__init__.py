@@ -1,5 +1,5 @@
 __version__ = "0.0.1"
-from .extendables import (
+from .extensibles import (
     hookimpl,
     hookspec,
     plugin_manager,

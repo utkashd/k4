@@ -4,7 +4,7 @@ from typing import Annotated
 
 import asyncpg
 from backend_commons import PostgresTableManager
-from extendables import (
+from extensibles import (
     GetCompleteChatDefaultImplementation,
     plugin_manager,
     replace_plugin_with_external_plugin,
