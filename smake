@@ -74,34 +74,64 @@ startDockerDesktop() {
 buildAndRunApplication() {
     printf "\tBuilding and running the application...\n"
 
-    OLD_BACKEND_IMAGE_ID_ELSE_EMPTY_STRING="$(docker image ls --format json | jq -rs '.[] | select(.Repository == "k4-backend") | .ID')"
-    OLD_FRONTEND_IMAGE_ID_ELSE_EMPTY_STRING="$(docker image ls --format json | jq -rs '.[] | select(.Repository == "k4-frontend") | .ID')"
+    OLD_BACKEND_IMAGE_ID_ELSE_EMPTY_STRING="$(docker image ls --format json | jq -rs --arg name "k4-backend" '.[] | select(.Repository == $name) | .ID')"
+    OLD_FRONTEND_IMAGE_ID_ELSE_EMPTY_STRING="$(docker image ls --format json | jq -rs --arg name "k4-frontend" '.[] | select(.Repository == $name) | .ID')"
 
     set -x
     K4_ENVIRONMENT=development \
         docker compose --project-directory "${K4_REPO_ROOT}" up --build -d
     { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
 
-    NEW_BACKEND_IMAGE_ID="$(docker image ls --format json | jq -rs '.[] | select(.Repository == "k4-backend") | .ID')"
-    if [ "${OLD_BACKEND_IMAGE_ID_ELSE_EMPTY_STRING}" != "" ] ; then
-        if [ "${OLD_BACKEND_IMAGE_ID_ELSE_EMPTY_STRING}" != "${NEW_BACKEND_IMAGE_ID}" ] ; then
-            _printlnYellow "\tFYI: Deleting the old dangling image (backend)."
-            set -x
-            docker image rm "${OLD_BACKEND_IMAGE_ID_ELSE_EMPTY_STRING}"
-            { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
-        fi
-    fi
+    _removeOldDanglingImageIfExists "k4-backend" "$OLD_BACKEND_IMAGE_ID_ELSE_EMPTY_STRING"
+    _removeOldDanglingImageIfExists "k4-frontend" "$OLD_FRONTEND_IMAGE_ID_ELSE_EMPTY_STRING"
 
-    NEW_FRONTEND_IMAGE_ID="$(docker image ls --format json | jq -rs '.[] | select(.Repository == "k4-frontend") | .ID')"
-    if [ "${OLD_FRONTEND_IMAGE_ID_ELSE_EMPTY_STRING}" != "" ] ; then
-        if [ "${OLD_FRONTEND_IMAGE_ID_ELSE_EMPTY_STRING}" != "${NEW_FRONTEND_IMAGE_ID}" ] ; then
-            _printlnYellow "\tFYI: Deleting the old dangling image (frontend)."
+    _printlnGreen "\tApplication is running."
+}
+
+buildAndRunBackendAndPostgres() {
+    printf "\tBuilding and running the backend + postgres...\n"
+
+    OLD_BACKEND_IMAGE_ID_ELSE_EMPTY_STRING="$(docker image ls --format json | jq -rs --arg name "k4-backend" '.[] | select(.Repository == $name) | .ID')"
+
+    set -x
+    K4_ENVIRONMENT=development \
+        docker compose --project-directory "${K4_REPO_ROOT}" up backend postgres --build -d
+    { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
+
+    _removeOldDanglingImageIfExists "k4-backend" "$OLD_BACKEND_IMAGE_ID_ELSE_EMPTY_STRING"
+
+    _printlnGreen "\tApplication is running."
+}
+
+buildAndRunFrontend() {
+    printf "\tBuilding and running the frontend...\n"
+
+    OLD_BACKEND_IMAGE_ID_ELSE_EMPTY_STRING="$(docker image ls --format json | jq -rs --arg name "k4-backend" '.[] | select(.Repository == $name) | .ID')"
+
+    set -x
+    K4_ENVIRONMENT=development \
+        docker compose --project-directory "${K4_REPO_ROOT}" up frontend postgres --build -d
+    { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
+
+    _removeOldDanglingImageIfExists "k4-backend" "$OLD_BACKEND_IMAGE_ID_ELSE_EMPTY_STRING"
+
+    _printlnGreen "\tApplication is running."
+}
+
+_removeOldDanglingImageIfExists() {
+
+    local image_name="$1"
+    local old_image_id_else_empty_string="$2"
+
+    NEW_IMAGE_ID="$(docker image ls --format json | jq -rs --arg name "$image_name" '.[] | select(.Repository == $name) | .ID')"
+    if [ -n "${old_image_id_else_empty_string}" ] ; then
+        if [ "${old_image_id_else_empty_string}" != "${NEW_IMAGE_ID}" ] ; then
+            _printlnYellow "\tFYI: Deleting the old dangling image (${image_name})."
             set -x
-            docker image rm "${OLD_FRONTEND_IMAGE_ID_ELSE_EMPTY_STRING}"
+            docker image rm "${old_image_id_else_empty_string}"
             { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
         fi
     fi
-    _printlnGreen "\tApplication is running."
 }
 
 buildForPersonalProduction() {
@@ -118,6 +148,12 @@ startDev() {
     startDockerDesktop
     buildAndRunApplication
     _printlnGreen "All set! Ready to use the app at http://localhost:5173, http://localhost:8000/docs 😎"
+}
+
+startDevBackendPostgres() {
+    startDockerDesktop
+    buildAndRunBackendAndPostgres
+    _printlnGreen "All set! Ready to use the backend at http://localhost:8000/docs 😎"
 }
 
 startDevOnHostMachine() {
@@ -154,7 +190,9 @@ getShellToContainerPostgres() {
 
     _printlnGreen "********************"
 
+    set -x
     docker exec -it k4-postgres bash
+    { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
 }
 
 stopDev() {
@@ -185,7 +223,7 @@ stopAndQuitDockerDesktop() {
 ########################################################################################
 
 usage() {
-    echo "Usage: smake [dev|getShellToContainerPostgres|stop|stopAndQuitDockerDesktop|buildPersonal|startDevOnHostMachine]" 1>&2
+    echo "Usage: smake [dev|devBackend|getShellToContainerPostgres|stop|stopAndQuitDockerDesktop|buildPersonal|startDevOnHostMachine]" 1>&2
     exit 1
 }
 
@@ -213,6 +251,9 @@ for arg in "$@"; do
             ;;
         dev)
             startDev
+            ;;
+        devBackend)
+            startDevBackendPostgres
             ;;
         getShellToContainerPostgres)
             getShellToContainerPostgres
