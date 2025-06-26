@@ -224,6 +224,17 @@ stopAndQuitDockerDesktop() {
 
 usage() {
     echo "Usage: smake [dev|devBackend|getShellToContainerPostgres|stop|stopAndQuitDockerDesktop|buildPersonal|startDevOnHostMachine]" 1>&2
+
+    # TODO descriptions formatted nicely
+
+    _printlnYellow "dev"
+    _printlnYellow "devBackend"
+    _printlnYellow "getShellToContainerPostgres"
+    _printlnYellow "stop"
+    _printlnYellow "stopAndQuitDockerDesktop"
+    _printlnYellow "buildPersonal"
+    _printlnYellow "startDevOnHostMachine"
+
     exit 1
 }
 
