@@ -2,6 +2,7 @@ from typing import Literal
 
 import uvicorn
 from api import (
+    auth_router,
     chats_router,
     extensions_router,
     lifespan,
@@ -26,6 +27,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_router)
 app.include_router(setup_router)
 app.include_router(users_router)
 app.include_router(chats_router)

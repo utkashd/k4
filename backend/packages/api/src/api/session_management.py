@@ -9,6 +9,13 @@ from pydantic import BaseModel
 
 class SessionInDb(BaseModel):
     session_id: uuid.UUID
+    user_id: int
+    created_at: datetime.datetime
+    last_seen_at: datetime.datetime
+    expires_at: datetime.datetime
+    user_agent: str
+    ip_address: str
+    is_active: bool
 
 
 class SessionsManager(PostgresTableManager):
@@ -52,6 +59,16 @@ class SessionsManager(PostgresTableManager):
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"Unexpectedly could not create the session. {session_id=} {user_id=}",
                 )
-            new_session_in_db = SessionInDb(**new_session)
+            return SessionInDb(**new_session)
 
-            return new_session_in_db
+    async def get_unexpired_session(self, session_id: uuid.UUID) -> SessionInDb:
+        async with self.get_connection() as connection:
+            row = await connection.fetchrow(
+                "SELECT * FROM sessions WHERE session_id=$1 AND expires_at > CURRENT_TIMESTAMP",
+                session_id,
+            )
+
+            # TODO handle unhappy cases
+
+            assert row
+            return SessionInDb(**row)

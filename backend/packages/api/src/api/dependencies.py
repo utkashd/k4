@@ -1,13 +1,10 @@
-import datetime
-import os
+import uuid
 from asyncio import wait_for
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
 
 import asyncpg
 import bcrypt
-from fastapi import Cookie, FastAPI, HTTPException, Request, status
-from jose import JWTError, jwt
+from fastapi import FastAPI, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr
 from utils.environment import is_running_in_docker_container
 
@@ -15,11 +12,11 @@ from k4 import K4
 
 from .extension_management import ExtensionsManager
 from .message_management import MessagesManager
-from .user_management import AdminUser, NonAdminUser, RegisteredUser, UsersManager
-
-SECRET_KEY = os.environ["K4_BACKEND_SECRET_KEY"]
+from .session_management import SessionsManager
+from .user_management import AdminUser, NonAdminUser, UsersManager
 
 users_manager = UsersManager()
+sessions_manager = SessionsManager()
 messages_manager = MessagesManager()
 extensions_manager = ExtensionsManager()
 k4 = K4()
@@ -51,6 +48,7 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
         await users_manager.set_connection_pool_and_start(postgres_connection_pool)
         await messages_manager.set_connection_pool_and_start(postgres_connection_pool)
         await extensions_manager.set_connection_pool_and_start(postgres_connection_pool)
+        await sessions_manager.set_connection_pool_and_start(postgres_connection_pool)
         await k4.setup_llm_providers_from_disk()
         yield  # everything above the yield is for startup, everything after is for shutdown
     finally:
@@ -79,64 +77,8 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     )
 
 
-@dataclass
-class Days:
-    days_after_which_token_expires: int
-
-
-@dataclass
-class Minutes:
-    minutes_after_which_token_expires: int
-
-
-def create_token(
-    data_to_encode: dict[str, EmailStr | datetime.datetime],
-    time_after_which_token_expires: Days | Minutes,
-) -> str:
-    if isinstance(time_after_which_token_expires, Days):
-        time_access_token_expires = datetime.datetime.now(
-            datetime.UTC
-        ) + datetime.timedelta(
-            days=time_after_which_token_expires.days_after_which_token_expires
-        )
-    else:
-        time_access_token_expires = datetime.datetime.now(
-            datetime.UTC
-        ) + datetime.timedelta(
-            minutes=time_after_which_token_expires.minutes_after_which_token_expires
-        )
-
-    data_to_encode.update({"exp": time_access_token_expires})
-    encoded_jwt: str = jwt.encode(data_to_encode, SECRET_KEY, algorithm="HS256")
-    return encoded_jwt
-
-
-def create_short_lived_access_token(
-    data_to_encode: dict[str, EmailStr | datetime.datetime],
-    minutes_after_which_access_token_expires: int,
-) -> str:
-    return create_token(
-        data_to_encode=data_to_encode,
-        time_after_which_token_expires=Minutes(
-            minutes_after_which_token_expires=minutes_after_which_access_token_expires
-        ),
-    )
-
-
-def create_long_lived_refresh_token(
-    data_to_encode: dict[str, EmailStr | datetime.datetime],
-    days_after_which_refresh_token_expires: int,
-) -> str:
-    return create_token(
-        data_to_encode=data_to_encode,
-        time_after_which_token_expires=Days(
-            days_after_which_token_expires=days_after_which_refresh_token_expires
-        ),
-    )
-
-
 async def get_current_active_admin_user(request: Request) -> AdminUser:
-    current_user = await get_current_active_user(request.cookies.get("authToken"))
+    current_user = await get_current_active_user(request)
     if not isinstance(current_user, AdminUser):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -146,7 +88,7 @@ async def get_current_active_admin_user(request: Request) -> AdminUser:
 
 
 async def get_current_active_non_admin_user(request: Request) -> NonAdminUser:
-    current_user = await get_current_active_user(request.cookies.get("authToken"))
+    current_user = await get_current_active_user(request)
     if not isinstance(current_user, NonAdminUser):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -155,32 +97,16 @@ async def get_current_active_non_admin_user(request: Request) -> NonAdminUser:
     return current_user
 
 
-async def get_current_active_user(
-    authToken: str | None = Cookie(default=None),
-) -> AdminUser | NonAdminUser:
-    # token = request.cookies.get("authToken")
-    token = authToken
-    if not token:
+async def get_current_active_user(request: Request) -> AdminUser | NonAdminUser:
+    session_id = request.cookies.get("sessionId")
+    if not session_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials: authToken not provided.",
+            detail="Could not validate credentials: sessionId not provided.",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    try:
-        payload = jwt.decode(token=token, key=SECRET_KEY, algorithms=["HS256"])
-    except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    session = await sessions_manager.get_unexpired_session(
+        session_id=uuid.UUID(session_id)
+    )
 
-    user_cookie_val = payload.get("user")
-    assert isinstance(user_cookie_val, str)
-
-    user = RegisteredUser.model_validate_json(json_data=user_cookie_val)
-
-    if user.is_user_an_admin:
-        return AdminUser.model_validate_json(json_data=user_cookie_val)
-    else:
-        return NonAdminUser.model_validate_json(json_data=user_cookie_val)
+    return await users_manager.get_user_by_user_id(user_id=session.user_id)

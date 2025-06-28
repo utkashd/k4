@@ -95,7 +95,7 @@ buildAndRunBackendAndPostgres() {
 
     set -x
     K4_ENVIRONMENT=development \
-        docker compose --project-directory "${K4_REPO_ROOT}" up backend postgres --build -d
+        docker compose --project-directory "${K4_REPO_ROOT}" up --build -d backend postgres
     { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
 
     _removeOldDanglingImageIfExists "k4-backend" "$OLD_BACKEND_IMAGE_ID_ELSE_EMPTY_STRING"
@@ -120,11 +120,13 @@ buildAndRunFrontend() {
 
 _removeOldDanglingImageIfExists() {
 
+    # TODO fix this, it doesn't work reliably
+
     local image_name="$1"
     local old_image_id_else_empty_string="$2"
 
     NEW_IMAGE_ID="$(docker image ls --format json | jq -rs --arg name "$image_name" '.[] | select(.Repository == $name) | .ID')"
-    if [ -n "${old_image_id_else_empty_string}" ] ; then
+    if [ "${old_image_id_else_empty_string}" != "" ] ; then
         if [ "${old_image_id_else_empty_string}" != "${NEW_IMAGE_ID}" ] ; then
             _printlnYellow "\tFYI: Deleting the old dangling image (${image_name})."
             set -x

@@ -228,6 +228,7 @@ class UsersManager(PostgresTableManager):
         Meant only for admins, so we're just returning all users indiscriminantely
         """
         # TODO paginate
+        # TODO require admin user is passed here, log it
         users: list[RegisteredUser] = []
         async with self.get_connection() as connection:
             rows = await connection.fetch("SELECT * from USERS limit 50")
@@ -239,6 +240,7 @@ class UsersManager(PostgresTableManager):
         """
         Meant only for admins
         """
+        # TODO require admin user is passed here, log it
         async with self.get_transaction_connection() as connection:
             await connection.execute(
                 "UPDATE users SET is_user_deactivated=true WHERE user_id=$1",
@@ -249,6 +251,7 @@ class UsersManager(PostgresTableManager):
         """
         Meant only for admins
         """
+        # TODO require admin user is passed here, log it
         async with self.get_transaction_connection() as connection:
             await connection.execute(
                 "UPDATE users SET is_user_deactivated=false WHERE user_id=$1",
