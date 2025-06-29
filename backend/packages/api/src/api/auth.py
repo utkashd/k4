@@ -1,15 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import SecretStr
 
-from .dependencies import sessions_manager, users_manager, verify_password
+from ._dependencies import sessions_manager, users_manager, verify_password
 
 auth_router = APIRouter()
 
 
 @auth_router.post("/login")
 async def login_for_session_id(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> JSONResponse:
     user_email = form_data.username
@@ -36,7 +39,9 @@ async def login_for_session_id(
         )
 
     session = await sessions_manager.create_session(
-        user_id=user.user_id, user_agent="temp", ip_address="temp"
+        user_id=user.user_id,
+        user_agent=request.headers.get("user-agent") or "unknown",
+        ip_address=request.client.host if request.client else "unknown",
     )
 
     session_id = str(session.session_id)
@@ -52,7 +57,17 @@ async def login_for_session_id(
 
 
 @auth_router.post("/logout")
-async def logout() -> JSONResponse:
+async def logout(request: Request) -> JSONResponse:
+    session_id = request.cookies.get("sessionId")
+    if not session_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials: sessionId not provided.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    await sessions_manager.deactivate_session(session_id=uuid.UUID(session_id))
+
     response = JSONResponse(content={"msg": "Logout succcessful"})
     response.delete_cookie(
         key="sessionId",

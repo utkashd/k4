@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field, SecretStr
 
-from .dependencies import hash_password, users_manager
+from ._dependencies import hash_password, users_manager
 from .user_management import RegisteredUser
 
 setup_router = APIRouter()

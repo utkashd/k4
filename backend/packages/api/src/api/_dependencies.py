@@ -5,7 +5,6 @@ from contextlib import asynccontextmanager
 import asyncpg
 import bcrypt
 from fastapi import FastAPI, HTTPException, Request, status
-from pydantic import BaseModel, EmailStr
 from utils.environment import is_running_in_docker_container
 
 from k4 import K4
@@ -59,10 +58,6 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
             # TODO I think I actually want to wait for requests to finish. do that instead
 
 
-class TokenData(BaseModel):
-    user_email: EmailStr
-
-
 def hash_password(password: str) -> str:
     pwd_bytes = password.encode("utf-8")
     salt = bcrypt.gensalt()
@@ -101,7 +96,7 @@ async def get_current_active_user(request: Request) -> AdminUser | NonAdminUser:
     session_id = request.cookies.get("sessionId")
     if not session_id:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="Could not validate credentials: sessionId not provided.",
             headers={"WWW-Authenticate": "Bearer"},
         )

@@ -4,7 +4,7 @@ from api.user_management import AdminUser
 from fastapi import APIRouter, Depends
 from k4.llm_provider_management import K4LlmProvider, LlmProviderConfig, LlmProviderInfo
 
-from .dependencies import get_current_active_admin_user, k4
+from ._dependencies import get_current_active_admin_user, k4
 
 providers_router = APIRouter()
 

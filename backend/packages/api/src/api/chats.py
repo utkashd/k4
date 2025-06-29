@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from k4 import ChatMessage
 
-from .dependencies import get_current_active_non_admin_user, k4, messages_manager
+from ._dependencies import get_current_active_non_admin_user, k4, messages_manager
 from .message_management import Chat, ChatPreview
 from .user_management import NonAdminUser
 
@@ -67,36 +67,6 @@ class CreateNewChatRequestBody(BaseModel):
     message: str
     llm_provider: K4LlmProvider
     llm_model_name: str
-
-
-# @chats_router.post("/chat_no_stream")
-# async def create_new_chat_with_message_no_stream(
-#     create_new_chat_request_body: CreateNewChatRequestBody,
-#     current_user: NonAdminUser = Depends(get_current_active_non_admin_user),
-# ) -> list[MessageInDb]:
-#     chat_in_db = await messages_manager.create_new_chat(
-#         user_id=current_user.user_id, title=""
-#     )
-#     user_message_in_db = await messages_manager.save_client_message_to_db(
-#         chat_id=chat_in_db.chat_id,
-#         user_id=current_user.user_id,
-#         text=create_new_chat_request_body.message,
-#     )
-#     messages_newly_in_db = [user_message_in_db]
-#     complete_chat = await get_complete_chat_for_llm(
-#         new_message_from_user=create_new_chat_request_body.message,
-#         existing_chat_params=None,
-#     )
-#     k4_response = await k4.ask(
-#         messages=complete_chat,
-#         llm_provider=create_new_chat_request_body.llm_provider,
-#         model=create_new_chat_request_body.llm_model_name,
-#     )
-#     k4_message_in_db = await messages_manager.save_k4_message_to_db(
-#         chat_id=chat_in_db.chat_id, text=k4_response
-#     )
-#     messages_newly_in_db.append(k4_message_in_db)
-#     return messages_newly_in_db
 
 
 @chats_router.post("/chat")

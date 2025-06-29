@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from k4_logger import log
 from pydantic import SecretStr
 
-from .dependencies import (
+from ._dependencies import (
     get_current_active_admin_user,
     get_current_active_user,
     hash_password,

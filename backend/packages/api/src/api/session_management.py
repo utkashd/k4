@@ -38,7 +38,9 @@ class SessionsManager(PostgresTableManager):
 
     @property
     def create_indexes_queries(self) -> Iterable[str]:
-        return []
+        return [
+            "CREATE INDEX IF NOT EXISTS idx_user_id ON sessions(user_id)",
+        ]
 
     async def create_session(
         self, user_id: int, user_agent: str, ip_address: str
@@ -54,21 +56,32 @@ class SessionsManager(PostgresTableManager):
                 user_agent,
                 ip_address,
             )
-            if not new_session:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Unexpectedly could not create the session. {session_id=} {user_id=}",
-                )
+            assert new_session
             return SessionInDb(**new_session)
 
     async def get_unexpired_session(self, session_id: uuid.UUID) -> SessionInDb:
         async with self.get_connection() as connection:
             row = await connection.fetchrow(
                 "SELECT * FROM sessions WHERE session_id=$1 AND expires_at > CURRENT_TIMESTAMP",
-                session_id,
+                str(session_id),
+            )
+            if not row:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="No such unexpired session exists (your session probably expired)",
+                )
+            return SessionInDb(**row)
+
+    async def deactivate_session(self, session_id: uuid.UUID) -> None:
+        async with self.get_transaction_connection() as connection:
+            await connection.execute(
+                "UPDATE sessions SET is_active=false WHERE session_id=$1",
+                str(session_id),
             )
 
-            # TODO handle unhappy cases
-
-            assert row
-            return SessionInDb(**row)
+    async def deactivate_sessions_by_user(self, user_id: int) -> None:
+        # TODO this isn't used anywhere yet
+        async with self.get_transaction_connection() as connection:
+            await connection.execute(
+                "UPDATE sessions SET is_active=false WHERE user_id=$1", user_id
+            )

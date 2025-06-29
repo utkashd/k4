@@ -1,6 +1,6 @@
+from ._dependencies import lifespan
 from .auth import auth_router
 from .chats import chats_router
-from .dependencies import lifespan
 from .extensions import extensions_router
 from .providers import providers_router
 from .setup import setup_router

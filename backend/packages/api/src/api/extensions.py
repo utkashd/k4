@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from k4_logger import log
 
-from .dependencies import (
+from ._dependencies import (
     extensions_manager,
     get_current_active_admin_user,
     get_current_active_non_admin_user,
