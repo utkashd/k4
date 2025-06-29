@@ -67,7 +67,7 @@ class SessionsManager(PostgresTableManager):
             )
             if not row:
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
+                    status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="No such unexpired session exists (your session probably expired)",
                 )
             return SessionInDb(**row)

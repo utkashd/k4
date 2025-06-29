@@ -76,7 +76,7 @@ async def get_current_active_admin_user(request: Request) -> AdminUser:
     current_user = await get_current_active_user(request)
     if not isinstance(current_user, AdminUser):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail=f"User {current_user.user_email} is not an administrator.",
         )
     return current_user
@@ -86,7 +86,7 @@ async def get_current_active_non_admin_user(request: Request) -> NonAdminUser:
     current_user = await get_current_active_user(request)
     if not isinstance(current_user, NonAdminUser):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail=f"User {current_user.user_email} is an administrator.",
         )
     return current_user
@@ -96,9 +96,8 @@ async def get_current_active_user(request: Request) -> AdminUser | NonAdminUser:
     session_id = request.cookies.get("sessionId")
     if not session_id:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials: sessionId not provided.",
-            headers={"WWW-Authenticate": "Bearer"},
         )
     session = await sessions_manager.get_unexpired_session(
         session_id=uuid.UUID(session_id)

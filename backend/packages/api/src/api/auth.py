@@ -35,7 +35,6 @@ async def login_for_session_id(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect password",
-            headers={"WWW-Authenticate": "Bearer"},
         )
 
     session = await sessions_manager.create_session(
@@ -63,7 +62,6 @@ async def logout(request: Request) -> JSONResponse:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials: sessionId not provided.",
-            headers={"WWW-Authenticate": "Bearer"},
         )
 
     await sessions_manager.deactivate_session(session_id=uuid.UUID(session_id))

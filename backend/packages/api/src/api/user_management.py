@@ -199,9 +199,9 @@ class UsersManager(PostgresTableManager):
         user = await self.get_active_or_inactive_user_by_email(user_email)
         if user.is_user_deactivated:
             raise HTTPException(
+                # TODO this might be the wrong status code
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=f"User {user.user_email} is a deactivated user.",
-                headers={"WWW-Authenticate": "Bearer"},
             )
         return user
 
