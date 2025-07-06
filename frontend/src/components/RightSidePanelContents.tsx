@@ -15,7 +15,7 @@ export const CurrentUserAndLogoutButton = ({
     }
 
     const logout = async () => {
-        await server.api.post("/logout");
+        await server.api.post("/logout", {}, { withCredentials: true });
         setCurrentUserAndCookie(null);
         window.location.reload(); // TODO need to fix underlying issue so this isn't necessary
     };
