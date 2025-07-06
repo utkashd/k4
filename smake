@@ -88,20 +88,20 @@ buildAndRunApplication() {
     _printlnGreen "\tApplication is running."
 }
 
-buildAndRunBackendAndPostgres() {
-    printf "\tBuilding and running the backend + postgres...\n"
+# buildAndRunBackendAndPostgres() {
+#     printf "\tBuilding and running the backend + postgres...\n"
 
-    OLD_BACKEND_IMAGE_ID_ELSE_EMPTY_STRING="$(docker image ls --format json | jq -rs --arg name "k4-backend" '.[] | select(.Repository == $name) | .ID')"
+#     OLD_BACKEND_IMAGE_ID_ELSE_EMPTY_STRING="$(docker image ls --format json | jq -rs --arg name "k4-backend" '.[] | select(.Repository == $name) | .ID')"
 
-    set -x
-    K4_ENVIRONMENT=development \
-        docker compose --project-directory "${K4_REPO_ROOT}" up --build -d backend postgres
-    { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
+#     set -x
+#     K4_ENVIRONMENT=development \
+#         docker compose --project-directory "${K4_REPO_ROOT}" up --build -d backend postgres
+#     { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
 
-    _removeOldDanglingImageIfExists "k4-backend" "$OLD_BACKEND_IMAGE_ID_ELSE_EMPTY_STRING"
+#     _removeOldDanglingImageIfExists "k4-backend" "$OLD_BACKEND_IMAGE_ID_ELSE_EMPTY_STRING"
 
-    _printlnGreen "\tApplication is running."
-}
+#     _printlnGreen "\tApplication is running."
+# }
 
 buildAndRunFrontend() {
     printf "\tBuilding and running the frontend...\n"
@@ -152,11 +152,11 @@ startDev() {
     _printlnGreen "All set! Ready to use the app at http://localhost:5173, http://localhost:8000/docs 😎"
 }
 
-startDevBackendPostgres() {
-    startDockerDesktop
-    buildAndRunBackendAndPostgres
-    _printlnGreen "All set! Ready to use the backend at http://localhost:8000/docs 😎"
-}
+# startDevBackendPostgres() {
+#     startDockerDesktop
+#     buildAndRunBackendAndPostgres
+#     _printlnGreen "All set! Ready to use the backend at http://localhost:8000/docs 😎"
+# }
 
 startDevOnHostMachine() {
     startDockerDesktop
@@ -166,8 +166,30 @@ startDevOnHostMachine() {
     screen -c local_dev.screen
 }
 
-getShellToContainerPostgres() {
+getShellToBackendContainer() {
 
+    _printlnGreen ""
+    _printlnGreen "********************"
+
+    printf "Relevant directories:\n"
+    _printYellow "appuser@9a66ccf321a7:/$ "
+    _printlnGreen "cd /app"
+    _printYellow "appuser@9a66ccf321a7:/$ "
+    _printlnGreen "cd /k4_data"
+
+    _printlnGreen "********************"
+    _printlnGreen ""
+
+    set -x
+    docker exec -it k4-backend bash
+    { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
+
+    _printlnGreen ""
+}
+
+getShellToPostgresContainer() {
+
+    _printlnGreen ""
     _printlnGreen "********************"
 
     printf "Get in with:\n"
@@ -191,10 +213,13 @@ getShellToContainerPostgres() {
     printf " to, uh, exit.\n"
 
     _printlnGreen "********************"
+    _printlnGreen ""
 
     set -x
     docker exec -it k4-postgres bash
     { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
+
+    _printlnGreen ""
 }
 
 stopDev() {
@@ -225,13 +250,13 @@ stopAndQuitDockerDesktop() {
 ########################################################################################
 
 usage() {
-    echo "Usage: smake [dev|devBackend|getShellToContainerPostgres|stop|stopAndQuitDockerDesktop|buildPersonal|startDevOnHostMachine]" 1>&2
+    echo "Usage: smake [dev|getShellToBackendContainer|getShellToPostgresContainer|stop|stopAndQuitDockerDesktop|buildPersonal|startDevOnHostMachine]" 1>&2
 
     # TODO descriptions formatted nicely
 
     _printlnYellow "dev"
-    _printlnYellow "devBackend"
-    _printlnYellow "getShellToContainerPostgres"
+    _printlnYellow "getShellToBackendContainer"
+    _printlnYellow "getShellToPostgresContainer"
     _printlnYellow "stop"
     _printlnYellow "stopAndQuitDockerDesktop"
     _printlnYellow "buildPersonal"
@@ -265,11 +290,11 @@ for arg in "$@"; do
         dev)
             startDev
             ;;
-        devBackend)
-            startDevBackendPostgres
+        getShellToBackendContainer)
+            getShellToBackendContainer
             ;;
-        getShellToContainerPostgres)
-            getShellToContainerPostgres
+        getShellToPostgresContainer)
+            getShellToPostgresContainer
             ;;
         stop)
             stopDev
