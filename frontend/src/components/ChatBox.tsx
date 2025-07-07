@@ -35,8 +35,11 @@ function ChatBox({
     setChatPreviews: React.Dispatch<React.SetStateAction<ChatPreview[]>>;
 }) {
     const [chats, setChats] = useState<Record<number, Chat>>({});
-    const [isInputDisabled, setIsInputDisabled] = useState(false);
-    const [textAreaValue, setTextAreaValue] = useState("");
+    const [isInputDisabled, setIsInputDisabled] = useState<boolean>(false);
+    const [textAreaValue, setTextAreaValue] = useState<string>("");
+
+    const [availableModels, setAvailableModels] =
+        useState<Record<string, string[]>>();
 
     const messagesEndRef = useRef<null | HTMLDivElement>(null);
     const scrollToBottomOfMessages = () => {
@@ -70,6 +73,18 @@ function ChatBox({
         };
         if (selectedChatPreview) {
             getAndSetMessages(selectedChatPreview);
+        }
+
+        const getAndSetAvailableModels = async () => {
+            const response = await server.api.get<Record<string, string[]>>(
+                "/models",
+                { withCredentials: true }
+            );
+            setAvailableModels(response.data);
+            console.log(response.data);
+        };
+        if (!availableModels) {
+            getAndSetAvailableModels();
         }
     }, [selectedChatPreview, chats, server.api]);
 

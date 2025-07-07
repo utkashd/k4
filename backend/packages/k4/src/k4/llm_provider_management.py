@@ -1,7 +1,7 @@
 import json
 import os
 from collections import defaultdict
-from enum import Enum
+from enum import StrEnum
 
 import aiofiles
 from litellm import get_model_cost_map, model_cost_map_url  # type: ignore[attr-defined]
@@ -18,7 +18,7 @@ class LlmProviderConfig(BaseModel):
     environment_variable_value: SecretStr
 
 
-class K4LlmProvider(Enum):
+class K4LlmProvider(StrEnum):
     # Important that the strings match the model names used by litellm: see litellm.models_by_provider
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
@@ -164,8 +164,9 @@ class LlmProviderManager:
         for model_name, model_metadata in model_metadata_by_model_name.items():
             assert isinstance(model_name, str)
             assert isinstance(model_metadata, dict)
-            if model_metadata.get("mode") in ("chat", "completion"):
-                available_models[
-                    model_metadata.get("litellm_provider") or "misc"
-                ].append(model_name)
+            if model_metadata.get("litellm_provider") in K4LlmProvider:
+                if model_metadata.get("mode") in ("chat", "completion"):
+                    available_models[
+                        model_metadata.get("litellm_provider") or "misc"
+                    ].append(model_name)
         return available_models

@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 
-from api.user_management import AdminUser
+from api.user_management import AdminUser, NonAdminUser
 from fastapi import APIRouter, Depends
 from k4.llm_provider_management import K4LlmProvider, LlmProviderConfig, LlmProviderInfo
 
-from ._dependencies import get_current_active_admin_user, k4
+from ._dependencies import get_current_active_admin_user, get_current_active_user, k4
 
 providers_router = APIRouter()
 
@@ -41,3 +41,10 @@ async def remove_provider(
     await k4.llm_provider_manager.remove_provider_and_save_to_disk(
         llm_provider=llm_provider_to_remove
     )
+
+
+@providers_router.get("/models")
+def get_available_models(
+    current_user: AdminUser | NonAdminUser = Depends(get_current_active_user),
+) -> dict[str, list[str]]:
+    return k4.llm_provider_manager.get_available_models()
