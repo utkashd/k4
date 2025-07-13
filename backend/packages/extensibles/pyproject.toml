@@ -4,11 +4,7 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = [
-    "apluggy>=1.0.3",
-    "backend-commons",
-    "k4",
-]
+dependencies = ["apluggy>=1.0.3", "backend-commons", "k4"]
 
 [project.scripts]
 extensibles = "extensibles:main"
