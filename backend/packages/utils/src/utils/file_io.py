@@ -52,6 +52,7 @@ def get_backend_root_directory() -> Path:
     return current_directory
 
 
+@lru_cache(maxsize=1)
 def get_k4_data_directory() -> Path:
     if is_running_in_docker_container():
         k4_data_directory = Path("/k4_data")

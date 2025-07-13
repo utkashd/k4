@@ -899,8 +899,6 @@ dependencies = [
     { name = "aiofiles" },
     { name = "async-generator" },
     { name = "backend-commons" },
-    { name = "diskcache" },
-    { name = "diskcache-stubs" },
     { name = "litellm" },
     { name = "rich" },
     { name = "types-aiofiles" },
@@ -912,8 +910,6 @@ requires-dist = [
     { name = "aiofiles", specifier = ">=24.1.0" },
     { name = "async-generator", specifier = ">=1.10" },
     { name = "backend-commons", editable = "packages/backend_commons" },
-    { name = "diskcache", specifier = ">=5.6.3" },
-    { name = "diskcache-stubs", specifier = ">=5.6.3.6.20240818" },
     { name = "litellm", specifier = ">=1.58.2" },
     { name = "rich", specifier = ">=13.9.2" },
     { name = "types-aiofiles", specifier = ">=24.1.0.20241221" },
@@ -1818,11 +1814,17 @@ name = "utils"
 version = "0.1.0"
 source = { editable = "packages/utils" }
 dependencies = [
+    { name = "diskcache" },
+    { name = "diskcache-stubs" },
     { name = "docstring-parser" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "docstring-parser", specifier = ">=0.16" }]
+requires-dist = [
+    { name = "diskcache", specifier = ">=5.6.3" },
+    { name = "diskcache-stubs", specifier = ">=5.6.3.6.20240818" },
+    { name = "docstring-parser", specifier = ">=0.16" },
+]
 
 [[package]]
 name = "uvicorn"

@@ -4,7 +4,8 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["docstring-parser>=0.16",]
+dependencies = ["docstring-parser>=0.16","diskcache>=5.6.3",
+    "diskcache-stubs>=5.6.3.6.20240818",]
 
 [build-system]
 requires = ["hatchling"]

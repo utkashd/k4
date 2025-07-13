@@ -29,3 +29,8 @@ node_modules/
 # don't commit images zipped with `docker image save -o ...`
 *.tar
 *.tar.gz
+
+######################
+# K4 directories
+######################
+**/.typed_diskcache/
