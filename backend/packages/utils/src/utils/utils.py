@@ -1,12 +1,11 @@
 import time
 from functools import lru_cache, wraps
-from typing import Any, Callable, Generator, Generic, Iterable, Iterator, TypeVar
+from typing import Any, Callable, Generator, Iterable, Iterator, TypeVar
 
-_T = TypeVar("_T")
 _ReturnType = TypeVar("_ReturnType")
 
 
-class biter(Generic[_T]):
+class biter[_T]:
     """
     Intentionally terrible name. "Better Iterable" except it's short
 
