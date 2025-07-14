@@ -39,9 +39,6 @@ class K4:
     def __init__(self) -> None:
         self.llm_provider_manager = LlmProviderManager()
 
-    async def setup_llm_providers_from_disk(self) -> None:
-        await self.llm_provider_manager.read_and_configure_providers_from_disk_if_file_exists()
-
     def will_ask_succeed_with_detail(
         self,
         complete_chat: list[ChatMessage],

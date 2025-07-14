@@ -48,7 +48,6 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
         await messages_manager.set_connection_pool_and_start(postgres_connection_pool)
         await extensions_manager.set_connection_pool_and_start(postgres_connection_pool)
         await sessions_manager.set_connection_pool_and_start(postgres_connection_pool)
-        await k4.setup_llm_providers_from_disk()
         yield  # everything above the yield is for startup, everything after is for shutdown
     finally:
         if postgres_connection_pool:

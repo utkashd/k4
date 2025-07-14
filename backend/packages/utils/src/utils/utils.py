@@ -148,6 +148,9 @@ class TypedDiskCache[_KeyType, _ValueType](diskcache.Cache):
         for _, value in self.items():
             yield value
 
+    def create_dict(self) -> dict[_KeyType, _ValueType]:
+        return {key: value for key, value in self.items()}
+
     def __str__(self) -> str:
         """
         _summary_
@@ -176,6 +179,8 @@ def time_expiring_lru_cache(max_age_seconds: int, max_size: int = 5, **kwargs): 
     """
     A decorator to cache function call return values, except they expire after `max_age_seconds`
     """
+
+    # TODO type-hint everything here, otherwise mypy doesn't like to deal with this :)
 
     def decorator(fxn):  # type: ignore[no-untyped-def]
         @lru_cache(maxsize=max_size, **kwargs)
