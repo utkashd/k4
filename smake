@@ -93,20 +93,25 @@ buildAndRunApplication() {
     _printlnGreen "\tApplication is running."
 }
 
-# buildAndRunBackendAndPostgres() {
-#     printf "\tBuilding and running the backend + postgres...\n"
+buildAndRunBackendAndPostgres() {
+    printf "\tBuilding and running the backend + postgres...\n"
 
-#     OLD_BACKEND_IMAGE_ID_ELSE_EMPTY_STRING="$(docker image ls --format json | jq -rs --arg name "k4-backend" '.[] | select(.Repository == $name) | .ID')"
+    OLD_BACKEND_IMAGE_ID_ELSE_EMPTY_STRING="$(docker image ls --format json | jq -rs --arg name "k4-backend" '.[] | select(.Repository == $name) | .ID')"
 
-#     set -x
-#     K4_ENVIRONMENT=development \
-#         docker compose --project-directory "${K4_REPO_ROOT}" up --build -d backend postgres
-#     { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
+    set -x
+    K4_ENVIRONMENT=development \
+        docker compose --project-directory "${K4_REPO_ROOT}" down
+    # if we don't `down` first, sometimes docker uses the old image. might be a timing
+    # issue (cache doesn't get invalidated in time?)
 
-#     _removeOldDanglingImageIfExists "k4-backend" "$OLD_BACKEND_IMAGE_ID_ELSE_EMPTY_STRING"
+    K4_ENVIRONMENT=development \
+        docker compose --project-directory "${K4_REPO_ROOT}" up --build -d backend postgres
+    { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
 
-#     _printlnGreen "\tApplication is running."
-# }
+    _removeOldDanglingImageIfExists "k4-backend" "$OLD_BACKEND_IMAGE_ID_ELSE_EMPTY_STRING"
+
+    _printlnGreen "\tApplication is running."
+}
 
 buildAndRunFrontend() {
     printf "\tBuilding and running the frontend...\n"
@@ -155,11 +160,11 @@ startDev() {
     _printlnGreen "All set! Ready to use the app at http://localhost:5173, http://localhost:8000/docs 😎"
 }
 
-# startDevBackendPostgres() {
-#     startDockerDesktop
-#     buildAndRunBackendAndPostgres
-#     _printlnGreen "All set! Ready to use the backend at http://localhost:8000/docs 😎"
-# }
+startDevBackendPostgres() {
+    startDockerDesktop
+    buildAndRunBackendAndPostgres
+    _printlnGreen "All set! Ready to use the backend at http://localhost:8000/docs 😎"
+}
 
 startDevOnHostMachine() {
     startDockerDesktop
@@ -258,6 +263,7 @@ usage() {
     # TODO descriptions formatted nicely
 
     _printlnYellow "dev"
+    _printlnYellow "devBackend"
     _printlnYellow "getShellToBackendContainer"
     _printlnYellow "getShellToPostgresContainer"
     _printlnYellow "stop"
@@ -292,6 +298,9 @@ for arg in "$@"; do
             ;;
         dev)
             startDev
+            ;;
+        devBackend)
+            startDevBackendPostgres
             ;;
         getShellToBackendContainer)
             getShellToBackendContainer
