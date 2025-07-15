@@ -79,6 +79,11 @@ buildAndRunApplication() {
 
     set -x
     K4_ENVIRONMENT=development \
+        docker compose --project-directory "${K4_REPO_ROOT}" down
+    # if we don't `down` first, sometimes docker uses the old image. might be a timing
+    # issue (cache doesn't get invalidated in time?)
+    
+    K4_ENVIRONMENT=development \
         docker compose --project-directory "${K4_REPO_ROOT}" up --build -d
     { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
 
