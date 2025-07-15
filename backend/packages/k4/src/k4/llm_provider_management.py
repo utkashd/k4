@@ -97,6 +97,9 @@ class LlmProviderManager:
     def set_provider_config(
         self, llm_provider: K4LlmProvider, config: LlmProviderConfig | None
     ) -> None:
+        # we do this because modifying the config of
+        # `self.providres_cache[llm_provider]` does not actually call `__setitem__`, and
+        # thus the change doesn't actually get saved to the persistent cache
         LLM_PROVIDER_INFO_BY_LLM_PROVIDER_DEFAULT[llm_provider].config = config
         self.providers_cache[llm_provider] = LLM_PROVIDER_INFO_BY_LLM_PROVIDER_DEFAULT[
             llm_provider
