@@ -79,15 +79,12 @@ class LlmProviderManager:
                     LLM_PROVIDER_INFO_BY_LLM_PROVIDER_DEFAULT[llm_provider]
                 )
 
-    def set_provider_config(
-        self, llm_provider: K4LlmProvider, config: LlmProviderConfig | None
-    ) -> None:
-        LLM_PROVIDER_INFO_BY_LLM_PROVIDER_DEFAULT[llm_provider].config = config
-        self.providers_cache[llm_provider] = LLM_PROVIDER_INFO_BY_LLM_PROVIDER_DEFAULT[
-            llm_provider
-        ]
+        for llm_provider in self.providers_cache:
+            self._set_env_var_from_provider_config(llm_provider=llm_provider)
 
-        provider_environment_variable_name = LLM_PROVIDER_INFO_BY_LLM_PROVIDER_DEFAULT[
+    def _set_env_var_from_provider_config(self, llm_provider: K4LlmProvider) -> None:
+        config = self.providers_cache[llm_provider].config
+        provider_environment_variable_name = self.providers_cache[
             llm_provider
         ].metadata.environment_variable_name
         if config is not None:
@@ -97,11 +94,17 @@ class LlmProviderManager:
         else:
             os.environ[provider_environment_variable_name] = ""
 
+    def set_provider_config(
+        self, llm_provider: K4LlmProvider, config: LlmProviderConfig | None
+    ) -> None:
+        LLM_PROVIDER_INFO_BY_LLM_PROVIDER_DEFAULT[llm_provider].config = config
+        self.providers_cache[llm_provider] = LLM_PROVIDER_INFO_BY_LLM_PROVIDER_DEFAULT[
+            llm_provider
+        ]
+        self._set_env_var_from_provider_config(llm_provider=llm_provider)
+
     def is_provider_configured(self, llm_provider: K4LlmProvider) -> bool:
-        return (
-            self.providers_cache.get(llm_provider) is not None
-            and self.providers_cache[llm_provider].config is not None
-        )
+        return self.providers_cache[llm_provider].config is not None
 
     def get_provider_config_else_raise(
         self, llm_provider: K4LlmProvider
