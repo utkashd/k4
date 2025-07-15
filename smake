@@ -125,8 +125,6 @@ buildAndRunFrontend() {
 
 _removeOldDanglingImageIfExists() {
 
-    # TODO fix this, it doesn't work reliably
-
     local image_name="$1"
     local old_image_id_else_empty_string="$2"
 
