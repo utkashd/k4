@@ -15,6 +15,7 @@
         "@mui/material": "^6.4.8",
         "@mui/styled-engine": "^6.4.8",
         "axios": "^1.8.4",
+        "form-data": "^4.0.4",
         "globals": "^16.0.0",
         "react": "^19.0.0",
         "react-cookie": "^8.0.1",
