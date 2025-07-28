@@ -1,4 +1,5 @@
 __version__ = "0.0.1"
+from .data_structures import TypedDiskCache, biter
 from .environment import (
     K4Environment,
     get_environment,
@@ -7,7 +8,7 @@ from .environment import (
 )
 from .file_io import get_repo_root_directory
 from .openai_tools import convert_python_function_to_openai_tool_json
-from .utils import TypedDiskCache, biter, time_expiring_lru_cache
+from .utils import time_expiring_lru_cache
 
 __all__ = [
     "get_repo_root_directory",
