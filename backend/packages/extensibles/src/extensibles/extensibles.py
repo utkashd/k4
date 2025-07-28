@@ -23,7 +23,7 @@ def replace_plugin_with_external_plugin(
     if external_module_path.is_dir():
         paths_in_src_dir = external_module_path.joinpath("src").iterdir()
         code_directory = (
-            biter(paths_in_src_dir).filter(lambda path: path.is_dir()).next()
+            biter(paths_in_src_dir).filter(lambda path: path.is_dir()).first_value()
         )
         external_module_path = (
             biter(code_directory.iterdir())
@@ -31,7 +31,7 @@ def replace_plugin_with_external_plugin(
                 lambda path: path.is_file()
                 and str(path).endswith(existing_plugin_name + ".py")
             )
-            .next()
+            .first_value()
         )
 
     module_name = str(uuid.uuid4())

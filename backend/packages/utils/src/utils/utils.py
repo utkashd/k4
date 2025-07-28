@@ -23,14 +23,10 @@ class biter[_T]:
     def __iter__(self) -> Iterator[_T]:
         return iter(self.generic_iterable)
 
-    def __next__(self) -> _T:
+    def first_value(self) -> _T:
         for value in self.generic_iterable:
             return value
-        raise ValueError("No next value; it's empty")
-
-    def next(self) -> _T:
-        # note that this `next` is NOT self.next. This calls the `self.__next__` method.
-        return next(self)
+        raise ValueError("No first value; it's empty")
 
     def filter(self, include_if_true: Callable[[_T], bool]) -> "biter[_T]":
         """
