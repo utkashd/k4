@@ -112,9 +112,9 @@ async def get_complete_chat_for_llm(
     new_message_from_user: str,
     existing_chat_params: ParamsForAlreadyExistingChat | None,
 ) -> list[ChatMessage]:
-    complete_chats: list[
+    complete_chats: list[  # pyright: ignore[reportUnknownVariableType]
         list[ChatMessage]
-    ] = await plugin_manager.ahook.get_complete_chat_for_llm(
+    ] = await plugin_manager.ahook.get_complete_chat_for_llm(  # pyright: ignore[reportUnknownMemberType]
         new_message_from_user=new_message_from_user,
         existing_chat_params=existing_chat_params,
     )

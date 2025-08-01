@@ -24,6 +24,7 @@ repos:
       rev: v0.44.0
       hooks:
           - id: markdownlint
+            args: ["--config", ".markdownlint.jsonc"]
             files: \.(md|markdown)$
 
     - repo: https://github.com/pre-commit/pre-commit-hooks

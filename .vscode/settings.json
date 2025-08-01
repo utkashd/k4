@@ -47,5 +47,6 @@
         "**/.venv/**"
     ],
     "python.defaultInterpreterPath": "backend/.venv/bin/python",
-    "python.analysis.typeCheckingMode": "standard"
+    "python.analysis.typeCheckingMode": "strict",
+    "markdownlint.configFile": ".markdownlint.jsonc"
 }
