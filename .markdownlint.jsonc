@@ -1,0 +1,6 @@
+{
+    "MD033": {
+        // allow collapsible sections: https://github.com/DavidAnson/markdownlint/blob/v0.38.0/doc/md033.md
+        "allowed_elements": ["details", "summary"]
+    }
+}
