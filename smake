@@ -93,6 +93,22 @@ buildAndRunApplication() {
     _printlnGreen "\tApplication is running."
 }
 
+buildAndRunPostgres() {
+    printf "\tBuilding and running postgres...\n"
+
+    set -x
+    K4_ENVIRONMENT=development \
+        docker compose --project-directory "${K4_REPO_ROOT}" down
+    # if we don't `down` first, sometimes docker uses the old image. might be a timing
+    # issue (cache doesn't get invalidated in time?)
+
+    K4_ENVIRONMENT=development \
+        docker compose --project-directory "${K4_REPO_ROOT}" up --build -d postgres
+    { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
+
+    _printlnGreen "\tPostgres is running."
+}
+
 buildAndRunBackendAndPostgres() {
     printf "\tBuilding and running the backend + postgres...\n"
 
@@ -160,6 +176,12 @@ startDev() {
     _printlnGreen "All set! Ready to use the app at http://localhost:5173, http://localhost:8000/docs 😎"
 }
 
+startDevPostgres() {
+    startDockerDesktop
+    buildAndRunPostgres
+    _printlnGreen "All set! Get a shell to the Postgres container with: smake getShellToPostgresContainer"
+}
+
 startDevBackendPostgres() {
     startDockerDesktop
     buildAndRunBackendAndPostgres
@@ -196,6 +218,9 @@ getShellToBackendContainer() {
 }
 
 getShellToPostgresContainer() {
+
+    startDockerDesktop
+    # TODO ensure postgres container is running
 
     _printlnGreen ""
     _printlnGreen "********************"
@@ -258,11 +283,12 @@ stopAndQuitDockerDesktop() {
 ########################################################################################
 
 usage() {
-    echo "Usage: smake [dev|getShellToBackendContainer|getShellToPostgresContainer|stop|stopAndQuitDockerDesktop|buildPersonal|startDevOnHostMachine]" 1>&2
+    echo "Usage: smake [dev|devPostgres|devBackend|getShellToBackendContainer|getShellToPostgresContainer|stop|stopAndQuitDockerDesktop|buildPersonal|startDevOnHostMachine]" 1>&2
 
     # TODO descriptions formatted nicely
 
     _printlnYellow "dev"
+    _printlnYellow "devPostgres"
     _printlnYellow "devBackend"
     _printlnYellow "getShellToBackendContainer"
     _printlnYellow "getShellToPostgresContainer"
@@ -301,6 +327,9 @@ for arg in "$@"; do
             ;;
         devBackend)
             startDevBackendPostgres
+            ;;
+        devPostgres)
+            startDevPostgres
             ;;
         getShellToBackendContainer)
             getShellToBackendContainer
