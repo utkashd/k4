@@ -67,6 +67,7 @@ class MessagesManager(PostgresTableManager):
         return (
             "CREATE INDEX IF NOT EXISTS idx_user_id ON chats(user_id)",
             "CREATE INDEX IF NOT EXISTS idx_chat_id ON messages(chat_id)",
+            "CREATE INDEX IF NOT EXISTS idx_most_recent_message_per_chat_per_user",
         )
 
     async def create_new_chat(self, user_id: int, title: str) -> ChatInDb:
@@ -136,6 +137,27 @@ class MessagesManager(PostgresTableManager):
         num_chats: int,
         # after_timestamp: datetime.datetime, # TODO implement this
     ) -> list[ChatPreview]:
+        # this is n+1 problem, idk what I was thinking lol
+        # some solutions:
+        #   1. `CREATE INDEX IF NOT EXISTS idx_messages_chat_id_inserted_at_desc ON
+        #      messages (chat_id, inserted_at DESC);`
+        #   2. auto-sync last_message_timestamp:
+        # CREATE OR REPLACE FUNCTION update_last_message_timestamp()
+        # RETURNS TRIGGER AS $$
+        # BEGIN
+        #     UPDATE chats
+        #     SET last_message_timestamp = NEW.inserted_at
+        #     WHERE chat_id = NEW.chat_id;
+        #     RETURN NEW;
+        # END;
+        # $$ LANGUAGE plpgsql;
+
+        # CREATE TRIGGER trigger_update_last_message
+        # AFTER INSERT ON messages
+        # FOR EACH ROW
+        # EXECUTE FUNCTION update_last_message_timestamp();
+        #   3.
+
         async with self.get_connection() as connection:
             chats = await connection.fetch(
                 "SELECT * FROM chats WHERE user_id=$1 ORDER BY last_message_timestamp DESC LIMIT $2",
