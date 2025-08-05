@@ -191,7 +191,9 @@ startDevBackendPostgres() {
 startDevOnHostMachine() {
     startDockerDesktop
 
-    K4_ENVIRONMENT=development docker compose up postgres -d
+    set -x
+    K4_ENVIRONMENT=development docker compose --project-directory "${K4_REPO_ROOT}" up postgres -d
+    { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
 
     screen -c local_dev.screen
 }
@@ -259,7 +261,7 @@ stopDev() {
     if docker stats --no-stream > /dev/null 2>&1 ; then # if docker is running
         printf "Stopping the containers.\n"
         set -x
-        K4_ENVIRONMENT=development docker compose stop
+        K4_ENVIRONMENT=development docker compose --project-directory "${K4_REPO_ROOT}" stop
         { set +x; } 2>/dev/null # normally `set +x` is printed. this is `set +x` but doesn't get printed
 
         _printlnGreen "Containers have been stopped."
