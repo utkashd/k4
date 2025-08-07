@@ -4,7 +4,7 @@ from typing import Annotated
 
 import asyncpg
 from backend_commons import PostgresTableManager
-from backend_commons.postgres_table_manager import IdempotentMigrations
+from backend_commons.postgres_table_manager import IdempotentMigration
 from extensibles import (
     GetCompleteChatDefaultImplementation,
     plugin_manager,
@@ -77,7 +77,7 @@ class ExtensionsManager(PostgresTableManager):
         return []
 
     @property
-    def IDEMPOTENT_MIGRATIONS(self) -> list[IdempotentMigrations]:
+    def IDEMPOTENT_MIGRATIONS(self) -> list[IdempotentMigration]:
         return []
 
     async def set_connection_pool_and_run_migrations_and_start(

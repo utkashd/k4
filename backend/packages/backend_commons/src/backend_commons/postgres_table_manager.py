@@ -8,7 +8,7 @@ from k4_logger import log
 
 
 @dataclass
-class IdempotentMigrations:
+class IdempotentMigration:
     name: str
     query_or_queries: str | list[str]
 
@@ -53,7 +53,7 @@ class PostgresTableManager(ABC):
 
     @property
     @abstractmethod
-    def IDEMPOTENT_MIGRATIONS(self) -> list[IdempotentMigrations]: ...
+    def IDEMPOTENT_MIGRATIONS(self) -> list[IdempotentMigration]: ...
 
     async def _perform_migrations_if_any(self) -> None:
         """

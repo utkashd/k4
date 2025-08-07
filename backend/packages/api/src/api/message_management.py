@@ -3,7 +3,7 @@ from typing import Iterable
 
 from backend_commons import PostgresTableManager
 from backend_commons.messages import MessageInDb
-from backend_commons.postgres_table_manager import IdempotentMigrations
+from backend_commons.postgres_table_manager import IdempotentMigration
 from fastapi import HTTPException, status
 from pydantic import BaseModel, Field
 
@@ -71,7 +71,7 @@ class MessagesManager(PostgresTableManager):
         )
 
     @property
-    def IDEMPOTENT_MIGRATIONS(self) -> list[IdempotentMigrations]:
+    def IDEMPOTENT_MIGRATIONS(self) -> list[IdempotentMigration]:
         return []
 
     async def create_new_chat(self, user_id: int, title: str) -> ChatInDb:

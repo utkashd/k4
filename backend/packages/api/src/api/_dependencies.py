@@ -26,7 +26,10 @@ k4 = K4()
 async def lifespan(
     app: FastAPI,
 ) -> AsyncGenerator[None, None]:  # yields None, sends None
-    async def create_postgres_connection_pool() -> asyncpg.Pool[asyncpg.Record]:
+    async def create_postgres_connection_pool() -> (
+        "asyncpg.Pool[asyncpg.Record]"
+        # if the quotes around the type annotation are removed, starlette complains
+    ):
         postgres_host = (
             "k4-postgres" if is_running_in_docker_container() else "localhost"
         )

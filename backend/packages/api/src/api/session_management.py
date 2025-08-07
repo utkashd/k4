@@ -3,7 +3,7 @@ import uuid
 from typing import Iterable
 
 from backend_commons.postgres_table_manager import (
-    IdempotentMigrations,
+    IdempotentMigration,
     PostgresTableManager,
 )
 from fastapi import HTTPException, status
@@ -46,7 +46,7 @@ class SessionsManager(PostgresTableManager):
         ]
 
     @property
-    def IDEMPOTENT_MIGRATIONS(self) -> list[IdempotentMigrations]:
+    def IDEMPOTENT_MIGRATIONS(self) -> list[IdempotentMigration]:
         return []
 
     async def create_session(
