@@ -2,7 +2,10 @@ import datetime
 import uuid
 from typing import Iterable
 
-from backend_commons.postgres_table_manager import PostgresTableManager
+from backend_commons.postgres_table_manager import (
+    IdempotentMigration,
+    PostgresTableManager,
+)
 from fastapi import HTTPException, status
 from pydantic import BaseModel
 
@@ -41,6 +44,10 @@ class SessionsManager(PostgresTableManager):
         return [
             "CREATE INDEX IF NOT EXISTS idx_user_id ON sessions(user_id)",
         ]
+
+    @property
+    def IDEMPOTENT_MIGRATIONS(self) -> list[IdempotentMigration]:
+        return []
 
     async def create_session(
         self, user_id: int, user_agent: str, ip_address: str

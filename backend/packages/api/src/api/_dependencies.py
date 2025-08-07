@@ -1,6 +1,7 @@
 import uuid
 from asyncio import wait_for
 from contextlib import asynccontextmanager
+from typing import AsyncGenerator
 
 import asyncpg
 import bcrypt
@@ -22,8 +23,13 @@ k4 = K4()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
-    async def create_postgres_connection_pool() -> "asyncpg.Pool[asyncpg.Record]":
+async def lifespan(
+    app: FastAPI,
+) -> AsyncGenerator[None, None]:  # yields None, sends None
+    async def create_postgres_connection_pool() -> (
+        "asyncpg.Pool[asyncpg.Record]"
+        # if the quotes around the type annotation are removed, starlette complains
+    ):
         postgres_host = (
             "k4-postgres" if is_running_in_docker_container() else "localhost"
         )
@@ -44,10 +50,18 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
         # we do this because the `finally` clause will *always* be run, even if there's an
         # error somewhere during the `yield`
         postgres_connection_pool = await create_postgres_connection_pool()
-        await users_manager.set_connection_pool_and_start(postgres_connection_pool)
-        await messages_manager.set_connection_pool_and_start(postgres_connection_pool)
-        await extensions_manager.set_connection_pool_and_start(postgres_connection_pool)
-        await sessions_manager.set_connection_pool_and_start(postgres_connection_pool)
+        await users_manager.set_connection_pool_and_run_migrations_and_start(
+            postgres_connection_pool
+        )
+        await messages_manager.set_connection_pool_and_run_migrations_and_start(
+            postgres_connection_pool
+        )
+        await extensions_manager.set_connection_pool_and_run_migrations_and_start(
+            postgres_connection_pool
+        )
+        await sessions_manager.set_connection_pool_and_run_migrations_and_start(
+            postgres_connection_pool
+        )
         yield  # everything above the yield is for startup, everything after is for shutdown
     finally:
         if postgres_connection_pool:
