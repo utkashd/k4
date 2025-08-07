@@ -4,6 +4,7 @@ from typing import Annotated
 
 import asyncpg
 from backend_commons import PostgresTableManager
+from backend_commons.postgres_table_manager import IdempotentMigrations
 from extensibles import (
     GetCompleteChatDefaultImplementation,
     plugin_manager,
@@ -75,10 +76,14 @@ class ExtensionsManager(PostgresTableManager):
     def create_indexes_queries(self) -> list[str]:
         return []
 
-    async def set_connection_pool_and_start(
+    @property
+    def IDEMPOTENT_MIGRATIONS(self) -> list[IdempotentMigrations]:
+        return []
+
+    async def set_connection_pool_and_run_migrations_and_start(
         self, connection_pool: "asyncpg.Pool[asyncpg.Record]"
     ) -> None:
-        await super().set_connection_pool_and_start(connection_pool)
+        await super().set_connection_pool_and_run_migrations_and_start(connection_pool)
         plugin_manager.register(
             GetCompleteChatDefaultImplementation(), name="get_complete_chat_for_llm"
         )

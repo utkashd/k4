@@ -1,9 +1,16 @@
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from typing import Any, AsyncGenerator, Iterable
 
 import asyncpg
 from k4_logger import log
+
+
+@dataclass
+class IdempotentMigrations:
+    name: str
+    query_or_queries: str | list[str]
 
 
 class PostgresTableManager(ABC):
@@ -44,10 +51,48 @@ class PostgresTableManager(ABC):
             "Connection pool was not provided. You must call `set_connection_pool_and_start` after instatiating."
         )
 
-    async def set_connection_pool_and_start(
+    @property
+    @abstractmethod
+    def IDEMPOTENT_MIGRATIONS(self) -> list[IdempotentMigrations]: ...
+
+    async def _perform_migrations_if_any(self) -> None:
+        """
+        Here we run any version-to-version migrations that need to take place.
+
+        "Why don't you just use SqlAlchemy + Alembic?"
+
+        I think it's easy to forget the advantages of using raw SQL as strings:
+            - transparency: we know *exactly* what queries are being run in Postgres
+            - trading risks: raw SQL strings feel risky, but abstracted queries carry other
+            risks. And if something goes wrong, it's going to be tougher to fix issues
+            originating from bad SqlAlchemy vs. bad raw queries
+            - inertia: I'll never be able to completely forget about SQL. Might as well stay
+            sharp and embrace the low-level
+
+        All that, plus raw SQL is lightweight. ORMs are heavy and the featureset can be
+        overwhelming and thus confusing. With raw SQL, everything is deliberate, and I'm
+        forced to understand what I'm doing
+        """
+
+        log.info(f"Running {len(self.IDEMPOTENT_MIGRATIONS)} migrations")
+
+        async with self.get_transaction_connection() as connection:
+            for idempotent_migration in self.IDEMPOTENT_MIGRATIONS:
+                log.info(f"Starting migration {idempotent_migration.name}")
+                if isinstance(idempotent_migration.query_or_queries, str):
+                    await connection.execute(idempotent_migration.query_or_queries)
+                else:
+                    for idempotent_query in idempotent_migration.query_or_queries:
+                        await connection.execute(idempotent_query)
+                log.info(f"Completed migration {idempotent_migration.name}")
+
+        log.info(f"Finished running {len(self.IDEMPOTENT_MIGRATIONS)} migrations")
+
+    async def set_connection_pool_and_run_migrations_and_start(
         self, connection_pool: "asyncpg.Pool[asyncpg.Record]"
     ) -> None:
         self.postgres_connection_pool = connection_pool
+        await self._perform_migrations_if_any()
         await self._ensure_table_is_created_in_db()
 
     async def _ensure_table_is_created_in_db(self) -> None:

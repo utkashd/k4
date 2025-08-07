@@ -3,6 +3,7 @@ from typing import Iterable
 
 from backend_commons import PostgresTableManager
 from backend_commons.messages import MessageInDb
+from backend_commons.postgres_table_manager import IdempotentMigrations
 from fastapi import HTTPException, status
 from pydantic import BaseModel, Field
 
@@ -68,6 +69,10 @@ class MessagesManager(PostgresTableManager):
             "CREATE INDEX IF NOT EXISTS idx_user_id ON chats(user_id)",
             "CREATE INDEX IF NOT EXISTS idx_chat_id ON messages(chat_id)",
         )
+
+    @property
+    def IDEMPOTENT_MIGRATIONS(self) -> list[IdempotentMigrations]:
+        return []
 
     async def create_new_chat(self, user_id: int, title: str) -> ChatInDb:
         if len(title) > 32:

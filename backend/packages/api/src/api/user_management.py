@@ -1,5 +1,6 @@
 import asyncpg  # type: ignore[import-untyped,unused-ignore]
 from backend_commons import PostgresTableManager
+from backend_commons.postgres_table_manager import IdempotentMigrations
 from fastapi import HTTPException, status
 from pydantic import BaseModel, EmailStr, Field, SecretStr
 
@@ -80,6 +81,10 @@ class UsersManager(PostgresTableManager):
     @property
     def create_indexes_queries(self) -> tuple[str]:
         return ("CREATE INDEX IF NOT EXISTS idx_user_email ON users(user_email)",)
+
+    @property
+    def IDEMPOTENT_MIGRATIONS(self) -> list[IdempotentMigrations]:
+        return []
 
     async def does_at_least_one_active_admin_user_exist(self) -> bool:
         if self._does_at_least_one_active_admin_user_exist:
