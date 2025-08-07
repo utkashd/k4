@@ -72,7 +72,15 @@ class MessagesManager(PostgresTableManager):
 
     @property
     def IDEMPOTENT_MIGRATIONS(self) -> list[IdempotentMigration]:
-        return []
+        return [
+            IdempotentMigration(
+                name="Drop old indexes (or is it indicies? indi-seize deez nuts)",
+                query_or_queries=[
+                    "DROP INDEX IF EXISTS idx_user_id",
+                    "DROP INDEX IF EXISTS idx_chat_id",
+                ],
+            )
+        ]
 
     async def create_new_chat(self, user_id: int, title: str) -> ChatInDb:
         if len(title) > 32:
