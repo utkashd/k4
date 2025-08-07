@@ -66,8 +66,8 @@ class MessagesManager(PostgresTableManager):
     @property
     def create_indexes_queries(self) -> Iterable[str]:
         return (
-            "CREATE INDEX IF NOT EXISTS idx_chats_user_timestamp ON chats (user_id, last_message_timestamp DESC)"
-            "CREATE INDEX IF NOT EXISTS idx_messages_chat_timestamp ON messages (chat_id, inserted_at DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_chats_user_timestamp ON chats(user_id, last_message_timestamp DESC)"
+            "CREATE INDEX IF NOT EXISTS idx_messages_chat_timestamp ON messages(chat_id, inserted_at DESC)",
         )
 
     @property
