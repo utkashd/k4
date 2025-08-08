@@ -66,13 +66,21 @@ class MessagesManager(PostgresTableManager):
     @property
     def create_indexes_queries(self) -> Iterable[str]:
         return (
-            "CREATE INDEX IF NOT EXISTS idx_user_id ON chats(user_id)",
-            "CREATE INDEX IF NOT EXISTS idx_chat_id ON messages(chat_id)",
+            "CREATE INDEX IF NOT EXISTS idx_chats_user_timestamp ON chats(user_id, last_message_timestamp DESC)"
+            "CREATE INDEX IF NOT EXISTS idx_messages_chat_timestamp ON messages(chat_id, inserted_at DESC)",
         )
 
     @property
     def IDEMPOTENT_MIGRATIONS(self) -> list[IdempotentMigration]:
-        return []
+        return [
+            IdempotentMigration(
+                name="Drop old indexes (or is it indicies? indi-seize deez nuts)",
+                query_or_queries=[
+                    "DROP INDEX IF EXISTS idx_user_id",
+                    "DROP INDEX IF EXISTS idx_chat_id",
+                ],
+            )
+        ]
 
     async def create_new_chat(self, user_id: int, title: str) -> ChatInDb:
         if len(title) > 32:
