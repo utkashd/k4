@@ -3,7 +3,9 @@ from typing import AsyncGenerator, Literal, NamedTuple, NotRequired, TypedDict
 
 import litellm
 from k4.llm_provider_management import K4LlmProvider, LlmProviderManager
-from litellm.types.utils import ModelResponseStream
+from litellm.types.utils import (
+    ModelResponseStream,  # pyright: ignore[reportMissingTypeStubs]
+)
 
 
 class ChatMessage(TypedDict):
@@ -28,7 +30,7 @@ def get_max_tokens_cached(model: str) -> int | None:
 @lru_cache(maxsize=20)
 def get_llm_provider_by_model_name(model: str) -> K4LlmProvider:
     for llm_provider in K4LlmProvider:
-        models_of_provider = litellm.models_by_provider.get(llm_provider.value)
+        models_of_provider = litellm.models_by_provider.get(llm_provider.value)  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
         assert isinstance(models_of_provider, list)
         if model in models_of_provider:
             return llm_provider
@@ -68,7 +70,7 @@ class K4:
         if self.llm_provider_manager.is_provider_configured(K4LlmProvider.OPENAI):
             flagged_values = (
                 result.flagged
-                for result in litellm.moderation(
+                for result in litellm.moderation(  # pyright: ignore[reportUnknownMemberType]
                     input=complete_chat[-1]["content"], model="omni-moderation-latest"
                 ).results
             )
@@ -117,7 +119,7 @@ class K4:
                 )
             return extra_args_for_ollama_or_huggingface
 
-        async_generator_completion = await litellm.acompletion(
+        async_generator_completion = await litellm.acompletion(  # pyright: ignore[reportUnknownMemberType]
             model=model,
             messages=messages,
             stream=True,
@@ -129,7 +131,7 @@ class K4:
                 raise Exception("Unexpected response type", chunk)
             if len(chunk.choices) != 1:
                 raise Exception("Unexpected number of choices in the chunk", chunk)
-            if not isinstance(chunk.choices[0].delta.content, str | None):
+            if not isinstance(chunk.choices[0].delta.content, str | None):  # pyright: ignore[reportUnknownMemberType]
                 raise Exception("Unexpected content type", chunk)
             yield chunk.choices[0].delta.content
 
